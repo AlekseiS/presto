@@ -204,7 +204,7 @@ public class QueryResults
                 .toString();
     }
 
-    private static Iterable<List<Object>> fixData(List<Column> columns, List<List<Object>> data)
+    static Iterable<List<Object>> fixData(List<Column> columns, List<List<Object>> data)
     {
         if (data == null) {
             return null;

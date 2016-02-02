@@ -562,7 +562,7 @@ public class StatementResource
             return uriInfo.getBaseUriBuilder().replacePath("/v1/statement").path(queryId.toString()).path(String.valueOf(resultId.incrementAndGet())).replaceQuery("").build();
         }
 
-        private static List<Column> createColumnsList(QueryInfo queryInfo)
+        static List<Column> createColumnsList(QueryInfo queryInfo)
         {
             StageInfo outputStage = queryInfo.getOutputStage()
                     .orElseThrow(() -> new IllegalArgumentException("outputStage not present"));
@@ -582,7 +582,7 @@ public class StatementResource
             return list.build();
         }
 
-        private static StatementStats toStatementStats(QueryInfo queryInfo)
+        static StatementStats toStatementStats(QueryInfo queryInfo)
         {
             QueryStats queryStats = queryInfo.getQueryStats();
             StageInfo outputStage = queryInfo.getOutputStage().orElse(null);
@@ -661,7 +661,7 @@ public class StatementResource
             return nodes.build();
         }
 
-        private static URI findCancelableLeafStage(QueryInfo queryInfo)
+        static URI findCancelableLeafStage(QueryInfo queryInfo)
         {
             // if query is running, find the leaf-most running stage
             return queryInfo.getOutputStage().map(Query::findCancelableLeafStage).orElse(null);
@@ -687,7 +687,7 @@ public class StatementResource
             return stage.getSelf();
         }
 
-        private static QueryError toQueryError(QueryInfo queryInfo)
+        static QueryError toQueryError(QueryInfo queryInfo)
         {
             FailureInfo failure = queryInfo.getFailureInfo();
             if (failure == null) {
