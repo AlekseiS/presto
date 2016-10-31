@@ -67,6 +67,7 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_MAX_WAIT;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_NEXT_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_TASK_INSTANCE_ID;
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.transform;
 import static io.airlift.concurrent.MoreFutures.addTimeout;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
@@ -119,6 +120,7 @@ public class TaskResource
     @Produces(MediaType.APPLICATION_JSON)
     public Response createOrUpdateTask(@PathParam("taskId") TaskId taskId, TaskUpdateRequest taskUpdateRequest, @Context UriInfo uriInfo)
     {
+        System.err.println("Create or update task: " + taskId);
         requireNonNull(taskUpdateRequest, "taskUpdateRequest is null");
 
         Session session = taskUpdateRequest.getSession().toSession(sessionPropertyManager);
@@ -227,6 +229,7 @@ public class TaskResource
             @Suspended AsyncResponse asyncResponse)
             throws InterruptedException
     {
+//        System.err.println("Get task results: " + taskId);
         requireNonNull(taskId, "taskId is null");
         requireNonNull(bufferId, "bufferId is null");
 
@@ -274,6 +277,23 @@ public class TaskResource
 
         responseFuture.whenComplete((response, exception) -> readFromOutputBufferTime.add(Duration.nanosSince(start)));
         asyncResponse.register((CompletionCallback) throwable -> resultsRequestTime.add(Duration.nanosSince(start)));
+    }
+
+    @GET
+    @Path("{taskId}/clientresults/{bufferId}/{token}")
+    @Produces(PRESTO_PAGES)
+    public void getClientResults(@PathParam("taskId") TaskId taskId,
+                                 @PathParam("bufferId") OutputBufferId bufferId,
+                                 @PathParam("token") final long token,
+                                 @HeaderParam(PRESTO_MAX_SIZE) DataSize maxSize,
+                                 @Suspended AsyncResponse asyncResponse)
+            throws InterruptedException {
+        requireNonNull(taskId, "taskId is null");
+        requireNonNull(bufferId, "bufferId is null");
+
+        checkState(taskManager.isClientFacing(taskId));
+        long start = System.nanoTime();
+
     }
 
     @DELETE

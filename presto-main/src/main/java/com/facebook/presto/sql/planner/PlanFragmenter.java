@@ -126,8 +126,9 @@ public class PlanFragmenter
         @Override
         public PlanNode visitOutput(OutputNode node, RewriteContext<FragmentProperties> context)
         {
-            context.get().setSingleNodeDistribution(); // TODO: add support for distributed output
-
+            if (!node.isClientFacing()) {
+                context.get().setSingleNodeDistribution();
+            }
             return context.defaultRewrite(node, context.get());
         }
 

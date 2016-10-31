@@ -26,6 +26,8 @@ import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.operator.TaskContext;
 import com.facebook.presto.operator.TaskStats;
 import com.facebook.presto.sql.planner.PlanFragment;
+import com.facebook.presto.sql.planner.plan.OutputNode;
+import com.facebook.presto.sql.planner.plan.PlanNode;
 import com.facebook.presto.sql.planner.plan.PlanNodeId;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
@@ -38,10 +40,7 @@ import org.joda.time.DateTime;
 import javax.annotation.Nullable;
 
 import java.net.URI;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-import java.util.UUID;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -72,6 +71,7 @@ public class SqlTask
 
     private final AtomicReference<TaskHolder> taskHolderReference = new AtomicReference<>(new TaskHolder());
     private final AtomicBoolean needsPlan = new AtomicBoolean(true);
+    private final AtomicReference<Optional<Boolean>> clientFacing = new AtomicReference<>(Optional.empty());
 
     public SqlTask(
             TaskId taskId,
@@ -139,6 +139,13 @@ public class SqlTask
                 }
             }
         });
+    }
+
+    public boolean isClientFacing()
+    {
+        Optional<Boolean> clientFacingOpt = clientFacing.get();
+        checkState(clientFacingOpt.isPresent());
+        return clientFacingOpt.get();
     }
 
     private static final class UpdateSystemMemory
@@ -315,6 +322,9 @@ public class SqlTask
                     taskExecution = sqlTaskExecutionFactory.create(session, queryContext, taskStateMachine, outputBuffer, fragment.get(), sources);
                     taskHolderReference.compareAndSet(taskHolder, new TaskHolder(taskExecution));
                     needsPlan.set(false);
+                    PlanNode root = fragment.get().getRoot();
+                    clientFacing.set(Optional.of(root instanceof OutputNode && ((OutputNode) root).isClientFacing()));
+                    System.out.println("Root: " + taskId + " " + fragment.get().getRoot().getClass() + ", client facing=" + clientFacing);
                 }
             }
 

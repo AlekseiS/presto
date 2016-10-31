@@ -33,16 +33,20 @@ public class TaskOutputOperator
             implements OutputFactory
     {
         private final OutputBuffer outputBuffer;
+        private final boolean clientFacing;
 
-        public TaskOutputFactory(OutputBuffer outputBuffer)
+        public TaskOutputFactory(OutputBuffer outputBuffer, boolean clientFacing)
         {
+            System.err.println("TaskOutputFactory created: " + outputBuffer + ", client facing=" + clientFacing);
             this.outputBuffer = requireNonNull(outputBuffer, "outputBuffer is null");
+            this.clientFacing = clientFacing;
         }
 
         @Override
         public OperatorFactory createOutputOperator(int operatorId, PlanNodeId planNodeId, List<Type> types, Function<Page, Page> pagePreprocessor)
         {
-            return new TaskOutputOperatorFactory(operatorId, planNodeId, outputBuffer, pagePreprocessor);
+            System.err.println("TaskOutputOperator created: " + operatorId + " " + planNodeId);
+            return new TaskOutputOperatorFactory(operatorId, planNodeId, outputBuffer, pagePreprocessor, clientFacing);
         }
     }
 
@@ -53,13 +57,15 @@ public class TaskOutputOperator
         private final PlanNodeId planNodeId;
         private final OutputBuffer outputBuffer;
         private final Function<Page, Page> pagePreprocessor;
+        private final boolean clientFacing;
 
-        public TaskOutputOperatorFactory(int operatorId, PlanNodeId planNodeId, OutputBuffer outputBuffer, Function<Page, Page> pagePreprocessor)
+        public TaskOutputOperatorFactory(int operatorId, PlanNodeId planNodeId, OutputBuffer outputBuffer, Function<Page, Page> pagePreprocessor, boolean clientFacing)
         {
             this.operatorId = operatorId;
             this.planNodeId = requireNonNull(planNodeId, "planNodeId is null");
             this.outputBuffer = requireNonNull(outputBuffer, "outputBuffer is null");
             this.pagePreprocessor = requireNonNull(pagePreprocessor, "pagePreprocessor is null");
+            this.clientFacing = clientFacing;
         }
 
         @Override
@@ -72,7 +78,7 @@ public class TaskOutputOperator
         public Operator createOperator(DriverContext driverContext)
         {
             OperatorContext operatorContext = driverContext.addOperatorContext(operatorId, planNodeId, TaskOutputOperator.class.getSimpleName());
-            return new TaskOutputOperator(operatorContext, outputBuffer, pagePreprocessor);
+            return new TaskOutputOperator(operatorContext, outputBuffer, pagePreprocessor, clientFacing);
         }
 
         @Override
@@ -83,7 +89,7 @@ public class TaskOutputOperator
         @Override
         public OperatorFactory duplicate()
         {
-            return new TaskOutputOperatorFactory(operatorId, planNodeId, outputBuffer, pagePreprocessor);
+            return new TaskOutputOperatorFactory(operatorId, planNodeId, outputBuffer, pagePreprocessor, clientFacing);
         }
     }
 
@@ -92,12 +98,14 @@ public class TaskOutputOperator
     private final Function<Page, Page> pagePreprocessor;
     private ListenableFuture<?> blocked = NOT_BLOCKED;
     private boolean finished;
+    private final boolean clientFacing;
 
-    public TaskOutputOperator(OperatorContext operatorContext, OutputBuffer outputBuffer, Function<Page, Page> pagePreprocessor)
+    public TaskOutputOperator(OperatorContext operatorContext, OutputBuffer outputBuffer, Function<Page, Page> pagePreprocessor, boolean clientFacing)
     {
         this.operatorContext = requireNonNull(operatorContext, "operatorContext is null");
         this.outputBuffer = requireNonNull(outputBuffer, "outputBuffer is null");
         this.pagePreprocessor = requireNonNull(pagePreprocessor, "pagePreprocessor is null");
+        this.clientFacing = clientFacing;
     }
 
     @Override
@@ -168,5 +176,10 @@ public class TaskOutputOperator
     public Page getOutput()
     {
         return null;
+    }
+
+    public boolean isClientFacing()
+    {
+        return clientFacing;
     }
 }

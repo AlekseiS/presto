@@ -243,10 +243,31 @@ public class AddExchanges
         {
             PlanWithProperties child = planChild(node, context.withPreferredProperties(PreferredProperties.any()));
 
+            //TODO: assumes there's only 1 output node which is the root node
+
             if (!child.getProperties().isSingleNode()) {
+                //TODO: if need to write directly to client
+
+                child = withDerivedProperties(
+                        partitionedExchange(
+                                idAllocator.getNextId(),
+                                REMOTE,
+                                child.getNode(),
+                                new PartitioningScheme(Partitioning.create(FIXED_RANDOM_DISTRIBUTION, ImmutableList.of()), child.getNode().getOutputSymbols())),
+                        child.getProperties()
+                );
+
+                child = withDerivedProperties(
+                        new OutputNode(idAllocator.getNextId(), child.getNode(), node.getColumnNames(), node.getOutputSymbols(), true),
+                        child.getProperties()
+                );
+
                 child = withDerivedProperties(
                         gatheringExchange(idAllocator.getNextId(), REMOTE, child.getNode()),
                         child.getProperties());
+            }
+            else {
+                System.err.println("Only 1 output node!!! Cannot add client facing output");
             }
 
             return rebaseAndDeriveProperties(node, child);

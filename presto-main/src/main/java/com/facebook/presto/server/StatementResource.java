@@ -115,8 +115,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Path("/v1/statement")
-public class StatementResource
-{
+public class StatementResource {
     private static final Logger log = Logger.get(StatementResource.class);
 
     private static final Duration MAX_WAIT_TIME = new Duration(1, SECONDS);
@@ -140,8 +139,7 @@ public class StatementResource
             AccessControl accessControl,
             SessionPropertyManager sessionPropertyManager,
             ExchangeClientSupplier exchangeClientSupplier,
-            QueryIdGenerator queryIdGenerator)
-    {
+            QueryIdGenerator queryIdGenerator) {
         this.queryManager = requireNonNull(queryManager, "queryManager is null");
         this.transactionManager = requireNonNull(transactionManager, "transactionManager is null");
         this.accessControl = requireNonNull(accessControl, "accessControl is null");
@@ -153,8 +151,7 @@ public class StatementResource
     }
 
     @PreDestroy
-    public void stop()
-    {
+    public void stop() {
         queryPurger.shutdownNow();
     }
 
@@ -164,13 +161,13 @@ public class StatementResource
             String statement,
             @Context HttpServletRequest servletRequest,
             @Context UriInfo uriInfo)
-            throws InterruptedException
-    {
+            throws InterruptedException {
         assertRequest(!isNullOrEmpty(statement), "SQL statement is empty");
 
         Session session = createSessionForRequest(servletRequest, transactionManager, accessControl, sessionPropertyManager, queryIdGenerator.createNextQueryId());
 
-        ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> { });
+        ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
+        });
         Query query = new Query(session, statement, queryManager, exchangeClient);
         queries.put(query.getQueryId(), query);
 
@@ -185,8 +182,7 @@ public class StatementResource
             @PathParam("token") long token,
             @QueryParam("maxWait") Duration maxWait,
             @Context UriInfo uriInfo)
-            throws InterruptedException
-    {
+            throws InterruptedException {
         Query query = queries.get(queryId);
         if (query == null) {
             return Response.status(Status.NOT_FOUND).build();
@@ -197,13 +193,11 @@ public class StatementResource
     }
 
     private static Response getQueryResults(Query query, Optional<Long> token, UriInfo uriInfo, Duration wait)
-            throws InterruptedException
-    {
+            throws InterruptedException {
         QueryResults queryResults;
         if (token.isPresent()) {
             queryResults = query.getResults(token.get(), uriInfo, wait);
-        }
-        else {
+        } else {
             queryResults = query.getNextResults(uriInfo, wait);
         }
 
@@ -245,8 +239,7 @@ public class StatementResource
     @Path("{queryId}/{token}")
     @Produces(MediaType.APPLICATION_JSON)
     public Response cancelQuery(@PathParam("queryId") QueryId queryId,
-            @PathParam("token") long token)
-    {
+                                @PathParam("token") long token) {
         Query query = queries.get(queryId);
         if (query == null) {
             return Response.status(Status.NOT_FOUND).build();
@@ -256,8 +249,7 @@ public class StatementResource
     }
 
     @ThreadSafe
-    public static class Query
-    {
+    public static class Query {
         private final QueryManager queryManager;
         private final QueryId queryId;
         private final ExchangeClient exchangeClient;
@@ -296,10 +288,9 @@ public class StatementResource
         private Long updateCount;
 
         public Query(Session session,
-                String query,
-                QueryManager queryManager,
-                ExchangeClient exchangeClient)
-        {
+                     String query,
+                     QueryManager queryManager,
+                     ExchangeClient exchangeClient) {
             requireNonNull(session, "session is null");
             requireNonNull(query, "query is null");
             requireNonNull(queryManager, "queryManager is null");
@@ -313,55 +304,45 @@ public class StatementResource
             this.exchangeClient = exchangeClient;
         }
 
-        public void cancel()
-        {
+        public void cancel() {
             queryManager.cancelQuery(queryId);
             dispose();
         }
 
-        public void dispose()
-        {
+        public void dispose() {
             exchangeClient.close();
         }
 
-        public QueryId getQueryId()
-        {
+        public QueryId getQueryId() {
             return queryId;
         }
 
-        public synchronized Map<String, String> getSetSessionProperties()
-        {
+        public synchronized Map<String, String> getSetSessionProperties() {
             return setSessionProperties;
         }
 
-        public synchronized Set<String> getResetSessionProperties()
-        {
+        public synchronized Set<String> getResetSessionProperties() {
             return resetSessionProperties;
         }
 
-        public synchronized Map<String, String> getAddedPreparedStatements()
-        {
+        public synchronized Map<String, String> getAddedPreparedStatements() {
             return addedPreparedStatements;
         }
 
-        public synchronized Set<String> getDeallocatedPreparedStatements()
-        {
+        public synchronized Set<String> getDeallocatedPreparedStatements() {
             return deallocatedPreparedStatements;
         }
 
-        public synchronized Optional<TransactionId> getStartedTransactionId()
-        {
+        public synchronized Optional<TransactionId> getStartedTransactionId() {
             return startedTransactionId;
         }
 
-        public synchronized boolean isClearTransactionId()
-        {
+        public synchronized boolean isClearTransactionId() {
             return clearTransactionId;
         }
 
         public synchronized QueryResults getResults(long token, UriInfo uriInfo, Duration maxWaitTime)
-                throws InterruptedException
-        {
+                throws InterruptedException {
             // is the a repeated request for the last results?
             String requestedPath = uriInfo.getAbsolutePath().getPath();
             if (lastResultPath != null && requestedPath.equals(lastResultPath)) {
@@ -385,8 +366,7 @@ public class StatementResource
         }
 
         public synchronized QueryResults getNextResults(UriInfo uriInfo, Duration maxWaitTime)
-                throws InterruptedException
-        {
+                throws InterruptedException {
             Iterable<List<Object>> data = getData(maxWaitTime);
 
             // get the query info before returning
@@ -417,8 +397,7 @@ public class StatementResource
             if (queryInfo.getState().isDone()) {
                 if (queryInfo.getState() != QueryState.FINISHED) {
                     exchangeClient.close();
-                }
-                else if (!queryInfo.getOutputStage().isPresent()) {
+                } else if (!queryInfo.getOutputStage().isPresent()) {
                     // For simple executions (e.g. drop table), there will never be an output stage,
                     // so close the exchange as soon as the query is done.
                     exchangeClient.close();
@@ -463,8 +442,7 @@ public class StatementResource
             // cache the last results
             if (lastResult != null && lastResult.getNextUri() != null) {
                 lastResultPath = lastResult.getNextUri().getPath();
-            }
-            else {
+            } else {
                 lastResultPath = null;
             }
             lastResult = queryResults;
@@ -472,8 +450,7 @@ public class StatementResource
         }
 
         private synchronized Iterable<List<Object>> getData(Duration maxWait)
-                throws InterruptedException
-        {
+                throws InterruptedException {
             // wait for query to start
             QueryInfo queryInfo = queryManager.getQueryInfo(queryId);
             while (maxWait.toMillis() > 1 && !isQueryStarted(queryInfo)) {
@@ -495,6 +472,9 @@ public class StatementResource
             List<Type> types = outputStage.getTypes();
 
             updateExchangeClient(outputStage);
+//            for (TaskInfo task : outputStage.getSubStages().get(0).getSubStages().get(0).getTasks()) {
+//                System.err.println(task.getTaskStatus().getSelf());
+//            }
 
             ImmutableList.Builder<RowIterable> pages = ImmutableList.builder();
             // wait up to max wait for data to arrive; then try to return at least DESIRED_RESULT_BYTES
@@ -518,14 +498,12 @@ public class StatementResource
             return Iterables.concat(pages.build());
         }
 
-        private static boolean isQueryStarted(QueryInfo queryInfo)
-        {
+        private static boolean isQueryStarted(QueryInfo queryInfo) {
             QueryState state = queryInfo.getState();
             return state != QueryState.QUEUED && queryInfo.getState() != QueryState.PLANNING && queryInfo.getState() != QueryState.STARTING;
         }
 
-        private synchronized void updateExchangeClient(StageInfo outputStage)
-        {
+        private synchronized void updateExchangeClient(StageInfo outputStage) {
             // add any additional output locations
             if (!outputStage.getState().isDone()) {
                 for (TaskInfo taskInfo : outputStage.getTasks()) {
@@ -542,6 +520,7 @@ public class StatementResource
 
                     OutputBufferId bufferId = Iterables.getOnlyElement(buffers).getBufferId();
                     URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("results").appendPath(bufferId.toString()).build();
+                    System.out.println("Result URL: " + uri);
                     exchangeClient.addLocation(uri);
                 }
             }
@@ -551,8 +530,7 @@ public class StatementResource
             }
         }
 
-        private static boolean allOutputBuffersCreated(StageInfo outputStage)
-        {
+        private static boolean allOutputBuffersCreated(StageInfo outputStage) {
             StageState stageState = outputStage.getState();
 
             // if the stage is already done, then there will be no more buffers
@@ -570,13 +548,11 @@ public class StatementResource
                     .allMatch(taskInfo -> !taskInfo.getOutputBuffers().getState().canAddBuffers());
         }
 
-        private synchronized URI createNextResultsUri(UriInfo uriInfo)
-        {
+        private synchronized URI createNextResultsUri(UriInfo uriInfo) {
             return uriInfo.getBaseUriBuilder().replacePath("/v1/statement").path(queryId.toString()).path(String.valueOf(resultId.incrementAndGet())).replaceQuery("").build();
         }
 
-        private static List<Column> createColumnsList(QueryInfo queryInfo)
-        {
+        private static List<Column> createColumnsList(QueryInfo queryInfo) {
             StageInfo outputStage = queryInfo.getOutputStage()
                     .orElseThrow(() -> new IllegalArgumentException("outputStage not present"));
 
@@ -595,8 +571,7 @@ public class StatementResource
             return list.build();
         }
 
-        private static StatementStats toStatementStats(QueryInfo queryInfo)
-        {
+        private static StatementStats toStatementStats(QueryInfo queryInfo) {
             QueryStats queryStats = queryInfo.getQueryStats();
             StageInfo outputStage = queryInfo.getOutputStage().orElse(null);
 
@@ -618,8 +593,7 @@ public class StatementResource
                     .build();
         }
 
-        private static StageStats toStageStats(StageInfo stageInfo)
-        {
+        private static StageStats toStageStats(StageInfo stageInfo) {
             if (stageInfo == null) {
                 return null;
             }
@@ -656,8 +630,7 @@ public class StatementResource
                     .build();
         }
 
-        private static Set<String> globalUniqueNodes(StageInfo stageInfo)
-        {
+        private static Set<String> globalUniqueNodes(StageInfo stageInfo) {
             if (stageInfo == null) {
                 return ImmutableSet.of();
             }
@@ -674,14 +647,12 @@ public class StatementResource
             return nodes.build();
         }
 
-        private static URI findCancelableLeafStage(QueryInfo queryInfo)
-        {
+        private static URI findCancelableLeafStage(QueryInfo queryInfo) {
             // if query is running, find the leaf-most running stage
             return queryInfo.getOutputStage().map(Query::findCancelableLeafStage).orElse(null);
         }
 
-        private static URI findCancelableLeafStage(StageInfo stage)
-        {
+        private static URI findCancelableLeafStage(StageInfo stage) {
             // if this stage is already done, we can't cancel it
             if (stage.getState().isDone()) {
                 return null;
@@ -700,8 +671,7 @@ public class StatementResource
             return stage.getSelf();
         }
 
-        private static QueryError toQueryError(QueryInfo queryInfo)
-        {
+        private static QueryError toQueryError(QueryInfo queryInfo) {
             FailureInfo failure = queryInfo.getFailureInfo();
             if (failure == null) {
                 QueryState state = queryInfo.getState();
@@ -715,8 +685,7 @@ public class StatementResource
             ErrorCode errorCode;
             if (queryInfo.getErrorCode() != null) {
                 errorCode = queryInfo.getErrorCode();
-            }
-            else {
+            } else {
                 errorCode = GENERIC_INTERNAL_ERROR.toErrorCode();
                 log.warn("Failed query %s has no error code", queryInfo.getQueryId());
             }
@@ -731,44 +700,38 @@ public class StatementResource
         }
 
         private static class RowIterable
-                implements Iterable<List<Object>>
-        {
+                implements Iterable<List<Object>> {
             private final ConnectorSession session;
             private final List<Type> types;
             private final Page page;
 
-            private RowIterable(ConnectorSession session, List<Type> types, Page page)
-            {
+            private RowIterable(ConnectorSession session, List<Type> types, Page page) {
                 this.session = session;
                 this.types = ImmutableList.copyOf(requireNonNull(types, "types is null"));
                 this.page = requireNonNull(page, "page is null");
             }
 
             @Override
-            public Iterator<List<Object>> iterator()
-            {
+            public Iterator<List<Object>> iterator() {
                 return new RowIterator(session, types, page);
             }
         }
 
         private static class RowIterator
-                extends AbstractIterator<List<Object>>
-        {
+                extends AbstractIterator<List<Object>> {
             private final ConnectorSession session;
             private final List<Type> types;
             private final Page page;
             private int position = -1;
 
-            private RowIterator(ConnectorSession session, List<Type> types, Page page)
-            {
+            private RowIterator(ConnectorSession session, List<Type> types, Page page) {
                 this.session = session;
                 this.types = types;
                 this.page = page;
             }
 
             @Override
-            protected List<Object> computeNext()
-            {
+            protected List<Object> computeNext() {
                 position++;
                 if (position >= page.getPositionCount()) {
                     return endOfData();
@@ -786,20 +749,17 @@ public class StatementResource
     }
 
     private static class PurgeQueriesRunnable
-            implements Runnable
-    {
+            implements Runnable {
         private final ConcurrentMap<QueryId, Query> queries;
         private final QueryManager queryManager;
 
-        public PurgeQueriesRunnable(ConcurrentMap<QueryId, Query> queries, QueryManager queryManager)
-        {
+        public PurgeQueriesRunnable(ConcurrentMap<QueryId, Query> queries, QueryManager queryManager) {
             this.queries = queries;
             this.queryManager = queryManager;
         }
 
         @Override
-        public void run()
-        {
+        public void run() {
             try {
                 // Queries are added to the query manager before being recorded in queryIds set.
                 // Therefore, we take a snapshot if queryIds before getting the live queries
@@ -820,8 +780,7 @@ public class StatementResource
                         queries.remove(queryId);
                     }
                 }
-            }
-            catch (Throwable e) {
+            } catch (Throwable e) {
                 log.warn(e, "Error removing old queries");
             }
         }

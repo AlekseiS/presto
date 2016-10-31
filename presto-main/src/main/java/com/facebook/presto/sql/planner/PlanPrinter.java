@@ -714,7 +714,13 @@ public class PlanPrinter
         @Override
         public Void visitOutput(OutputNode node, Integer indent)
         {
-            print(indent, "- Output[%s] => [%s]", Joiner.on(", ").join(node.getColumnNames()), formatOutputs(node.getOutputSymbols()));
+            String clientFacing;
+            if (node.isClientFacing()) {
+                clientFacing = ", client facing";
+            } else {
+                clientFacing = "";
+            }
+            print(indent, "- Output[%s] => [%s]%s", Joiner.on(", ").join(node.getColumnNames()), formatOutputs(node.getOutputSymbols()), clientFacing);
             printStats(indent + 2, node.getId());
             for (int i = 0; i < node.getColumnNames().size(); i++) {
                 String name = node.getColumnNames().get(i);

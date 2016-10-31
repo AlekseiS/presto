@@ -426,4 +426,9 @@ public class SqlTaskManager
         requireNonNull(taskId, "taskId is null");
         tasks.getUnchecked(taskId).addStateChangeListener(stateChangeListener);
     }
+
+    @Override
+    public boolean isClientFacing(TaskId taskId) {
+        return tasks.getUnchecked(taskId).isClientFacing();
+    }
 }

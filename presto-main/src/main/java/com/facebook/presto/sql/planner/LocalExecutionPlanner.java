@@ -287,7 +287,9 @@ public class LocalExecutionPlanner
         if (partitioningScheme.getPartitioning().getHandle().equals(FIXED_BROADCAST_DISTRIBUTION) ||
                 partitioningScheme.getPartitioning().getHandle().equals(SINGLE_DISTRIBUTION) ||
                 partitioningScheme.getPartitioning().getHandle().equals(COORDINATOR_DISTRIBUTION)) {
-            return plan(session, plan, outputLayout, types, new TaskOutputFactory(outputBuffer));
+            boolean clientFacing = plan instanceof OutputNode && ((OutputNode) plan).isClientFacing();
+            System.err.println("LocalExecutionPlan shortcut: " + plan.getClass() + ", clientFacing=" + clientFacing);
+            return plan(session, plan, outputLayout, types, new TaskOutputFactory(outputBuffer, clientFacing));
         }
 
         // We can convert the symbols directly into channels, because the root must be a sink and therefore the layout is fixed
@@ -346,6 +348,7 @@ public class LocalExecutionPlanner
             Map<Symbol, Type> types,
             OutputFactory outputOperatorFactory)
     {
+        System.err.println("LocalExecutionPlan plan: " + plan.getClass());
         LocalExecutionPlanContext context = new LocalExecutionPlanContext(session, types);
 
         PhysicalOperation physicalOperation = plan.accept(new Visitor(session), context);
@@ -572,6 +575,7 @@ public class LocalExecutionPlanner
         @Override
         public PhysicalOperation visitOutput(OutputNode node, LocalExecutionPlanContext context)
         {
+            System.err.println("Visiting OutputNode: " + node.getSource().getClass());
             return node.getSource().accept(this, context);
         }
 

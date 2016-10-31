@@ -121,4 +121,6 @@ public interface TaskManager
      * Adds a state change listener to the specified task.
      */
     void addStateChangeListener(TaskId taskId, StateChangeListener<TaskState> stateChangeListener);
+
+    boolean isClientFacing(TaskId taskId);
 }
