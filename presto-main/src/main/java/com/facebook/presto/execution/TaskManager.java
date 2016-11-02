@@ -122,5 +122,5 @@ public interface TaskManager
      */
     void addStateChangeListener(TaskId taskId, StateChangeListener<TaskState> stateChangeListener);
 
-    boolean isClientFacing(TaskId taskId);
+    Optional<Boolean> isClientFacing(TaskId taskId);
 }

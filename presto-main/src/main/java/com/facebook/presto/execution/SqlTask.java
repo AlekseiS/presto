@@ -40,7 +40,10 @@ import org.joda.time.DateTime;
 import javax.annotation.Nullable;
 
 import java.net.URI;
-import java.util.*;
+import java.util.List;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -141,11 +144,9 @@ public class SqlTask
         });
     }
 
-    public boolean isClientFacing()
+    public Optional<Boolean> isClientFacing()
     {
-        Optional<Boolean> clientFacingOpt = clientFacing.get();
-        checkState(clientFacingOpt.isPresent());
-        return clientFacingOpt.get();
+        return clientFacing.get();
     }
 
     private static final class UpdateSystemMemory

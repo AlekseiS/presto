@@ -257,14 +257,14 @@ public class AddExchanges
                         child.getProperties()
                 );
 
-                child = withDerivedProperties(
+                return withDerivedProperties(
                         new OutputNode(idAllocator.getNextId(), child.getNode(), node.getColumnNames(), node.getOutputSymbols(), true),
                         child.getProperties()
                 );
 
-                child = withDerivedProperties(
-                        gatheringExchange(idAllocator.getNextId(), REMOTE, child.getNode()),
-                        child.getProperties());
+//                child = withDerivedProperties(
+//                        gatheringExchange(idAllocator.getNextId(), REMOTE, child.getNode()),
+//                        child.getProperties());
             }
             else {
                 System.err.println("Only 1 output node!!! Cannot add client facing output");

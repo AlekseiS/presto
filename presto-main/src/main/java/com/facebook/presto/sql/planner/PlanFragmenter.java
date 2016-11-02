@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static com.facebook.presto.sql.planner.SystemPartitioningHandle.COORDINATOR_DISTRIBUTION;
+import static com.facebook.presto.sql.planner.SystemPartitioningHandle.FIXED_RANDOM_DISTRIBUTION;
 import static com.facebook.presto.sql.planner.SystemPartitioningHandle.SINGLE_DISTRIBUTION;
 import static com.facebook.presto.sql.planner.SystemPartitioningHandle.SOURCE_DISTRIBUTION;
 import static com.facebook.presto.sql.planner.plan.ExchangeNode.Scope.REMOTE;
@@ -67,8 +68,7 @@ public class PlanFragmenter
     {
         Fragmenter fragmenter = new Fragmenter(session, metadata, plan.getSymbolAllocator().getTypes());
 
-        FragmentProperties properties = new FragmentProperties(new PartitioningScheme(Partitioning.create(SINGLE_DISTRIBUTION, ImmutableList.of()), plan.getRoot().getOutputSymbols()))
-                .setSingleNodeDistribution();
+        FragmentProperties properties = new FragmentProperties(new PartitioningScheme(Partitioning.create(SINGLE_DISTRIBUTION, ImmutableList.of()), plan.getRoot().getOutputSymbols()));
         PlanNode root = SimplePlanRewriter.rewriteWith(fragmenter, plan.getRoot(), properties);
 
         SubPlan result = fragmenter.buildRootFragment(root, properties);
@@ -128,6 +128,9 @@ public class PlanFragmenter
         {
             if (!node.isClientFacing()) {
                 context.get().setSingleNodeDistribution();
+            }
+            else {
+                context.get().setDistribution(FIXED_RANDOM_DISTRIBUTION);
             }
             return context.defaultRewrite(node, context.get());
         }

@@ -149,8 +149,8 @@ public class SqlTaskManager
                         sqlTaskExecutionFactory,
                         taskNotificationExecutor,
                         sqlTask -> {
-                                finishedTaskStats.merge(sqlTask.getIoStats());
-                                return null;
+                            finishedTaskStats.merge(sqlTask.getIoStats());
+                            return null;
                         },
                         maxBufferSize,
                         newSinkBufferImplementation
@@ -428,7 +428,8 @@ public class SqlTaskManager
     }
 
     @Override
-    public boolean isClientFacing(TaskId taskId) {
+    public Optional<Boolean> isClientFacing(TaskId taskId)
+    {
         return tasks.getUnchecked(taskId).isClientFacing();
     }
 }

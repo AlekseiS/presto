@@ -67,7 +67,6 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_MAX_WAIT;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_NEXT_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_TASK_INSTANCE_ID;
-import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.transform;
 import static io.airlift.concurrent.MoreFutures.addTimeout;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
@@ -229,12 +228,29 @@ public class TaskResource
             @Suspended AsyncResponse asyncResponse)
             throws InterruptedException
     {
-//        System.err.println("Get task results: " + taskId);
+        System.err.println("Get task results: " + taskId + "/results/" + bufferId + "/" + token);
         requireNonNull(taskId, "taskId is null");
         requireNonNull(bufferId, "bufferId is null");
 
         long start = System.nanoTime();
-        CompletableFuture<BufferResult> bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, maxSize);
+        CompletableFuture<BufferResult> bufferResultFuture;
+        if (taskManager.isClientFacing(taskId).orElse(true)) {
+            bufferResultFuture = CompletableFuture.supplyAsync(() -> {
+                try {
+                    Thread.sleep(5000);
+                }
+                catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+//                return new BufferResult(taskManager.getTaskInstanceId(taskId), token, token + 1, true, ImmutableList.of(new Page(0)));
+//                else {
+                return BufferResult.emptyResults(taskManager.getTaskInstanceId(taskId), token, false);
+//                }
+            }, timeoutExecutor);
+        }
+        else {
+            bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, maxSize);
+        }
         Duration waitTime = randomizeWaitTime(DEFAULT_MAX_WAIT_TIME);
         bufferResultFuture = addTimeout(
                 bufferResultFuture,
@@ -283,17 +299,22 @@ public class TaskResource
     @Path("{taskId}/clientresults/{bufferId}/{token}")
     @Produces(PRESTO_PAGES)
     public void getClientResults(@PathParam("taskId") TaskId taskId,
-                                 @PathParam("bufferId") OutputBufferId bufferId,
-                                 @PathParam("token") final long token,
-                                 @HeaderParam(PRESTO_MAX_SIZE) DataSize maxSize,
-                                 @Suspended AsyncResponse asyncResponse)
-            throws InterruptedException {
+            @PathParam("bufferId") OutputBufferId bufferId,
+            @PathParam("token") final long token,
+            @HeaderParam(PRESTO_MAX_SIZE) DataSize maxSize,
+            @Suspended AsyncResponse asyncResponse)
+            throws InterruptedException
+    {
         requireNonNull(taskId, "taskId is null");
         requireNonNull(bufferId, "bufferId is null");
-
-        checkState(taskManager.isClientFacing(taskId));
-        long start = System.nanoTime();
-
+        System.err.println("Get client task results: " + taskId + ", buffer id=" + bufferId + ", token=" + token);
+        taskManager.abortTaskResults(taskId, bufferId);
+        asyncResponse.resume(Response.status(Status.NO_CONTENT)
+                .header(PRESTO_TASK_INSTANCE_ID, taskManager.getTaskInstanceId(taskId))
+                .header(PRESTO_PAGE_TOKEN, token)
+                .header(PRESTO_PAGE_NEXT_TOKEN, token)
+                .header(PRESTO_BUFFER_COMPLETE, false)
+                .build());
     }
 
     @DELETE
@@ -301,6 +322,7 @@ public class TaskResource
     @Produces(MediaType.APPLICATION_JSON)
     public Response abortResults(@PathParam("taskId") TaskId taskId, @PathParam("bufferId") OutputBufferId bufferId, @Context UriInfo uriInfo)
     {
+        System.err.println("Delete buffer for " + taskId + ", buffer=" + bufferId);
         requireNonNull(taskId, "taskId is null");
         requireNonNull(bufferId, "bufferId is null");
 
