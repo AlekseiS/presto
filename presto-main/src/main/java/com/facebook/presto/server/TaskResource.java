@@ -15,6 +15,8 @@ package com.facebook.presto.server;
 
 import com.facebook.presto.OutputBuffers.OutputBufferId;
 import com.facebook.presto.Session;
+import com.facebook.presto.client.QueryResults;
+import com.facebook.presto.client.StatementStats;
 import com.facebook.presto.execution.TaskId;
 import com.facebook.presto.execution.TaskInfo;
 import com.facebook.presto.execution.TaskManager;
@@ -23,7 +25,11 @@ import com.facebook.presto.execution.TaskStatus;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.spi.Page;
+import com.facebook.presto.spi.QueryId;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
+import com.google.common.collect.Ordering;
 import com.google.common.reflect.TypeToken;
 import io.airlift.concurrent.BoundedExecutor;
 import io.airlift.stats.TimeStat;
@@ -53,6 +59,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -67,8 +74,10 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_MAX_WAIT;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_NEXT_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_TASK_INSTANCE_ID;
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.transform;
 import static io.airlift.concurrent.MoreFutures.addTimeout;
+import static io.airlift.http.client.HttpUriBuilder.uriBuilderFrom;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
@@ -233,24 +242,8 @@ public class TaskResource
         requireNonNull(bufferId, "bufferId is null");
 
         long start = System.nanoTime();
-        CompletableFuture<BufferResult> bufferResultFuture;
-        if (taskManager.isClientFacing(taskId).orElse(true)) {
-            bufferResultFuture = CompletableFuture.supplyAsync(() -> {
-                try {
-                    Thread.sleep(5000);
-                }
-                catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
-//                return new BufferResult(taskManager.getTaskInstanceId(taskId), token, token + 1, true, ImmutableList.of(new Page(0)));
-//                else {
-                return BufferResult.emptyResults(taskManager.getTaskInstanceId(taskId), token, false);
-//                }
-            }, timeoutExecutor);
-        }
-        else {
-            bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, maxSize);
-        }
+        checkState(!taskManager.isClientFacing(taskId).orElse(false));
+        CompletableFuture<BufferResult> bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, maxSize);
         Duration waitTime = randomizeWaitTime(DEFAULT_MAX_WAIT_TIME);
         bufferResultFuture = addTimeout(
                 bufferResultFuture,
@@ -295,26 +288,86 @@ public class TaskResource
         asyncResponse.register((CompletionCallback) throwable -> resultsRequestTime.add(Duration.nanosSince(start)));
     }
 
+    private static final Duration MAX_WAIT_TIME = new Duration(1, SECONDS);
+    private static final Ordering<Comparable<Duration>> WAIT_ORDERING = Ordering.natural().nullsLast();
+    private static final DataSize DEFAULT_MAX_SIZE = new DataSize(1, DataSize.Unit.MEGABYTE);
+
     @GET
-    @Path("{taskId}/clientresults/{bufferId}/{token}")
-    @Produces(PRESTO_PAGES)
-    public void getClientResults(@PathParam("taskId") TaskId taskId,
+    @Path("{taskId}/download/{bufferId}/{token}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public void getQueryResults(
+            @PathParam("taskId") TaskId taskId,
             @PathParam("bufferId") OutputBufferId bufferId,
-            @PathParam("token") final long token,
-            @HeaderParam(PRESTO_MAX_SIZE) DataSize maxSize,
+            @PathParam("token") long token,
+            @QueryParam("maxWait") Duration maxWait,
+            @Context UriInfo uriInfo,
             @Suspended AsyncResponse asyncResponse)
             throws InterruptedException
     {
         requireNonNull(taskId, "taskId is null");
         requireNonNull(bufferId, "bufferId is null");
-        System.err.println("Get client task results: " + taskId + ", buffer id=" + bufferId + ", token=" + token);
-        taskManager.abortTaskResults(taskId, bufferId);
-        asyncResponse.resume(Response.status(Status.NO_CONTENT)
-                .header(PRESTO_TASK_INSTANCE_ID, taskManager.getTaskInstanceId(taskId))
-                .header(PRESTO_PAGE_TOKEN, token)
-                .header(PRESTO_PAGE_NEXT_TOKEN, token)
-                .header(PRESTO_BUFFER_COMPLETE, false)
-                .build());
+        System.err.println("Get download task results: " + taskId + ", buffer id=" + bufferId + ", token=" + token);
+        long start = System.nanoTime();
+        QueryId queryId = taskId.getQueryId();
+        CompletableFuture<BufferResult> bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, DEFAULT_MAX_SIZE);
+        List<Type> returnTypes = taskManager.getReturnTypes(taskId);
+        Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
+        Duration waitTime = randomizeWaitTime(wait);
+        bufferResultFuture = addTimeout(
+                bufferResultFuture,
+                () -> BufferResult.emptyResults(taskManager.getTaskInstanceId(taskId), token, false),
+                waitTime,
+                timeoutExecutor);
+
+        CompletableFuture<Response> responseFuture = bufferResultFuture.thenApply(result -> {
+            List<Page> pages = result.getPages();
+            ImmutableList.Builder<StatementResource.Query.RowIterable> resultPages = ImmutableList.builder();
+            long bytes = 0;
+            for (Page page : pages) {
+                if (page != null) {
+                    bytes += page.getSizeInBytes();
+                    //TODO: get session instead of null
+                    resultPages.add(new StatementResource.Query.RowIterable(null, returnTypes, page));
+                }
+            }
+            Iterable<List<Object>> data;
+            if (bytes == 0) {
+                data = null;
+            }
+            else {
+                data = Iterables.concat(resultPages.build());
+            }
+            URI nextUri;
+            if (result.isBufferComplete()) {
+                System.err.println("Closing task results for " + taskId + ", bufferId=" + bufferId);
+                taskManager.abortTaskResults(taskId, bufferId);
+                nextUri = null;
+            }
+            else {
+                nextUri = uriBuilderFrom(uriInfo.getBaseUri()).appendPath("v1").appendPath("task").appendPath(taskId.toString()).appendPath("download").appendPath(bufferId.toString()).appendPath(String.valueOf(token + 1)).build();
+            }
+            QueryResults taskResults = new QueryResults(
+                    queryId.getId(),
+                    uriInfo.getRequestUriBuilder().replaceQuery(queryId.getId()).replacePath("query.html").build(),
+                    null,
+                    nextUri,
+                    null, //TODO: columns
+                    data,
+                    new StatementStats(TaskState.RUNNING.toString(), false, true, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null),
+                    null,
+                    null,
+                    null);
+            return Response.ok(taskResults).build();
+        });
+
+        // For hard timeout, add an additional 5 seconds to max wait for thread scheduling contention and GC
+        Duration timeout = new Duration(waitTime.toMillis() + 5000, MILLISECONDS);
+        bindAsyncResponse(asyncResponse, responseFuture, responseExecutor)
+                .withTimeout(timeout,
+                        Response.status(Status.NO_CONTENT).build());
+
+        responseFuture.whenComplete((response, exception) -> readFromOutputBufferTime.add(Duration.nanosSince(start)));
+        asyncResponse.register((CompletionCallback) throwable -> resultsRequestTime.add(Duration.nanosSince(start)));
     }
 
     @DELETE

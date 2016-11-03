@@ -27,6 +27,7 @@ import com.facebook.presto.memory.NodeMemoryConfig;
 import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.QueryId;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.LocalExecutionPlanner;
 import com.facebook.presto.sql.planner.PlanFragment;
 import com.google.common.base.Preconditions;
@@ -431,5 +432,11 @@ public class SqlTaskManager
     public Optional<Boolean> isClientFacing(TaskId taskId)
     {
         return tasks.getUnchecked(taskId).isClientFacing();
+    }
+
+    @Override
+    public List<Type> getReturnTypes(TaskId taskId)
+    {
+        return tasks.getUnchecked(taskId).getReturnTypes();
     }
 }

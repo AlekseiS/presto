@@ -25,6 +25,7 @@ import com.facebook.presto.execution.buffer.SharedOutputBuffer;
 import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.operator.TaskContext;
 import com.facebook.presto.operator.TaskStats;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.PlanFragment;
 import com.facebook.presto.sql.planner.plan.OutputNode;
 import com.facebook.presto.sql.planner.plan.PlanNode;
@@ -75,6 +76,7 @@ public class SqlTask
     private final AtomicReference<TaskHolder> taskHolderReference = new AtomicReference<>(new TaskHolder());
     private final AtomicBoolean needsPlan = new AtomicBoolean(true);
     private final AtomicReference<Optional<Boolean>> clientFacing = new AtomicReference<>(Optional.empty());
+    private final AtomicReference<List<Type>> returnTypes = new AtomicReference<>(ImmutableList.of());
 
     public SqlTask(
             TaskId taskId,
@@ -147,6 +149,11 @@ public class SqlTask
     public Optional<Boolean> isClientFacing()
     {
         return clientFacing.get();
+    }
+
+    public List<Type> getReturnTypes()
+    {
+        return returnTypes.get();
     }
 
     private static final class UpdateSystemMemory
@@ -270,7 +277,7 @@ public class SqlTask
                 noMoreSplits,
                 taskStats,
                 needsPlan.get(),
-                taskStatus.getState().isDone());
+                taskStatus.getState().isDone()); //TODO: check if returnTypes and clientFacing can be added here
     }
 
     public CompletableFuture<TaskStatus> getTaskStatus(TaskState callersCurrentState)
@@ -325,6 +332,7 @@ public class SqlTask
                     needsPlan.set(false);
                     PlanNode root = fragment.get().getRoot();
                     clientFacing.set(Optional.of(root instanceof OutputNode && ((OutputNode) root).isClientFacing()));
+                    returnTypes.set(fragment.get().getTypes());
                     System.out.println("Root: " + taskId + " " + fragment.get().getRoot().getClass() + ", client facing=" + clientFacing);
                 }
             }

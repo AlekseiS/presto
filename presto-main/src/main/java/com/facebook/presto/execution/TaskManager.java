@@ -20,6 +20,7 @@ import com.facebook.presto.TaskSource;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.memory.MemoryPoolAssignmentsRequest;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.PlanFragment;
 import io.airlift.units.DataSize;
 
@@ -123,4 +124,6 @@ public interface TaskManager
     void addStateChangeListener(TaskId taskId, StateChangeListener<TaskState> stateChangeListener);
 
     Optional<Boolean> isClientFacing(TaskId taskId);
+
+    List<Type> getReturnTypes(TaskId taskId);
 }

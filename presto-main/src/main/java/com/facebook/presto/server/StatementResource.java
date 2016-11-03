@@ -497,9 +497,6 @@ public class StatementResource
             List<Type> types = outputStage.getTypes();
 
             updateExchangeClient(outputStage);
-//            for (TaskInfo task : outputStage.getSubStages().get(0).getSubStages().get(0).getTasks()) {
-//                System.err.println(task.getTaskStatus().getSelf());
-//            }
 
             ImmutableList.Builder<RowIterable> pages = ImmutableList.builder();
             // wait up to max wait for data to arrive; then try to return at least DESIRED_RESULT_BYTES
@@ -534,49 +531,33 @@ public class StatementResource
             // add any additional output locations
             if (!outputStage.getState().isDone()) {
                 boolean clientFacing = outputStage.getPlan().getRoot() instanceof OutputNode && ((OutputNode) outputStage.getPlan().getRoot()).isClientFacing();
-                if (!clientFacing) {
-                    for (TaskInfo taskInfo : outputStage.getTasks()) {
-                        OutputBufferInfo outputBuffers = taskInfo.getOutputBuffers();
-                        List<BufferInfo> buffers = outputBuffers.getBuffers();
-                        if (buffers.isEmpty() || outputBuffers.getState().canAddBuffers()) {
-                            // output buffer has not been created yet
-                            continue;
-                        }
-                        Preconditions.checkState(buffers.size() == 1,
-                                "Expected a single output buffer for task %s, but found %s",
-                                taskInfo.getTaskStatus().getTaskId(),
-                                buffers);
+                for (TaskInfo taskInfo : outputStage.getTasks()) {
+                    OutputBufferInfo outputBuffers = taskInfo.getOutputBuffers();
+                    List<BufferInfo> buffers = outputBuffers.getBuffers();
+                    if (buffers.isEmpty() || outputBuffers.getState().canAddBuffers()) {
+                        // output buffer has not been created yet
+                        continue;
+                    }
+                    Preconditions.checkState(buffers.size() == 1,
+                            "Expected a single output buffer for task %s, but found %s",
+                            taskInfo.getTaskStatus().getTaskId(),
+                            buffers);
 
-                        OutputBufferId bufferId = Iterables.getOnlyElement(buffers).getBufferId();
+                    OutputBufferId bufferId = Iterables.getOnlyElement(buffers).getBufferId();
+                    if (!clientFacing) {
                         URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("results").appendPath(bufferId.toString()).build();
                         exchangeClient.addLocation(uri);
+                    }
+                    else {
+                        URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("download").appendPath(bufferId.toString()).appendPath("0").build();
+                        System.err.println("Add download uri: " + uri);
                     }
                 }
             }
 
             if (allOutputBuffersCreated(outputStage)) {
                 exchangeClient.noMoreLocations();
-            }
-            if (!outputStage.getSubStages().isEmpty()) {
-                StageInfo output = outputStage.getSubStages().get(0);
-                if (output.getPlan() != null && output.getPlan().getRoot() instanceof OutputNode && ((OutputNode) output.getPlan().getRoot()).isClientFacing()) {
-                    for (TaskInfo taskInfo : output.getTasks()) {
-                        OutputBufferInfo outputBuffers = taskInfo.getOutputBuffers();
-                        List<BufferInfo> buffers = outputBuffers.getBuffers();
-                        if (buffers.isEmpty() || outputBuffers.getState().canAddBuffers()) {
-                            // output buffer has not been created yet
-                            continue;
-                        }
-                        Preconditions.checkState(buffers.size() == 1,
-                                "Expected a single output buffer for task %s, but found %s",
-                                taskInfo.getTaskStatus().getTaskId(),
-                                buffers);
-
-                        OutputBufferId bufferId = Iterables.getOnlyElement(buffers).getBufferId();
-                        URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("clientresults").appendPath(bufferId.toString()).build();
-                        System.err.println("Result uri: " + uri);
-                    }
-                }
+                System.err.println("All download links are ready");
             }
         }
 
@@ -759,14 +740,14 @@ public class StatementResource
                     failure);
         }
 
-        private static class RowIterable
+        static class RowIterable
                 implements Iterable<List<Object>>
         {
             private final ConnectorSession session;
             private final List<Type> types;
             private final Page page;
 
-            private RowIterable(ConnectorSession session, List<Type> types, Page page)
+            RowIterable(ConnectorSession session, List<Type> types, Page page)
             {
                 this.session = session;
                 this.types = ImmutableList.copyOf(requireNonNull(types, "types is null"));
