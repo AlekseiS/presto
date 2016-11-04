@@ -102,7 +102,7 @@ public class StatementClient
     private final String timeZoneId;
     private final long requestTimeoutNanos;
     private final String user;
-    private final BlockingQueue<QueryResults> results = new ArrayBlockingQueue<>(10, true); // 2x number of download nodes
+    private final BlockingQueue<QueryResults> results = new ArrayBlockingQueue<>(100, true); // 2x-3x number of download nodes
     private final ExecutorService executors = Executors.newCachedThreadPool(); // number of download nodes (threads are blocked)
     private final ConcurrentMap<URI, Object> addedUrls = new ConcurrentHashMap<>();
     private static final Object ADDED = new Object();

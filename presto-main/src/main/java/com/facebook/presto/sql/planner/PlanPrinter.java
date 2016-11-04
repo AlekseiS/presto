@@ -717,7 +717,8 @@ public class PlanPrinter
             String clientFacing;
             if (node.isClientFacing()) {
                 clientFacing = ", client facing";
-            } else {
+            }
+            else {
                 clientFacing = "";
             }
             print(indent, "- Output[%s] => [%s]%s", Joiner.on(", ").join(node.getColumnNames()), formatOutputs(node.getOutputSymbols()), clientFacing);
