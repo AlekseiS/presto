@@ -460,7 +460,8 @@ public class StatementResource
                     toStatementStats(queryInfo),
                     toQueryError(queryInfo),
                     queryInfo.getUpdateType(),
-                    updateCount);
+                    updateCount,
+                    taskDownloadUris.isEmpty() ? null : ImmutableList.copyOf(taskDownloadUris));
 
             // cache the last results
             if (lastResult != null && lastResult.getNextUri() != null) {
@@ -526,10 +527,13 @@ public class StatementResource
             return state != QueryState.QUEUED && queryInfo.getState() != QueryState.PLANNING && queryInfo.getState() != QueryState.STARTING;
         }
 
+        private final List<URI> taskDownloadUris = new ArrayList<>();
+
         private synchronized void updateExchangeClient(StageInfo outputStage)
         {
             // add any additional output locations
             if (!outputStage.getState().isDone()) {
+                taskDownloadUris.clear();
                 boolean clientFacing = outputStage.getPlan().getRoot() instanceof OutputNode && ((OutputNode) outputStage.getPlan().getRoot()).isClientFacing();
                 for (TaskInfo taskInfo : outputStage.getTasks()) {
                     OutputBufferInfo outputBuffers = taskInfo.getOutputBuffers();
@@ -550,6 +554,7 @@ public class StatementResource
                     }
                     else {
                         URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("download").appendPath(bufferId.toString()).appendPath("0").build();
+                        taskDownloadUris.add(uri);
                         System.err.println("Add download uri: " + uri);
                     }
                 }

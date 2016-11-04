@@ -37,10 +37,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_ADDED_PREPARE;
@@ -95,6 +102,39 @@ public class StatementClient
     private final String timeZoneId;
     private final long requestTimeoutNanos;
     private final String user;
+    private final BlockingQueue<QueryResults> results = new ArrayBlockingQueue<>(10, true); // 2x number of download nodes
+    private final ExecutorService executors = Executors.newCachedThreadPool(); // number of download nodes (threads are blocked)
+    private final ConcurrentMap<URI, Object> addedUrls = new ConcurrentHashMap<>();
+    private static final Object ADDED = new Object();
+    private final AtomicBoolean finished = new AtomicBoolean();
+    private final AtomicInteger downloaders = new AtomicInteger(0);
+
+    private class DownloadWork
+            implements Runnable
+    {
+        private final URI initialUri;
+        private final boolean isMain;
+
+        public DownloadWork(URI initialUri, boolean isMain)
+        {
+            this.initialUri = requireNonNull(initialUri);
+            this.isMain = isMain;
+        }
+
+        @Override
+        public void run()
+        {
+            downloaders.incrementAndGet();
+            URI current = initialUri;
+            URI next;
+            while ((next = advanceInternal(current, isMain)) != null) {
+                current = next;
+            }
+            if (downloaders.decrementAndGet() == 0) {
+                finished.set(true);
+            }
+        }
+    }
 
     public StatementClient(HttpClient httpClient, JsonCodec<QueryResults> queryResultsCodec, ClientSession session, String query)
     {
@@ -118,7 +158,11 @@ public class StatementClient
             throw requestFailedException("starting query", request, response);
         }
 
-        processResponse(response);
+        processResponse(response, true);
+        if (response.getValue().getNextUri() != null) {
+            executors.submit(new DownloadWork(response.getValue().getNextUri(), true));
+        }
+        advance();
     }
 
     private Request buildQueryRequest(ClientSession session, String query)
@@ -248,10 +292,52 @@ public class StatementClient
 
     public boolean advance()
     {
-        URI nextUri = current().getNextUri();
+        try {
+            if (!valid.get()) {
+                return false;
+            }
+            if (finished.get() && results.isEmpty()) {
+                //finished
+                valid.set(false);
+                return false;
+            }
+            long start = System.nanoTime();
+            QueryResults currentResult = null;
+            while (currentResult == null && System.nanoTime() - start < requestTimeoutNanos) {
+                currentResult = results.poll(1000, TimeUnit.MILLISECONDS);
+                if (currentResult == null) {
+                    if (finished.get() || !valid.get()) {
+                        valid.set(false);
+                        return false;
+                    }
+                }
+            }
+            if (currentResult == null) {
+                throw new RuntimeException("Error waiting for results. Gone?");
+            }
+            currentResults.set(currentResult);
+            return true;
+        }
+        catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            try {
+                close();
+            }
+            finally {
+                Thread.currentThread().interrupt();
+            }
+            throw new RuntimeException("StatementClient thread was interrupted");
+        }
+    }
+
+    private URI advanceInternal(URI nextUri, boolean isMain)
+    {
+//        URI nextUri = current().getNextUri();
         if (isClosed() || (nextUri == null)) {
-            valid.set(false);
-            return false;
+            if (isMain) {
+                valid.set(false);
+            }
+            return null;
         }
 
         Request request = prepareRequest(prepareGet(), nextUri).build();
@@ -288,8 +374,8 @@ public class StatementClient
             }
 
             if (response.getStatusCode() == HttpStatus.OK.code() && response.hasValue()) {
-                processResponse(response);
-                return true;
+                processResponse(response, isMain);
+                return response.getValue().getNextUri();
             }
 
             if (response.getStatusCode() != HttpStatus.SERVICE_UNAVAILABLE.code()) {
@@ -298,11 +384,16 @@ public class StatementClient
         }
         while (((System.nanoTime() - start) < requestTimeoutNanos) && !isClosed());
 
-        gone.set(true);
-        throw new RuntimeException("Error fetching next", cause);
+        if (isMain) {
+            gone.set(true);
+            throw new RuntimeException("Error fetching next", cause);
+        }
+        else {
+            return null;
+        }
     }
 
-    private void processResponse(JsonResponse<QueryResults> response)
+    private void processResponse(JsonResponse<QueryResults> response, boolean isMain)
     {
         for (String setSession : response.getHeaders(PRESTO_SET_SESSION)) {
             List<String> keyValue = SESSION_HEADER_SPLITTER.splitToList(setSession);
@@ -334,7 +425,36 @@ public class StatementClient
             clearTransactionId.set(true);
         }
 
-        currentResults.set(response.getValue());
+        putResult(response.getValue());
+//        currentResults.set(response.getValue());
+        if (isMain) {
+            List<URI> nextUris = response.getValue().getNextUris();
+            if (nextUris != null && !nextUris.isEmpty()) {
+                for (URI taskUri : nextUris) {
+                    if (taskUri != null && !addedUrls.containsKey(taskUri)) {
+                        if (addedUrls.putIfAbsent(taskUri, ADDED) == null) {
+                            executors.submit(new DownloadWork(taskUri, false));
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private void putResult(QueryResults result)
+    {
+        try {
+            results.put(result);
+        }
+        catch (InterruptedException e) {
+            try {
+                close();
+            }
+            finally {
+                Thread.currentThread().interrupt();
+            }
+            throw new RuntimeException("StatementClient thread was interrupted");
+        }
     }
 
     private RuntimeException requestFailedException(String task, Request request, JsonResponse<QueryResults> response)
@@ -385,6 +505,7 @@ public class StatementClient
                 Request request = prepareRequest(prepareDelete(), uri).build();
                 httpClient.executeAsync(request, createStatusResponseHandler());
             }
+            executors.shutdownNow();
         }
     }
 

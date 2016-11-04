@@ -76,6 +76,7 @@ public class QueryResults
     private final QueryError error;
     private final String updateType;
     private final Long updateCount;
+    private final List<URI> nextUris;
 
     @JsonCreator
     public QueryResults(
@@ -88,9 +89,10 @@ public class QueryResults
             @JsonProperty("stats") StatementStats stats,
             @JsonProperty("error") QueryError error,
             @JsonProperty("updateType") String updateType,
-            @JsonProperty("updateCount") Long updateCount)
+            @JsonProperty("updateCount") Long updateCount,
+            @JsonProperty("nextUris") List<URI> nextUris)
     {
-        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount);
+        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount, nextUris);
     }
 
     public QueryResults(
@@ -103,7 +105,8 @@ public class QueryResults
             StatementStats stats,
             QueryError error,
             String updateType,
-            Long updateCount)
+            Long updateCount,
+            List<URI> nextUris)
     {
         this.id = requireNonNull(id, "id is null");
         this.infoUri = requireNonNull(infoUri, "infoUri is null");
@@ -115,6 +118,7 @@ public class QueryResults
         this.error = error;
         this.updateType = updateType;
         this.updateCount = updateCount;
+        this.nextUris = nextUris;
     }
 
     @NotNull
@@ -185,6 +189,13 @@ public class QueryResults
     public Long getUpdateCount()
     {
         return updateCount;
+    }
+
+    @Nullable
+    @JsonProperty
+    public List<URI> getNextUris()
+    {
+        return nextUris;
     }
 
     @Override

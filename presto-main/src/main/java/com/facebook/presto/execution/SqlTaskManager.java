@@ -439,4 +439,10 @@ public class SqlTaskManager
     {
         return tasks.getUnchecked(taskId).getReturnTypes();
     }
+
+    @Override
+    public List<String> getColumnNames(TaskId taskId)
+    {
+        return tasks.getUnchecked(taskId).getColumnNames();
+    }
 }

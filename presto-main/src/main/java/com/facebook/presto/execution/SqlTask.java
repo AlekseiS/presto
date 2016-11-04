@@ -77,6 +77,7 @@ public class SqlTask
     private final AtomicBoolean needsPlan = new AtomicBoolean(true);
     private final AtomicReference<Optional<Boolean>> clientFacing = new AtomicReference<>(Optional.empty());
     private final AtomicReference<List<Type>> returnTypes = new AtomicReference<>(ImmutableList.of());
+    private final AtomicReference<List<String>> columnNames = new AtomicReference<>(ImmutableList.of());
 
     public SqlTask(
             TaskId taskId,
@@ -154,6 +155,11 @@ public class SqlTask
     public List<Type> getReturnTypes()
     {
         return returnTypes.get();
+    }
+
+    public List<String> getColumnNames()
+    {
+        return columnNames.get();
     }
 
     private static final class UpdateSystemMemory
@@ -332,6 +338,9 @@ public class SqlTask
                     needsPlan.set(false);
                     PlanNode root = fragment.get().getRoot();
                     clientFacing.set(Optional.of(root instanceof OutputNode && ((OutputNode) root).isClientFacing()));
+                    if (fragment.get().getRoot() instanceof OutputNode) {
+                        columnNames.set(((OutputNode) fragment.get().getRoot()).getColumnNames());
+                    }
                     returnTypes.set(fragment.get().getTypes());
                     System.out.println("Root: " + taskId + " " + fragment.get().getRoot().getClass() + ", client facing=" + clientFacing);
                 }
@@ -441,7 +450,7 @@ public class SqlTask
 
         public SqlTaskIoStats getIoStats()
         {
-            // if we are finished, return the final IoStats
+            // if we are finished, return the final zIoStats
             if (finalIoStats != null) {
                 return finalIoStats;
             }

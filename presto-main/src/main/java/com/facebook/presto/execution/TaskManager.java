@@ -126,4 +126,6 @@ public interface TaskManager
     Optional<Boolean> isClientFacing(TaskId taskId);
 
     List<Type> getReturnTypes(TaskId taskId);
+
+    List<String> getColumnNames(TaskId taskId);
 }

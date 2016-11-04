@@ -15,6 +15,8 @@ package com.facebook.presto.server;
 
 import com.facebook.presto.OutputBuffers.OutputBufferId;
 import com.facebook.presto.Session;
+import com.facebook.presto.client.ClientTypeSignature;
+import com.facebook.presto.client.Column;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.StatementStats;
 import com.facebook.presto.execution.TaskId;
@@ -27,6 +29,7 @@ import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.TypeSignature;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Ordering;
@@ -74,6 +77,7 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_MAX_WAIT;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_NEXT_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_TOKEN;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_TASK_INSTANCE_ID;
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.transform;
 import static io.airlift.concurrent.MoreFutures.addTimeout;
@@ -295,7 +299,7 @@ public class TaskResource
     @GET
     @Path("{taskId}/download/{bufferId}/{token}")
     @Produces(MediaType.APPLICATION_JSON)
-    public void getQueryResults(
+    public void getDownloadResults(
             @PathParam("taskId") TaskId taskId,
             @PathParam("bufferId") OutputBufferId bufferId,
             @PathParam("token") long token,
@@ -311,6 +315,7 @@ public class TaskResource
         QueryId queryId = taskId.getQueryId();
         CompletableFuture<BufferResult> bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, DEFAULT_MAX_SIZE);
         List<Type> returnTypes = taskManager.getReturnTypes(taskId);
+        List<String> columnNames = taskManager.getColumnNames(taskId);
         Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
         Duration waitTime = randomizeWaitTime(wait);
         bufferResultFuture = addTimeout(
@@ -344,16 +349,17 @@ public class TaskResource
                 nextUri = null;
             }
             else {
-                nextUri = uriBuilderFrom(uriInfo.getBaseUri()).appendPath("v1").appendPath("task").appendPath(taskId.toString()).appendPath("download").appendPath(bufferId.toString()).appendPath(String.valueOf(token + 1)).build();
+                nextUri = uriBuilderFrom(uriInfo.getBaseUri()).appendPath("v1").appendPath("task").appendPath(taskId.toString()).appendPath("download").appendPath(bufferId.toString()).appendPath(String.valueOf(result.getNextToken())).build();
             }
             QueryResults taskResults = new QueryResults(
                     queryId.getId(),
                     uriInfo.getRequestUriBuilder().replaceQuery(queryId.getId()).replacePath("query.html").build(),
                     null,
                     nextUri,
-                    null, //TODO: columns
+                    createColumnsList(columnNames, returnTypes),
                     data,
                     new StatementStats(TaskState.RUNNING.toString(), false, true, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null),
+                    null,
                     null,
                     null,
                     null);
@@ -368,6 +374,20 @@ public class TaskResource
 
         responseFuture.whenComplete((response, exception) -> readFromOutputBufferTime.add(Duration.nanosSince(start)));
         asyncResponse.register((CompletionCallback) throwable -> resultsRequestTime.add(Duration.nanosSince(start)));
+    }
+
+    private static List<Column> createColumnsList(List<String> names, List<Type> types)
+    {
+        checkArgument(names.size() == types.size(), "names and types size mismatch");
+
+        ImmutableList.Builder<Column> list = ImmutableList.builder();
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            TypeSignature typeSignature = types.get(i).getTypeSignature();
+            String type = typeSignature.toString();
+            list.add(new Column(name, type, new ClientTypeSignature(typeSignature)));
+        }
+        return list.build();
     }
 
     @DELETE
