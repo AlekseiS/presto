@@ -39,6 +39,8 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -101,6 +103,8 @@ public class StatementClient
     private final String user;
     private final AtomicBoolean closedTask = new AtomicBoolean();
     private final AtomicReference<URI> taskCloseUri = new AtomicReference<>();
+    private final ExecutorService executors = Executors.newFixedThreadPool(1);
+    private final AtomicBoolean statusRunnableSubmitted = new AtomicBoolean();
 
     public StatementClient(HttpClient httpClient, JsonCodec<QueryResults> queryResultsCodec, ClientSession session, String query)
     {
@@ -255,9 +259,22 @@ public class StatementClient
 
     public boolean advance()
     {
-        boolean ok1 = advanceCoordinator();
         boolean ok2 = advanceTask();
         if (ok2) {
+            if (!statusRunnableSubmitted.getAndSet(true)) {
+                executors.submit(() -> {
+                    try {
+                        while (!Thread.currentThread().isInterrupted()) {
+                            if (!advanceCoordinator()) {
+                                break;
+                            }
+                        }
+                    }
+                    finally {
+                        close();
+                    }
+                });
+            }
             while (!Thread.currentThread().isInterrupted()) {
                 QueryResults current = currentResults.get();
                 TaskResults currentTask = currentTaskResults.get();
@@ -279,6 +296,7 @@ public class StatementClient
                 }
             }
         }
+        boolean ok1 = statusRunnableSubmitted.get() || advanceCoordinator();
         return ok1 || ok2;
     }
 
@@ -511,6 +529,7 @@ public class StatementClient
             }
         }
         closeTask();
+        executors.shutdownNow();
     }
 
     public void closeTask()

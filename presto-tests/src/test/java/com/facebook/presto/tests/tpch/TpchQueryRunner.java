@@ -48,6 +48,7 @@ public final class TpchQueryRunner
                 .setSource("test")
                 .setCatalog("tpch")
                 .setSchema("tiny")
+                .setSystemProperty("enable_direct_download", "true")
                 .build();
 
         DistributedQueryRunner queryRunner = new DistributedQueryRunner(session, 4, extraProperties, coordinatorProperties, new SqlParserOptions());
