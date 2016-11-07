@@ -206,7 +206,7 @@ public class ChildReplacer
     @Override
     public PlanNode visitOutput(OutputNode node, List<PlanNode> newChildren)
     {
-        return new OutputNode(node.getId(), Iterables.getOnlyElement(newChildren), node.getColumnNames(), node.getOutputSymbols());
+        return new OutputNode(node.getId(), Iterables.getOnlyElement(newChildren), node.getColumnNames(), node.getOutputSymbols(), node.isClientFacing());
     }
 
     @Override

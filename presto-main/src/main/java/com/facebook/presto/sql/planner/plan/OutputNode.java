@@ -32,12 +32,14 @@ public class OutputNode
     private final PlanNode source;
     private final List<String> columnNames;
     private final List<Symbol> outputs; // column name = symbol
+    private final boolean clientFacing;
 
     @JsonCreator
     public OutputNode(@JsonProperty("id") PlanNodeId id,
             @JsonProperty("source") PlanNode source,
             @JsonProperty("columns") List<String> columnNames,
-            @JsonProperty("outputs") List<Symbol> outputs)
+            @JsonProperty("outputs") List<Symbol> outputs,
+            @JsonProperty("clientFacing") boolean clientFacing)
     {
         super(id);
 
@@ -48,6 +50,7 @@ public class OutputNode
         this.source = source;
         this.columnNames = columnNames;
         this.outputs = ImmutableList.copyOf(outputs);
+        this.clientFacing = clientFacing;
     }
 
     @Override
@@ -73,6 +76,12 @@ public class OutputNode
     public PlanNode getSource()
     {
         return source;
+    }
+
+    @JsonProperty
+    public boolean isClientFacing()
+    {
+        return clientFacing;
     }
 
     @Override

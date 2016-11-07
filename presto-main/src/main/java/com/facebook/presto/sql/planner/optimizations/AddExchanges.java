@@ -98,6 +98,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static com.facebook.presto.SystemSessionProperties.isColocatedJoinEnabled;
+import static com.facebook.presto.SystemSessionProperties.isEnableDirectDownload;
 import static com.facebook.presto.sql.ExpressionUtils.combineConjuncts;
 import static com.facebook.presto.sql.ExpressionUtils.extractConjuncts;
 import static com.facebook.presto.sql.ExpressionUtils.stripDeterministicConjuncts;
@@ -249,6 +250,9 @@ public class AddExchanges
                         child.getProperties());
             }
 
+            if (isEnableDirectDownload(session) && !node.isClientFacing()) {
+                node = new OutputNode(idAllocator.getNextId(), node.getSource(), node.getColumnNames(), node.getOutputSymbols(), true);
+            }
             return rebaseAndDeriveProperties(node, child);
         }
 
