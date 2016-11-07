@@ -17,9 +17,11 @@ import com.facebook.presto.OutputBuffers;
 import com.facebook.presto.OutputBuffers.OutputBufferId;
 import com.facebook.presto.Session;
 import com.facebook.presto.TaskSource;
+import com.facebook.presto.client.Column;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.memory.MemoryPoolAssignmentsRequest;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.PlanFragment;
 import io.airlift.units.DataSize;
 
@@ -121,4 +123,10 @@ public interface TaskManager
      * Adds a state change listener to the specified task.
      */
     void addStateChangeListener(TaskId taskId, StateChangeListener<TaskState> stateChangeListener);
+
+    List<Column> getOutputColumns(TaskId taskId);
+
+    Session getSession(TaskId taskId);
+
+    List<Type> getOutputTypes(TaskId taskId);
 }

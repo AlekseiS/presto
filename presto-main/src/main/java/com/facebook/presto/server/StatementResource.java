@@ -44,6 +44,8 @@ import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.StandardTypes;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeSignature;
+import com.facebook.presto.sql.planner.plan.OutputNode;
+import com.facebook.presto.sql.planner.plan.PlanNode;
 import com.facebook.presto.transaction.TransactionId;
 import com.facebook.presto.transaction.TransactionManager;
 import com.google.common.base.Preconditions;
@@ -524,8 +526,19 @@ public class StatementResource
             return state != QueryState.QUEUED && queryInfo.getState() != QueryState.PLANNING && queryInfo.getState() != QueryState.STARTING;
         }
 
+        private static boolean isClientFacing(StageInfo outputStage)
+        {
+            PlanNode root = outputStage.getPlan().getRoot();
+            return root instanceof OutputNode && ((OutputNode) root).isClientFacing();
+        }
+
         private synchronized void updateExchangeClient(StageInfo outputStage)
         {
+            if (isClientFacing(outputStage)) {
+                exchangeClient.noMoreLocations();
+                return;
+            }
+
             // add any additional output locations
             if (!outputStage.getState().isDone()) {
                 for (TaskInfo taskInfo : outputStage.getTasks()) {
@@ -730,14 +743,14 @@ public class StatementResource
                     failure);
         }
 
-        private static class RowIterable
+        static class RowIterable
                 implements Iterable<List<Object>>
         {
             private final ConnectorSession session;
             private final List<Type> types;
             private final Page page;
 
-            private RowIterable(ConnectorSession session, List<Type> types, Page page)
+            RowIterable(ConnectorSession session, List<Type> types, Page page)
             {
                 this.session = session;
                 this.types = ImmutableList.copyOf(requireNonNull(types, "types is null"));
