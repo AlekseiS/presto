@@ -51,6 +51,7 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_STARTED_TRANSACTION_ID;
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
 import static io.airlift.http.client.FullJsonResponseHandler.JsonResponse;
 import static io.airlift.http.client.FullJsonResponseHandler.createFullJsonResponseHandler;
@@ -63,6 +64,7 @@ import static io.airlift.http.client.Request.Builder.preparePost;
 import static io.airlift.http.client.StaticBodyGenerator.createStaticBodyGenerator;
 import static io.airlift.http.client.StatusResponseHandler.StatusResponse;
 import static io.airlift.http.client.StatusResponseHandler.createStatusResponseHandler;
+import static io.airlift.json.JsonCodec.jsonCodec;
 import static java.lang.String.format;
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.Objects.requireNonNull;
@@ -80,9 +82,11 @@ public class StatementClient
 
     private final HttpClient httpClient;
     private final FullJsonResponseHandler<QueryResults> responseHandler;
+    private final FullJsonResponseHandler<TaskResults> taskResponseHandler;
     private final boolean debug;
     private final String query;
     private final AtomicReference<QueryResults> currentResults = new AtomicReference<>();
+    private final AtomicReference<TaskResults> currentTaskResults = new AtomicReference<>();
     private final Map<String, String> setSessionProperties = new ConcurrentHashMap<>();
     private final Set<String> resetSessionProperties = Sets.newConcurrentHashSet();
     private final Map<String, String> addedPreparedStatements = new ConcurrentHashMap<>();
@@ -95,6 +99,8 @@ public class StatementClient
     private final String timeZoneId;
     private final long requestTimeoutNanos;
     private final String user;
+    private final AtomicBoolean closedTask = new AtomicBoolean();
+    private final AtomicReference<URI> taskCloseUri = new AtomicReference<>();
 
     public StatementClient(HttpClient httpClient, JsonCodec<QueryResults> queryResultsCodec, ClientSession session, String query)
     {
@@ -105,6 +111,7 @@ public class StatementClient
 
         this.httpClient = httpClient;
         this.responseHandler = createFullJsonResponseHandler(queryResultsCodec);
+        this.taskResponseHandler = createFullJsonResponseHandler(jsonCodec(TaskResults.class));
         this.debug = session.isDebug();
         this.timeZoneId = session.getTimeZoneId();
         this.query = query;
@@ -248,6 +255,35 @@ public class StatementClient
 
     public boolean advance()
     {
+        boolean ok1 = advanceCoordinator();
+        boolean ok2 = advanceTask();
+        if (ok2) {
+            while (!Thread.currentThread().isInterrupted()) {
+                QueryResults current = currentResults.get();
+                TaskResults currentTask = currentTaskResults.get();
+                QueryResults merged = new QueryResults(
+                        current.getId(),
+                        current.getInfoUri(),
+                        current.getPartialCancelUri(),
+                        current.getNextUri(),
+                        currentTask.getColumns(),
+                        currentTask.getData(),
+                        current.getStats(),
+                        current.getError(),
+                        current.getUpdateType(),
+                        current.getUpdateCount(),
+                        current.getTaskDownloadUris()
+                );
+                if (currentResults.compareAndSet(current, merged)) {
+                    break;
+                }
+            }
+        }
+        return ok1 || ok2;
+    }
+
+    private boolean advanceCoordinator()
+    {
         URI nextUri = current().getNextUri();
         if (isClosed() || (nextUri == null)) {
             valid.set(false);
@@ -302,6 +338,94 @@ public class StatementClient
         throw new RuntimeException("Error fetching next", cause);
     }
 
+    private boolean advanceTask()
+    {
+        if (!isValid()) {
+            return false;
+        }
+        URI nextUri;
+        TaskResults tmpTaskResults = currentTaskResults.get();
+        if (tmpTaskResults == null) {
+            Set<URI> taskUris = current().getTaskDownloadUris();
+            if (taskUris == null || taskUris.isEmpty()) {
+                return false;
+            }
+            nextUri = getOnlyElement(taskUris);
+            checkState(nextUri != null);
+            taskCloseUri.compareAndSet(null, createTaskCloseUri(nextUri));
+        }
+        else {
+            nextUri = tmpTaskResults.getNextUri();
+        }
+
+        if (closedTask.get() || (nextUri == null)) {
+            return false;
+        }
+
+        Request request = prepareRequest(prepareGet(), nextUri).build();
+
+        Exception cause = null;
+        long start = System.nanoTime();
+        long attempts = 0;
+
+        do {
+            // back-off on retry
+            if (attempts > 0) {
+                try {
+                    MILLISECONDS.sleep(attempts * 100);
+                }
+                catch (InterruptedException e) {
+                    try {
+                        close();
+                    }
+                    finally {
+                        Thread.currentThread().interrupt();
+                    }
+                    throw new RuntimeException("StatementClient thread was interrupted");
+                }
+            }
+            attempts++;
+
+            JsonResponse<TaskResults> response;
+            try {
+                response = httpClient.execute(request, taskResponseHandler);
+            }
+            catch (RuntimeException e) {
+                cause = e;
+                continue;
+            }
+
+            if (response.getStatusCode() == HttpStatus.OK.code() && response.hasValue()) {
+                currentTaskResults.set(response.getValue());
+                if (response.getValue().getNextUri() == null) {
+                    closeTask();
+                }
+                return true;
+            }
+
+            if (response.getStatusCode() != HttpStatus.SERVICE_UNAVAILABLE.code()) {
+                throw requestFailedException("fetching next task", request, response);
+            }
+        }
+        while (((System.nanoTime() - start) < requestTimeoutNanos) && !isClosed());
+
+        gone.set(true);
+        throw new RuntimeException("Error fetching next task", cause);
+    }
+
+    private static URI createTaskCloseUri(URI uri)
+    {
+        String path = uri.getPath();
+        int from = path.length() - 1;
+        if (path.charAt(from) == '/') {
+            from--;
+        }
+        int idx = path.lastIndexOf('/', from);
+        checkState(idx >= 0);
+        String newPath = path.substring(0, idx).replace("download", "results");
+        return uriBuilderFrom(uri).replacePath(newPath).build();
+    }
+
     private void processResponse(JsonResponse<QueryResults> response)
     {
         for (String setSession : response.getHeaders(PRESTO_SET_SESSION)) {
@@ -337,7 +461,7 @@ public class StatementClient
         currentResults.set(response.getValue());
     }
 
-    private RuntimeException requestFailedException(String task, Request request, JsonResponse<QueryResults> response)
+    private RuntimeException requestFailedException(String task, Request request, JsonResponse<?> response)
     {
         gone.set(true);
         if (!response.hasValue()) {
@@ -385,6 +509,16 @@ public class StatementClient
                 Request request = prepareRequest(prepareDelete(), uri).build();
                 httpClient.executeAsync(request, createStatusResponseHandler());
             }
+        }
+        closeTask();
+    }
+
+    public void closeTask()
+    {
+        URI uri = taskCloseUri.get();
+        if (uri != null && !closedTask.getAndSet(true)) {
+            Request request = prepareRequest(prepareDelete(), uri).build();
+            httpClient.executeAsync(request, createStatusResponseHandler());
         }
     }
 
