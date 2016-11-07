@@ -417,7 +417,7 @@ public class UnaliasSymbolReferences
             PlanNode source = context.rewrite(node.getSource());
 
             List<Symbol> canonical = Lists.transform(node.getOutputSymbols(), this::canonicalize);
-            return new OutputNode(node.getId(), source, node.getColumnNames(), canonical);
+            return new OutputNode(node.getId(), source, node.getColumnNames(), canonical, node.isClientFacing());
         }
 
         @Override

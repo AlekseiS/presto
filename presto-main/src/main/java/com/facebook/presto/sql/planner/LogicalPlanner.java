@@ -135,7 +135,7 @@ public class LogicalPlanner
             if (analysis.isCreateTableAsSelectNoOp()) {
                 List<Expression> emptyRow = ImmutableList.of();
                 PlanNode source = new ValuesNode(idAllocator.getNextId(), ImmutableList.of(), ImmutableList.of(emptyRow));
-                return new OutputNode(idAllocator.getNextId(), source, ImmutableList.of(), ImmutableList.of());
+                return new OutputNode(idAllocator.getNextId(), source, ImmutableList.of(), ImmutableList.of(), false);
             }
             else {
                 return createOutputPlan(createTableCreationPlan(analysis, ((CreateTableAsSelect) statement).getQuery()), analysis);
@@ -338,7 +338,7 @@ public class LogicalPlanner
             columnNumber++;
         }
 
-        return new OutputNode(idAllocator.getNextId(), plan.getRoot(), names.build(), outputs.build());
+        return new OutputNode(idAllocator.getNextId(), plan.getRoot(), names.build(), outputs.build(), false);
     }
 
     private RelationPlan createRelationPlan(Analysis analysis, Query query)
