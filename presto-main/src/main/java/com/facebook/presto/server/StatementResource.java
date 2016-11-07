@@ -297,6 +297,9 @@ public class StatementResource
         @GuardedBy("this")
         private Long updateCount;
 
+        @GuardedBy("this")
+        private Set<URI> taskDownloadUris = new HashSet<>();
+
         public Query(Session session,
                 String query,
                 QueryManager queryManager,
@@ -460,7 +463,8 @@ public class StatementResource
                     toStatementStats(queryInfo),
                     toQueryError(queryInfo),
                     queryInfo.getUpdateType(),
-                    updateCount);
+                    updateCount,
+                    taskDownloadUris);
 
             // cache the last results
             if (lastResult != null && lastResult.getNextUri() != null) {
@@ -534,10 +538,7 @@ public class StatementResource
 
         private synchronized void updateExchangeClient(StageInfo outputStage)
         {
-            if (isClientFacing(outputStage)) {
-                exchangeClient.noMoreLocations();
-                return;
-            }
+            boolean clientFacing = isClientFacing(outputStage);
 
             // add any additional output locations
             if (!outputStage.getState().isDone()) {
@@ -554,12 +555,18 @@ public class StatementResource
                             buffers);
 
                     OutputBufferId bufferId = Iterables.getOnlyElement(buffers).getBufferId();
-                    URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("results").appendPath(bufferId.toString()).build();
-                    exchangeClient.addLocation(uri);
+                    if (clientFacing) {
+                        URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("download").appendPath(bufferId.toString()).appendPath("0").build();
+                        taskDownloadUris.add(uri);
+                    }
+                    else {
+                        URI uri = uriBuilderFrom(taskInfo.getTaskStatus().getSelf()).appendPath("results").appendPath(bufferId.toString()).build();
+                        exchangeClient.addLocation(uri);
+                    }
                 }
             }
 
-            if (allOutputBuffersCreated(outputStage)) {
+            if (clientFacing || allOutputBuffersCreated(outputStage)) {
                 exchangeClient.noMoreLocations();
             }
         }

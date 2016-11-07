@@ -76,6 +76,7 @@ public class QueryResults
     private final QueryError error;
     private final String updateType;
     private final Long updateCount;
+    private final Set<URI> taskDownloadUris;
 
     @JsonCreator
     public QueryResults(
@@ -88,9 +89,10 @@ public class QueryResults
             @JsonProperty("stats") StatementStats stats,
             @JsonProperty("error") QueryError error,
             @JsonProperty("updateType") String updateType,
-            @JsonProperty("updateCount") Long updateCount)
+            @JsonProperty("updateCount") Long updateCount,
+            @JsonProperty("taskDownloadUris") Set<URI> taskDownloadUris)
     {
-        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount);
+        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount, taskDownloadUris);
     }
 
     public QueryResults(
@@ -103,7 +105,8 @@ public class QueryResults
             StatementStats stats,
             QueryError error,
             String updateType,
-            Long updateCount)
+            Long updateCount,
+            Set<URI> taskDownloadUris)
     {
         this.id = requireNonNull(id, "id is null");
         this.infoUri = requireNonNull(infoUri, "infoUri is null");
@@ -115,6 +118,7 @@ public class QueryResults
         this.error = error;
         this.updateType = updateType;
         this.updateCount = updateCount;
+        this.taskDownloadUris = taskDownloadUris;
     }
 
     @NotNull
@@ -187,6 +191,13 @@ public class QueryResults
         return updateCount;
     }
 
+    @Nullable
+    @JsonProperty
+    public Set<URI> getTaskDownloadUris()
+    {
+        return taskDownloadUris;
+    }
+
     @Override
     public String toString()
     {
@@ -201,6 +212,7 @@ public class QueryResults
                 .add("error", error)
                 .add("updateType", updateType)
                 .add("updateCount", updateCount)
+                .add("taskDownloadUris", taskDownloadUris)
                 .toString();
     }
 
