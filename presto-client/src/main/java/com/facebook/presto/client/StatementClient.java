@@ -290,6 +290,14 @@ public class StatementClient
             return false;
         }
 
+        JsonResponse<QueryResults> response = advanceInternal(nextUri, responseHandler);
+        checkState(response != null);
+        processResponse(response);
+        return true;
+    }
+
+    private <T> JsonResponse<T> advanceInternal(URI nextUri, FullJsonResponseHandler<T> responseHandler)
+    {
         Request request = prepareRequest(prepareGet(), nextUri).build();
 
         Exception cause = null;
@@ -314,7 +322,7 @@ public class StatementClient
             }
             attempts++;
 
-            JsonResponse<QueryResults> response;
+            JsonResponse<T> response;
             try {
                 response = httpClient.execute(request, responseHandler);
             }
@@ -324,8 +332,7 @@ public class StatementClient
             }
 
             if (response.getStatusCode() == HttpStatus.OK.code() && response.hasValue()) {
-                processResponse(response);
-                return true;
+                return response;
             }
 
             if (response.getStatusCode() != HttpStatus.SERVICE_UNAVAILABLE.code()) {
@@ -361,56 +368,13 @@ public class StatementClient
         if (closedTask.get() || (nextUri == null)) {
             return false;
         }
-
-        Request request = prepareRequest(prepareGet(), nextUri).build();
-
-        Exception cause = null;
-        long start = System.nanoTime();
-        long attempts = 0;
-
-        do {
-            // back-off on retry
-            if (attempts > 0) {
-                try {
-                    MILLISECONDS.sleep(attempts * 100);
-                }
-                catch (InterruptedException e) {
-                    try {
-                        close();
-                    }
-                    finally {
-                        Thread.currentThread().interrupt();
-                    }
-                    throw new RuntimeException("StatementClient thread was interrupted");
-                }
-            }
-            attempts++;
-
-            JsonResponse<TaskResults> response;
-            try {
-                response = httpClient.execute(request, taskResponseHandler);
-            }
-            catch (RuntimeException e) {
-                cause = e;
-                continue;
-            }
-
-            if (response.getStatusCode() == HttpStatus.OK.code() && response.hasValue()) {
-                currentTaskResults.set(response.getValue());
-                if (response.getValue().getNextUri() == null) {
-                    closeTask();
-                }
-                return true;
-            }
-
-            if (response.getStatusCode() != HttpStatus.SERVICE_UNAVAILABLE.code()) {
-                throw requestFailedException("fetching next task", request, response);
-            }
+        JsonResponse<TaskResults> response = advanceInternal(nextUri, taskResponseHandler);
+        checkState(response != null);
+        currentTaskResults.set(response.getValue());
+        if (response.getValue().getNextUri() == null) {
+            closeTask();
         }
-        while (((System.nanoTime() - start) < requestTimeoutNanos) && !isClosed());
-
-        gone.set(true);
-        throw new RuntimeException("Error fetching next task", cause);
+        return true;
     }
 
     private static URI createTaskCloseUri(URI uri)
