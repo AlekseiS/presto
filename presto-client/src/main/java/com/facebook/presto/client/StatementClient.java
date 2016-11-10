@@ -39,6 +39,9 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -53,6 +56,7 @@ import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
+import static io.airlift.concurrent.MoreFutures.getFutureValue;
 import static io.airlift.http.client.FullJsonResponseHandler.JsonResponse;
 import static io.airlift.http.client.FullJsonResponseHandler.createFullJsonResponseHandler;
 import static io.airlift.http.client.HttpStatus.Family;
@@ -85,8 +89,6 @@ public class StatementClient
     private final FullJsonResponseHandler<TaskResults> taskResponseHandler;
     private final boolean debug;
     private final String query;
-    private final AtomicReference<QueryResults> currentResults = new AtomicReference<>();
-    private final AtomicReference<TaskResults> currentTaskResults = new AtomicReference<>();
     private final Map<String, String> setSessionProperties = new ConcurrentHashMap<>();
     private final Set<String> resetSessionProperties = Sets.newConcurrentHashSet();
     private final Map<String, String> addedPreparedStatements = new ConcurrentHashMap<>();
@@ -101,6 +103,180 @@ public class StatementClient
     private final String user;
     private final AtomicBoolean closedTask = new AtomicBoolean();
     private final AtomicReference<URI> taskCloseUri = new AtomicReference<>();
+
+    private final AtomicReference<State> state = new AtomicReference<State>();
+
+    private interface State
+    {
+        boolean advance();
+
+        QueryResults current();
+    }
+
+    private class CoordinatorOnly
+            implements State
+    {
+        private final AtomicReference<QueryResults> currentQueryResults = new AtomicReference<>();
+
+        public CoordinatorOnly(QueryResults initial)
+        {
+            currentQueryResults.set(initial);
+        }
+
+        @Override
+        public boolean advance()
+        {
+            QueryResults cur = currentQueryResults.get();
+
+            if (cur.getTaskDownloadUris() != null && !cur.getTaskDownloadUris().isEmpty()) {
+                state.set(new CoordinatorAndTask(cur, getOnlyElement(cur.getTaskDownloadUris())));
+                return state.get().advance();
+            }
+
+            URI nextUri = cur.getNextUri();
+            if (isClosed() || (nextUri == null)) {
+                valid.set(false);
+                return false;
+            }
+
+            JsonResponse<QueryResults> response = advanceInternal(nextUri, responseHandler);
+            checkState(response != null);
+            processQueryResponse(response);
+            QueryResults results = response.getValue();
+            currentQueryResults.set(results);
+            return true;
+        }
+
+        @Override
+        public QueryResults current()
+        {
+            return currentQueryResults.get();
+        }
+    }
+
+    private class CoordinatorAndTask
+            implements State
+    {
+        private final AtomicReference<QueryResults> currentQueryResults = new AtomicReference<>();
+        private final AtomicReference<TaskResults> currentTaskResults = new AtomicReference<>();
+        private final ExecutorService executor = Executors.newSingleThreadExecutor();
+        private final AtomicReference<Future<?>> queryResultsFuture = new AtomicReference<>();
+        private final URI initialTaskDownloadUri;
+
+        public CoordinatorAndTask(QueryResults currentQueryResults, URI initialTaskDownloadUri)
+        {
+            this.currentQueryResults.set(currentQueryResults);
+            this.initialTaskDownloadUri = requireNonNull(initialTaskDownloadUri);
+            taskCloseUri.set(createTaskCloseUri(initialTaskDownloadUri));
+        }
+
+        @Override
+        public boolean advance()
+        {
+            TaskResults curTask = currentTaskResults.get();
+            URI nextUri = curTask != null ? curTask.getNextUri() : initialTaskDownloadUri;
+            if (nextUri == null) {
+                closeTask();
+                // wait for a previous call for query results to complete
+                getFutureValue(queryResultsFuture.get());
+                executor.shutdownNow();
+                state.set(new TaskDownloadedCoordinatorLeft(current()));
+                return state.get().advance();
+            }
+
+            if (isClosed()) {
+                valid.set(false);
+                return false;
+            }
+
+            //TODO: verify thread safety
+            Future<?> future = queryResultsFuture.get();
+            if (future == null || future.isDone()) {
+                if (future != null) {
+                    // propagate exception if any
+                    getFutureValue(future);
+                }
+                queryResultsFuture.set(executor.submit(() -> {
+                    //TODO: check what happens if exception is thrown inside the future
+                    URI nextQueryUri = currentQueryResults.get().getNextUri();
+                    if (isClosed() || (nextQueryUri == null)) {
+                        valid.set(false);
+                        return false;
+                    }
+
+                    JsonResponse<QueryResults> response = advanceInternal(nextQueryUri, responseHandler);
+                    checkState(response != null);
+                    processQueryResponse(response);
+                    QueryResults results = response.getValue();
+                    currentQueryResults.set(results);
+                    return true;
+                }));
+            }
+
+            JsonResponse<TaskResults> response = advanceInternal(nextUri, taskResponseHandler);
+            checkState(response != null);
+            TaskResults results = response.getValue();
+            currentTaskResults.set(results);
+            return true;
+        }
+
+        @Override
+        public QueryResults current()
+        {
+            QueryResults current = currentQueryResults.get();
+            TaskResults currentTask = currentTaskResults.get();
+            if (currentTask == null) {
+                return current;
+            }
+            return new QueryResults(
+                    current.getId(),
+                    current.getInfoUri(),
+                    current.getPartialCancelUri(),
+                    current.getNextUri(),
+                    currentTask.getColumns(),
+                    currentTask.getData(),
+                    current.getStats(),
+                    current.getError(),
+                    current.getUpdateType(),
+                    current.getUpdateCount(),
+                    current.getTaskDownloadUris()
+            );
+        }
+    }
+
+    private class TaskDownloadedCoordinatorLeft
+            implements State
+    {
+        private final AtomicReference<QueryResults> currentQueryResults = new AtomicReference<>();
+
+        public TaskDownloadedCoordinatorLeft(QueryResults currentQueryResults)
+        {
+            this.currentQueryResults.set(currentQueryResults);
+        }
+
+        @Override
+        public boolean advance()
+        {
+            URI nextUri = currentQueryResults.get().getNextUri();
+            if (isClosed() || (nextUri == null)) {
+                valid.set(false);
+                return false;
+            }
+
+            JsonResponse<QueryResults> response = advanceInternal(nextUri, responseHandler);
+            checkState(response != null);
+            processQueryResponse(response);
+            QueryResults results = response.getValue();
+            currentQueryResults.set(results);
+            return true;
+        }
+
+        @Override
+        public QueryResults current()
+        {
+            return currentQueryResults.get();
+        }
+    }
 
     public StatementClient(HttpClient httpClient, JsonCodec<QueryResults> queryResultsCodec, ClientSession session, String query)
     {
@@ -125,7 +301,8 @@ public class StatementClient
             throw requestFailedException("starting query", request, response);
         }
 
-        processResponse(response);
+        processQueryResponse(response);
+        state.set(new CoordinatorOnly(response.getValue()));
     }
 
     private Request buildQueryRequest(ClientSession session, String query)
@@ -187,26 +364,27 @@ public class StatementClient
         return gone.get();
     }
 
+    //TODO: push state.get().current().* methods to State
     public boolean isFailed()
     {
-        return currentResults.get().getError() != null;
+        return state.get().current().getError() != null;
     }
 
     public StatementStats getStats()
     {
-        return currentResults.get().getStats();
+        return state.get().current().getStats();
     }
 
     public QueryResults current()
     {
         checkState(isValid(), "current position is not valid (cursor past end)");
-        return currentResults.get();
+        return state.get().current();
     }
 
     public QueryResults finalResults()
     {
         checkState((!isValid()) || isFailed(), "current position is still valid");
-        return currentResults.get();
+        return state.get().current();
     }
 
     public Map<String, String> getSetSessionProperties()
@@ -255,45 +433,7 @@ public class StatementClient
 
     public boolean advance()
     {
-        boolean ok1 = advanceCoordinator();
-        boolean ok2 = advanceTask();
-        if (ok2) {
-            while (!Thread.currentThread().isInterrupted()) {
-                QueryResults current = currentResults.get();
-                TaskResults currentTask = currentTaskResults.get();
-                QueryResults merged = new QueryResults(
-                        current.getId(),
-                        current.getInfoUri(),
-                        current.getPartialCancelUri(),
-                        current.getNextUri(),
-                        currentTask.getColumns(),
-                        currentTask.getData(),
-                        current.getStats(),
-                        current.getError(),
-                        current.getUpdateType(),
-                        current.getUpdateCount(),
-                        current.getTaskDownloadUris()
-                );
-                if (currentResults.compareAndSet(current, merged)) {
-                    break;
-                }
-            }
-        }
-        return ok1 || ok2;
-    }
-
-    private boolean advanceCoordinator()
-    {
-        URI nextUri = current().getNextUri();
-        if (isClosed() || (nextUri == null)) {
-            valid.set(false);
-            return false;
-        }
-
-        JsonResponse<QueryResults> response = advanceInternal(nextUri, responseHandler);
-        checkState(response != null);
-        processResponse(response);
-        return true;
+        return state.get().advance();
     }
 
     private <T> JsonResponse<T> advanceInternal(URI nextUri, FullJsonResponseHandler<T> responseHandler)
@@ -345,38 +485,6 @@ public class StatementClient
         throw new RuntimeException("Error fetching next", cause);
     }
 
-    private boolean advanceTask()
-    {
-        if (!isValid()) {
-            return false;
-        }
-        URI nextUri;
-        TaskResults tmpTaskResults = currentTaskResults.get();
-        if (tmpTaskResults == null) {
-            Set<URI> taskUris = current().getTaskDownloadUris();
-            if (taskUris == null || taskUris.isEmpty()) {
-                return false;
-            }
-            nextUri = getOnlyElement(taskUris);
-            checkState(nextUri != null);
-            taskCloseUri.compareAndSet(null, createTaskCloseUri(nextUri));
-        }
-        else {
-            nextUri = tmpTaskResults.getNextUri();
-        }
-
-        if (closedTask.get() || (nextUri == null)) {
-            return false;
-        }
-        JsonResponse<TaskResults> response = advanceInternal(nextUri, taskResponseHandler);
-        checkState(response != null);
-        currentTaskResults.set(response.getValue());
-        if (response.getValue().getNextUri() == null) {
-            closeTask();
-        }
-        return true;
-    }
-
     private static URI createTaskCloseUri(URI uri)
     {
         String path = uri.getPath();
@@ -390,7 +498,7 @@ public class StatementClient
         return uriBuilderFrom(uri).replacePath(newPath).build();
     }
 
-    private void processResponse(JsonResponse<QueryResults> response)
+    private void processQueryResponse(JsonResponse<QueryResults> response)
     {
         for (String setSession : response.getHeaders(PRESTO_SET_SESSION)) {
             List<String> keyValue = SESSION_HEADER_SPLITTER.splitToList(setSession);
@@ -421,8 +529,6 @@ public class StatementClient
         if (response.getHeader(PRESTO_CLEAR_TRANSACTION_ID) != null) {
             clearTransactionId.set(true);
         }
-
-        currentResults.set(response.getValue());
     }
 
     private RuntimeException requestFailedException(String task, Request request, JsonResponse<?> response)
@@ -468,7 +574,7 @@ public class StatementClient
     public void close()
     {
         if (!closed.getAndSet(true)) {
-            URI uri = currentResults.get().getNextUri();
+            URI uri = state.get().current().getNextUri();
             if (uri != null) {
                 Request request = prepareRequest(prepareDelete(), uri).build();
                 httpClient.executeAsync(request, createStatusResponseHandler());
@@ -477,7 +583,7 @@ public class StatementClient
         closeTask();
     }
 
-    public void closeTask()
+    private void closeTask()
     {
         URI uri = taskCloseUri.get();
         if (uri != null && !closedTask.getAndSet(true)) {
