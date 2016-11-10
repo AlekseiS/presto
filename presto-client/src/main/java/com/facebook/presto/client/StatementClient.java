@@ -111,6 +111,10 @@ public class StatementClient
         boolean advance();
 
         QueryResults current();
+
+        StatementStats getStats();
+
+        boolean isFailed();
     }
 
     private class CoordinatorOnly
@@ -151,6 +155,18 @@ public class StatementClient
         public QueryResults current()
         {
             return currentQueryResults.get();
+        }
+
+        @Override
+        public StatementStats getStats()
+        {
+            return currentQueryResults.get().getStats();
+        }
+
+        @Override
+        public boolean isFailed()
+        {
+            return currentQueryResults.get().getError() != null;
         }
     }
 
@@ -242,6 +258,18 @@ public class StatementClient
                     current.getTaskDownloadUris()
             );
         }
+
+        @Override
+        public StatementStats getStats()
+        {
+            return currentQueryResults.get().getStats();
+        }
+
+        @Override
+        public boolean isFailed()
+        {
+            return currentQueryResults.get().getError() != null;
+        }
     }
 
     private class TaskDownloadedCoordinatorLeft
@@ -275,6 +303,18 @@ public class StatementClient
         public QueryResults current()
         {
             return currentQueryResults.get();
+        }
+
+        @Override
+        public StatementStats getStats()
+        {
+            return currentQueryResults.get().getStats();
+        }
+
+        @Override
+        public boolean isFailed()
+        {
+            return currentQueryResults.get().getError() != null;
         }
     }
 
@@ -364,15 +404,14 @@ public class StatementClient
         return gone.get();
     }
 
-    //TODO: push state.get().current().* methods to State
     public boolean isFailed()
     {
-        return state.get().current().getError() != null;
+        return state.get().isFailed();
     }
 
     public StatementStats getStats()
     {
-        return state.get().current().getStats();
+        return state.get().getStats();
     }
 
     public QueryResults current()
