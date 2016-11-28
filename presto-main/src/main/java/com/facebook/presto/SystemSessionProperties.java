@@ -68,6 +68,7 @@ public final class SystemSessionProperties
     public static final String LEGACY_ORDER_BY = "legacy_order_by";
     public static final String REORDER_WINDOWS = "reorder_windows";
     public static final String ITERATIVE_OPTIMIZER = "iterative_optimizer_enabled";
+    public static final String PARALLEL_OUTPUT = "parallel_output";
 
     private final List<PropertyMetadata<?>> sessionProperties;
 
@@ -277,7 +278,12 @@ public final class SystemSessionProperties
                         ITERATIVE_OPTIMIZER,
                         "Experimental: enable iterative optimizer",
                         featuresConfig.isIterativeOptimizerEnabled(),
-                        false));
+                        false),
+                booleanSessionProperty(
+                        PARALLEL_OUTPUT,
+                        "Create multiple tasks in the output stage",
+                        false,
+                        true));
     }
 
     public List<PropertyMetadata<?>> getSessionProperties()
@@ -437,5 +443,10 @@ public final class SystemSessionProperties
     public static boolean isNewOptimizerEnabled(Session session)
     {
         return session.getSystemProperty(ITERATIVE_OPTIMIZER, Boolean.class);
+    }
+
+    public static boolean isParallelOutput(Session session)
+    {
+        return session.getSystemProperty(PARALLEL_OUTPUT, Boolean.class);
     }
 }

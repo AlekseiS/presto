@@ -48,6 +48,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 
+import static com.facebook.presto.SystemSessionProperties.isParallelOutput;
 import static com.facebook.presto.sql.planner.SystemPartitioningHandle.COORDINATOR_DISTRIBUTION;
 import static com.facebook.presto.sql.planner.SystemPartitioningHandle.SINGLE_DISTRIBUTION;
 import static com.facebook.presto.sql.planner.SystemPartitioningHandle.SOURCE_DISTRIBUTION;
@@ -71,12 +72,15 @@ public class PlanFragmenter
     {
         Fragmenter fragmenter = new Fragmenter(session, metadata, plan.getSymbolAllocator().getTypes());
 
-        FragmentProperties properties = new FragmentProperties(new PartitioningScheme(Partitioning.create(SINGLE_DISTRIBUTION, ImmutableList.of()), plan.getRoot().getOutputSymbols()))
-                .setSingleNodeDistribution();
+        FragmentProperties properties = new FragmentProperties(new PartitioningScheme(Partitioning.create(SINGLE_DISTRIBUTION, ImmutableList.of()), plan.getRoot().getOutputSymbols()));
+        if (!isParallelOutput(session)) {
+            properties.setSingleNodeDistribution();
+        }
         PlanNode root = SimplePlanRewriter.rewriteWith(fragmenter, plan.getRoot(), properties);
 
         SubPlan result = fragmenter.buildRootFragment(root, properties);
-        checkState(result.getFragment().getPartitioning().isSingleNode(), "Root of PlanFragment is not single node");
+        checkState(isParallelOutput(session) || result.getFragment().getPartitioning().isSingleNode(),
+                "Root of PlanFragment is not single node");
         result.sanityCheck();
 
         return result;
@@ -131,7 +135,9 @@ public class PlanFragmenter
         @Override
         public PlanNode visitOutput(OutputNode node, RewriteContext<FragmentProperties> context)
         {
-            context.get().setSingleNodeDistribution(); // TODO: add support for distributed output
+            if (!isParallelOutput(session)) {
+                context.get().setSingleNodeDistribution();
+            }
 
             return context.defaultRewrite(node, context.get());
         }
