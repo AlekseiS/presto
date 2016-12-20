@@ -19,6 +19,7 @@ import com.facebook.presto.SystemSessionProperties;
 import com.facebook.presto.block.BlockEncodingManager;
 import com.facebook.presto.block.BlockJsonSerde;
 import com.facebook.presto.client.NodeVersion;
+import com.facebook.presto.client.ParallelDataResults;
 import com.facebook.presto.client.ServerInfo;
 import com.facebook.presto.connector.ConnectorManager;
 import com.facebook.presto.connector.system.SystemConnectorModule;
@@ -238,6 +239,11 @@ public class ServerMainModule
         jaxrsBinder(binder).bind(TaskResource.class);
         newExporter(binder).export(TaskResource.class).withGeneratedName();
         binder.bind(TaskManager.class).to(SqlTaskManager.class).in(Scopes.SINGLETON);
+
+        // parallel task execution
+        jsonCodecBinder(binder).bindJsonCodec(ParallelDataResults.class);
+        jaxrsBinder(binder).bind(MyParallelDataResource.class);
+        newExporter(binder).export(MyParallelDataResource.class).withGeneratedName();
 
         // workaround for CodeCache GC issue
         if (JavaVersion.current().getMajor() == 8) {

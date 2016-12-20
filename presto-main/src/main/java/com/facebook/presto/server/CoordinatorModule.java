@@ -13,6 +13,8 @@
  */
 package com.facebook.presto.server;
 
+import com.facebook.presto.client.ParallelDataResults;
+import com.facebook.presto.client.ParallelStatus;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.execution.AddColumnTask;
 import com.facebook.presto.execution.CallTask;
@@ -140,6 +142,11 @@ public class CoordinatorModule
         jsonCodecBinder(binder).bindJsonCodec(TaskInfo.class);
         jsonCodecBinder(binder).bindJsonCodec(QueryResults.class);
         jaxrsBinder(binder).bind(StatementResource.class);
+
+        // parallel query resource
+        jsonCodecBinder(binder).bindJsonCodec(ParallelStatus.class);
+        jsonCodecBinder(binder).bindJsonCodec(ParallelDataResults.class);
+        jaxrsBinder(binder).bind(MyParallelResource.class);
 
         // query execution visualizer
         jaxrsBinder(binder).bind(QueryExecutionResource.class);
