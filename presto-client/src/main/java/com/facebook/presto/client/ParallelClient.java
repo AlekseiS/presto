@@ -23,7 +23,6 @@ import io.airlift.http.client.HttpClient;
 import io.airlift.http.client.HttpClient.HttpResponseFuture;
 import io.airlift.http.client.HttpStatus;
 import io.airlift.http.client.Request;
-import io.airlift.json.JsonCodec;
 import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
@@ -348,15 +347,14 @@ public class ParallelClient
         }
     }
 
-    public ParallelClient(HttpClient httpClient, JsonCodec<ParallelStatus> queryResultsCodec, ClientSession session, String query)
+    public ParallelClient(HttpClient httpClient, ClientSession session, String query)
     {
         requireNonNull(httpClient, "httpClient is null");
-        requireNonNull(queryResultsCodec, "queryResultsCodec is null");
         requireNonNull(session, "session is null");
         requireNonNull(query, "query is null");
 
         this.httpClient = httpClient;
-        this.statusResponseHandler = createFullJsonResponseHandler(queryResultsCodec);
+        this.statusResponseHandler = createFullJsonResponseHandler(jsonCodec(ParallelStatus.class));
         this.taskResponseHandler = createFullJsonResponseHandler(jsonCodec(ParallelDataResults.class));
         this.debug = session.isDebug();
         this.timeZoneId = session.getTimeZoneId();
