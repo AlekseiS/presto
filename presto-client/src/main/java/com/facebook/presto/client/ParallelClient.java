@@ -24,6 +24,7 @@ import io.airlift.http.client.HttpClient.HttpResponseFuture;
 import io.airlift.http.client.HttpStatus;
 import io.airlift.http.client.Request;
 import io.airlift.json.JsonCodec;
+import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
 import javax.annotation.concurrent.ThreadSafe;
@@ -37,11 +38,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,13 +52,12 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_ADDED_PREPARE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_TRANSACTION_ID;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_DEALLOCATED_PREPARE;
+import static com.facebook.presto.client.PrestoHeaders.PRESTO_NEXT_URI;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_STARTED_TRANSACTION_ID;
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.collect.Iterables.getOnlyElement;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
-import static io.airlift.concurrent.MoreFutures.getFutureValue;
 import static io.airlift.http.client.FullJsonResponseHandler.JsonResponse;
 import static io.airlift.http.client.FullJsonResponseHandler.createFullJsonResponseHandler;
 import static io.airlift.http.client.HttpStatus.Family;
@@ -76,17 +77,19 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
 
 @ThreadSafe
-public class StatementClient
+public class ParallelClient
         implements Closeable
 {
+    private static final Logger log = Logger.get(ParallelClient.class);
+
     private static final Splitter SESSION_HEADER_SPLITTER = Splitter.on('=').limit(2).trimResults();
-    private static final String USER_AGENT_VALUE = StatementClient.class.getSimpleName() +
+    private static final String USER_AGENT_VALUE = ParallelClient.class.getSimpleName() +
             "/" +
-            firstNonNull(StatementClient.class.getPackage().getImplementationVersion(), "unknown");
+            firstNonNull(ParallelClient.class.getPackage().getImplementationVersion(), "unknown");
 
     private final HttpClient httpClient;
-    private final FullJsonResponseHandler<QueryResults> responseHandler;
-    private final FullJsonResponseHandler<TaskResults> taskResponseHandler;
+    private final FullJsonResponseHandler<ParallelStatus> statusResponseHandler;
+    private final FullJsonResponseHandler<ParallelDataResults> taskResponseHandler;
     private final boolean debug;
     private final String query;
     private final Map<String, String> setSessionProperties = new ConcurrentHashMap<>();
@@ -97,12 +100,9 @@ public class StatementClient
     private final AtomicBoolean clearTransactionId = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean gone = new AtomicBoolean();
-    private final AtomicBoolean valid = new AtomicBoolean(true);
     private final String timeZoneId;
     private final long requestTimeoutNanos;
     private final String user;
-    private final AtomicBoolean closedTask = new AtomicBoolean();
-    private final AtomicReference<URI> taskCloseUri = new AtomicReference<>();
 
     private final AtomicReference<State> state = new AtomicReference<State>();
 
@@ -110,215 +110,245 @@ public class StatementClient
     {
         boolean advance();
 
-        QueryResults current();
-
         StatementStats getStats();
 
         boolean isFailed();
+
+        QueryResults current();
+
+        QueryResults finalResults();
+
+        void close();
+
+        boolean isQueueEmpty();
     }
 
-    private class CoordinatorOnly
-            implements State
+    private class TaskDownload
+            implements Runnable, AutoCloseable
     {
-        private final AtomicReference<QueryResults> currentQueryResults = new AtomicReference<>();
+        private final URI initialUri;
+        private final BlockingQueue<ParallelDataResults> queue;
+        private final AtomicBoolean taskClosed = new AtomicBoolean();
+        private URI lastUri;
 
-        public CoordinatorOnly(QueryResults initial)
+        public TaskDownload(URI initialUri, BlockingQueue<ParallelDataResults> queue)
         {
-            currentQueryResults.set(initial);
+            this.initialUri = initialUri;
+            this.queue = queue;
         }
 
         @Override
-        public boolean advance()
+        public void run()
         {
-            QueryResults cur = currentQueryResults.get();
-
-            if (cur.getTaskDownloadUris() != null && !cur.getTaskDownloadUris().isEmpty()) {
-                state.set(new CoordinatorAndTask(cur, getOnlyElement(cur.getTaskDownloadUris())));
-                return state.get().advance();
-            }
-
-            URI nextUri = cur.getNextUri();
-            if (isClosed() || (nextUri == null)) {
-                valid.set(false);
-                return false;
-            }
-
-            JsonResponse<QueryResults> response = advanceInternal(nextUri, responseHandler);
-            checkState(response != null);
-            processQueryResponse(response);
-            QueryResults results = response.getValue();
-            currentQueryResults.set(results);
-            return true;
-        }
-
-        @Override
-        public QueryResults current()
-        {
-            return currentQueryResults.get();
-        }
-
-        @Override
-        public StatementStats getStats()
-        {
-            return currentQueryResults.get().getStats();
-        }
-
-        @Override
-        public boolean isFailed()
-        {
-            return currentQueryResults.get().getError() != null;
-        }
-    }
-
-    private class CoordinatorAndTask
-            implements State
-    {
-        private final AtomicReference<QueryResults> currentQueryResults = new AtomicReference<>();
-        private final AtomicReference<TaskResults> currentTaskResults = new AtomicReference<>();
-        private final ExecutorService executor = Executors.newSingleThreadExecutor();
-        private final AtomicReference<Future<?>> queryResultsFuture = new AtomicReference<>();
-        private final URI initialTaskDownloadUri;
-
-        public CoordinatorAndTask(QueryResults currentQueryResults, URI initialTaskDownloadUri)
-        {
-            this.currentQueryResults.set(currentQueryResults);
-            this.initialTaskDownloadUri = requireNonNull(initialTaskDownloadUri);
-            taskCloseUri.set(createTaskCloseUri(initialTaskDownloadUri));
-        }
-
-        @Override
-        public boolean advance()
-        {
-            TaskResults curTask = currentTaskResults.get();
-            URI nextUri = curTask != null ? curTask.getNextUri() : initialTaskDownloadUri;
-            if (nextUri == null) {
-                closeTask();
-                // wait for a previous call for query results to complete
-                getFutureValue(queryResultsFuture.get());
-                executor.shutdownNow();
-                state.set(new TaskDownloadedCoordinatorLeft(current()));
-                return state.get().advance();
-            }
-
-            if (isClosed()) {
-                valid.set(false);
-                return false;
-            }
-
-            //TODO: verify thread safety
-            Future<?> future = queryResultsFuture.get();
-            if (future == null || future.isDone()) {
-                if (future != null) {
-                    // propagate exception if any
-                    getFutureValue(future);
-                }
-                queryResultsFuture.set(executor.submit(() -> {
-                    //TODO: check what happens if exception is thrown inside the future
-                    URI nextQueryUri = currentQueryResults.get().getNextUri();
-                    if (isClosed() || (nextQueryUri == null)) {
-                        valid.set(false);
-                        return false;
+            try {
+                URI nextUri = initialUri;
+                while (!closed.get() && nextUri != null) {
+                    lastUri = nextUri;
+                    JsonResponse<ParallelDataResults> result = advanceInternal(nextUri, taskResponseHandler);
+                    String nextHeader = result.getHeader(PRESTO_NEXT_URI);
+                    nextUri = nextHeader == null ? null : URI.create(nextHeader);
+                    if (result.hasValue()) {
+                        queue.put(result.getValue());
                     }
-
-                    JsonResponse<QueryResults> response = advanceInternal(nextQueryUri, responseHandler);
-                    checkState(response != null);
-                    processQueryResponse(response);
-                    QueryResults results = response.getValue();
-                    currentQueryResults.set(results);
-                    return true;
-                }));
+                }
             }
-
-            JsonResponse<TaskResults> response = advanceInternal(nextUri, taskResponseHandler);
-            checkState(response != null);
-            TaskResults results = response.getValue();
-            currentTaskResults.set(results);
-            return true;
-        }
-
-        @Override
-        public QueryResults current()
-        {
-            QueryResults current = currentQueryResults.get();
-            TaskResults currentTask = currentTaskResults.get();
-            if (currentTask == null) {
-                return current;
+            catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new RuntimeException("Task download interrupted", e);
             }
-            return new QueryResults(
-                    current.getId(),
-                    current.getInfoUri(),
-                    current.getPartialCancelUri(),
-                    current.getNextUri(),
-                    currentTask.getColumns(),
-                    currentTask.getData(),
-                    current.getStats(),
-                    current.getError(),
-                    current.getUpdateType(),
-                    current.getUpdateCount(),
-                    current.getTaskDownloadUris()
-            );
+            catch (Exception e) {
+                log.error(e, "Error downloading task results");
+                throw e;
+            }
+            finally {
+                try {
+                    close();
+                }
+                catch (Exception e) {
+                    log.warn("Error closing a task", e);
+                }
+            }
         }
 
         @Override
-        public StatementStats getStats()
+        public void close()
+                throws Exception
         {
-            return currentQueryResults.get().getStats();
-        }
-
-        @Override
-        public boolean isFailed()
-        {
-            return currentQueryResults.get().getError() != null;
+            if (lastUri != null && !taskClosed.getAndSet(true)) {
+                Request request = prepareRequest(prepareDelete(), lastUri).build();
+                log.info("Sending delete to %s", lastUri);
+                httpClient.executeAsync(request, createStatusResponseHandler());
+            }
         }
     }
 
-    private class TaskDownloadedCoordinatorLeft
+    private class StatsDownload
+            implements Runnable, AutoCloseable
+    {
+        private final URI initialUri;
+        private final AtomicReference<ParallelStatus> statusResult;
+        private final AtomicBoolean finished;
+        private URI lastUri;
+
+        public StatsDownload(URI initialUri, AtomicReference<ParallelStatus> statusResult, AtomicBoolean finished)
+        {
+            this.initialUri = initialUri;
+            this.statusResult = statusResult;
+            this.finished = finished;
+        }
+
+        @Override
+        public void run()
+        {
+            try {
+                URI nextUri = initialUri;
+                while (nextUri != null) {
+                    lastUri = nextUri;
+                    JsonResponse<ParallelStatus> result = advanceInternal(nextUri, statusResponseHandler);
+                    processQueryResponse(result);
+                    nextUri = result.getValue().getNextUri();
+                    statusResult.set(result.getValue());
+                }
+            }
+            finally {
+                finished.set(true);
+                try {
+                    close();
+                }
+                catch (Exception e) {
+                    log.warn("Error closing stats download", e);
+                }
+            }
+        }
+
+        @Override
+        public void close()
+                throws Exception
+        {
+            if (lastUri != null && !closed.getAndSet(true)) {
+                Request request = prepareRequest(prepareDelete(), lastUri).build();
+                log.info("Sending stats delete to %s", lastUri);
+                httpClient.executeAsync(request, createStatusResponseHandler());
+            }
+        }
+    }
+
+    private class CoordinatorAndTasks
             implements State
     {
-        private final AtomicReference<QueryResults> currentQueryResults = new AtomicReference<>();
+        private final AtomicReference<ParallelStatus> currentStatus = new AtomicReference<>();
+        private final ExecutorService statusExecutor = Executors.newSingleThreadExecutor();
+        private final ExecutorService taskExecutors = Executors.newCachedThreadPool();
+        private final BlockingQueue<ParallelDataResults> queue;
+        private final AtomicBoolean finished = new AtomicBoolean();
 
-        public TaskDownloadedCoordinatorLeft(QueryResults currentQueryResults)
+        public CoordinatorAndTasks(ParallelStatus currentQueryResults)
         {
-            this.currentQueryResults.set(currentQueryResults);
+            List<URI> dataUris = currentQueryResults.getDataUris();
+            checkState(dataUris != null && !dataUris.isEmpty());
+            currentStatus.set(currentQueryResults);
+            queue = new ArrayBlockingQueue<>(dataUris.size() * 2);
+            // add a dummy empty task result
+            checkState(queue.offer(new ParallelDataResults(currentQueryResults.getId(), null, null)));
+            for (URI taskUri : dataUris) {
+                taskExecutors.submit(new TaskDownload(taskUri, queue));
+            }
+            statusExecutor.submit(new StatsDownload(currentQueryResults.getNextUri(), currentStatus, finished));
         }
 
         @Override
         public boolean advance()
         {
-            URI nextUri = currentQueryResults.get().getNextUri();
-            if (isClosed() || (nextUri == null)) {
-                valid.set(false);
-                return false;
+            checkState(queue.poll() != null);
+            while (!finished.get()) {
+                if (queue.peek() != null) {
+                    return true;
+                }
+                try {
+                    Thread.sleep(100);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException(e);
+                }
             }
-
-            JsonResponse<QueryResults> response = advanceInternal(nextUri, responseHandler);
-            checkState(response != null);
-            processQueryResponse(response);
-            QueryResults results = response.getValue();
-            currentQueryResults.set(results);
-            return true;
+            return false;
         }
 
-        @Override
-        public QueryResults current()
+        //TODO: gone flag
+        private ParallelStatus currentStatus()
         {
-            return currentQueryResults.get();
+            return currentStatus.get();
+        }
+
+        private ParallelDataResults currentData()
+        {
+            ParallelDataResults data = queue.peek();
+            checkState(data != null);
+            return data;
         }
 
         @Override
         public StatementStats getStats()
         {
-            return currentQueryResults.get().getStats();
+            return currentStatus.get().getStats();
         }
 
         @Override
         public boolean isFailed()
         {
-            return currentQueryResults.get().getError() != null;
+            return currentStatus.get().getError() != null;
+        }
+
+        @Override
+        public QueryResults current()
+        {
+            ParallelStatus status = currentStatus();
+            ParallelDataResults data = currentData();
+            return new QueryResults(status.getId(),
+                    status.getInfoUri(),
+                    status.getPartialCancelUri(),
+                    status.getNextUri(),
+                    data.getColumns(),
+                    data.getData(),
+                    status.getStats(),
+                    status.getError(),
+                    null,
+                    null);
+        }
+
+        @Override
+        public QueryResults finalResults()
+        {
+            ParallelStatus status = currentStatus();
+            return new QueryResults(status.getId(),
+                    status.getInfoUri(),
+                    status.getPartialCancelUri(),
+                    status.getNextUri(),
+                    null,
+                    null,
+                    status.getStats(),
+                    status.getError(),
+                    null,
+                    null);
+        }
+
+        @Override
+        public void close()
+        {
+            //TODO: send close requests
+            taskExecutors.shutdownNow();
+            statusExecutor.shutdownNow();
+        }
+
+        @Override
+        public boolean isQueueEmpty()
+        {
+            return queue.isEmpty();
         }
     }
 
-    public StatementClient(HttpClient httpClient, JsonCodec<QueryResults> queryResultsCodec, ClientSession session, String query)
+    public ParallelClient(HttpClient httpClient, JsonCodec<ParallelStatus> queryResultsCodec, ClientSession session, String query)
     {
         requireNonNull(httpClient, "httpClient is null");
         requireNonNull(queryResultsCodec, "queryResultsCodec is null");
@@ -326,8 +356,8 @@ public class StatementClient
         requireNonNull(query, "query is null");
 
         this.httpClient = httpClient;
-        this.responseHandler = createFullJsonResponseHandler(queryResultsCodec);
-        this.taskResponseHandler = createFullJsonResponseHandler(jsonCodec(TaskResults.class));
+        this.statusResponseHandler = createFullJsonResponseHandler(queryResultsCodec);
+        this.taskResponseHandler = createFullJsonResponseHandler(jsonCodec(ParallelDataResults.class));
         this.debug = session.isDebug();
         this.timeZoneId = session.getTimeZoneId();
         this.query = query;
@@ -335,19 +365,19 @@ public class StatementClient
         this.user = session.getUser();
 
         Request request = buildQueryRequest(session, query);
-        JsonResponse<QueryResults> response = httpClient.execute(request, responseHandler);
+        JsonResponse<ParallelStatus> response = httpClient.execute(request, statusResponseHandler);
 
         if (response.getStatusCode() != HttpStatus.OK.code() || !response.hasValue()) {
             throw requestFailedException("starting query", request, response);
         }
 
         processQueryResponse(response);
-        state.set(new CoordinatorOnly(response.getValue()));
+        state.set(new CoordinatorAndTasks(response.getValue()));
     }
 
     private Request buildQueryRequest(ClientSession session, String query)
     {
-        Request.Builder builder = prepareRequest(preparePost(), uriBuilderFrom(session.getServer()).replacePath("/v1/statement").build())
+        Request.Builder builder = prepareRequest(preparePost(), uriBuilderFrom(session.getServer()).replacePath("/v1/parallel").build())
                 .setBodyGenerator(createStaticBodyGenerator(query, UTF_8));
 
         if (session.getSource() != null) {
@@ -423,7 +453,7 @@ public class StatementClient
     public QueryResults finalResults()
     {
         checkState((!isValid()) || isFailed(), "current position is still valid");
-        return state.get().current();
+        return state.get().finalResults();
     }
 
     public Map<String, String> getSetSessionProperties()
@@ -458,7 +488,7 @@ public class StatementClient
 
     public boolean isValid()
     {
-        return valid.get() && (!isGone()) && (!isClosed());
+        return !isGone() && (!isClosed() || !state.get().isQueueEmpty());
     }
 
     private Request.Builder prepareRequest(Request.Builder builder, URI nextUri)
@@ -496,7 +526,7 @@ public class StatementClient
                     finally {
                         Thread.currentThread().interrupt();
                     }
-                    throw new RuntimeException("StatementClient thread was interrupted");
+                    throw new RuntimeException("Client thread was interrupted");
                 }
             }
             attempts++;
@@ -510,7 +540,7 @@ public class StatementClient
                 continue;
             }
 
-            if (response.getStatusCode() == HttpStatus.OK.code() && response.hasValue()) {
+            if (response.getStatusCode() == HttpStatus.OK.code() && response.hasValue() || response.getStatusCode() == HttpStatus.NO_CONTENT.code()) {
                 return response;
             }
 
@@ -537,7 +567,7 @@ public class StatementClient
         return uriBuilderFrom(uri).replacePath(newPath).build();
     }
 
-    private void processQueryResponse(JsonResponse<QueryResults> response)
+    private void processQueryResponse(JsonResponse<ParallelStatus> response)
     {
         for (String setSession : response.getHeaders(PRESTO_SET_SESSION)) {
             List<String> keyValue = SESSION_HEADER_SPLITTER.splitToList(setSession);
@@ -612,23 +642,7 @@ public class StatementClient
     @Override
     public void close()
     {
-        if (!closed.getAndSet(true)) {
-            URI uri = state.get().current().getNextUri();
-            if (uri != null) {
-                Request request = prepareRequest(prepareDelete(), uri).build();
-                httpClient.executeAsync(request, createStatusResponseHandler());
-            }
-        }
-        closeTask();
-    }
-
-    private void closeTask()
-    {
-        URI uri = taskCloseUri.get();
-        if (uri != null && !closedTask.getAndSet(true)) {
-            Request request = prepareRequest(prepareDelete(), uri).build();
-            httpClient.executeAsync(request, createStatusResponseHandler());
-        }
+        state.get().close();
     }
 
     private static String urlEncode(String value)
