@@ -113,7 +113,7 @@ public final class OutputBufferInfo
 
     public OutputBufferInfo summarize()
     {
-        return new OutputBufferInfo(type, state, canAddBuffers, canAddPages, totalBufferedBytes, totalBufferedPages, totalRowsSent, totalPagesSent, ImmutableList.of());
+        return new OutputBufferInfo(type, state, canAddBuffers, canAddPages, totalBufferedBytes, totalBufferedPages, totalRowsSent, totalPagesSent, buffers);
     }
 
     @Override
