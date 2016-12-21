@@ -17,6 +17,7 @@ import com.facebook.presto.client.ClientSession;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.ServerInfo;
 import com.facebook.presto.client.StatementClient;
+import com.facebook.presto.client.StatmentClientImpl;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.net.HostAndPort;
 import io.airlift.http.client.HttpClient;
@@ -59,7 +60,7 @@ class QueryExecutor
 
     public StatementClient startQuery(ClientSession session, String query)
     {
-        return new StatementClient(httpClient, queryInfoCodec, session, query);
+        return new StatmentClientImpl(httpClient, queryInfoCodec, session, query);
     }
 
     @Override

@@ -18,6 +18,7 @@ import com.facebook.presto.client.QueryError;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.StatementClient;
 import com.facebook.presto.client.StatementStats;
+import com.facebook.presto.client.StatmentClientImpl;
 import com.google.common.base.Throwables;
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.HostAndPort;
@@ -149,7 +150,7 @@ public class BenchmarkQueryRunner
         failures = 0;
         while (true) {
             // start query
-            StatementClient client = new StatementClient(httpClient, queryResultsCodec, session, "show schemas");
+            StatementClient client = new StatmentClientImpl(httpClient, queryResultsCodec, session, "show schemas");
 
             // read query output
             ImmutableList.Builder<String> schemas = ImmutableList.builder();
@@ -190,7 +191,7 @@ public class BenchmarkQueryRunner
     private StatementStats execute(ClientSession session, String name, String query)
     {
         // start query
-        StatementClient client = new StatementClient(httpClient, queryResultsCodec, session, query);
+        StatementClient client = new StatmentClientImpl(httpClient, queryResultsCodec, session, query);
 
         // read query output
         while (client.isValid() && client.advance()) {

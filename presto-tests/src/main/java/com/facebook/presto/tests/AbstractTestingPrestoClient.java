@@ -19,6 +19,7 @@ import com.facebook.presto.client.Column;
 import com.facebook.presto.client.QueryError;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.StatementClient;
+import com.facebook.presto.client.StatmentClientImpl;
 import com.facebook.presto.metadata.MetadataUtil;
 import com.facebook.presto.metadata.QualifiedObjectName;
 import com.facebook.presto.metadata.QualifiedTablePrefix;
@@ -88,7 +89,7 @@ public abstract class AbstractTestingPrestoClient<T>
 
         ClientSession clientSession = toClientSession(session, prestoServer.getBaseUrl(), true, new Duration(2, TimeUnit.MINUTES));
 
-        try (StatementClient client = new StatementClient(httpClient, QUERY_RESULTS_CODEC, clientSession, sql)) {
+        try (StatementClient client = new StatmentClientImpl(httpClient, QUERY_RESULTS_CODEC, clientSession, sql)) {
             while (client.isValid()) {
                 QueryResults results = client.current();
 

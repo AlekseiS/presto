@@ -16,6 +16,7 @@ package com.facebook.presto.cli;
 import com.facebook.presto.client.ClientSession;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.StatementClient;
+import com.facebook.presto.client.StatmentClientImpl;
 import com.google.common.collect.ImmutableList;
 import com.google.common.net.HostAndPort;
 import io.airlift.http.client.HttpClient;
@@ -87,7 +88,7 @@ public class QueryRunner
 
     public StatementClient startInternalQuery(String query)
     {
-        return new StatementClient(httpClient, queryResultsCodec, session.get(), query);
+        return new StatmentClientImpl(httpClient, queryResultsCodec, session.get(), query);
     }
 
     @Override
