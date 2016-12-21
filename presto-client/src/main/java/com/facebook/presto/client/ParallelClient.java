@@ -102,24 +102,7 @@ public class ParallelClient
     private final long requestTimeoutNanos;
     private final String user;
 
-    private final AtomicReference<State> state = new AtomicReference<State>();
-
-    private interface State
-    {
-        boolean advance();
-
-        StatementStats getStats();
-
-        boolean isFailed();
-
-        QueryResults current();
-
-        QueryResults finalResults();
-
-        void close();
-
-        boolean isQueueEmpty();
-    }
+    private final AtomicReference<CoordinatorAndTasks> state = new AtomicReference<CoordinatorAndTasks>();
 
     private class TaskDownload
             implements Runnable, AutoCloseable
@@ -232,7 +215,6 @@ public class ParallelClient
     }
 
     private class CoordinatorAndTasks
-            implements State
     {
         private final AtomicReference<ParallelStatus> currentStatus = new AtomicReference<>();
         private final ExecutorService statusExecutor = Executors.newSingleThreadExecutor();
@@ -254,7 +236,6 @@ public class ParallelClient
             statusExecutor.submit(new StatsDownload(currentQueryResults.getNextUri(), currentStatus, finished));
         }
 
-        @Override
         public boolean advance()
         {
             checkState(queue.poll() != null);
@@ -286,19 +267,16 @@ public class ParallelClient
             return data;
         }
 
-        @Override
         public StatementStats getStats()
         {
             return currentStatus.get().getStats();
         }
 
-        @Override
         public boolean isFailed()
         {
             return currentStatus.get().getError() != null;
         }
 
-        @Override
         public QueryResults current()
         {
             ParallelStatus status = currentStatus();
@@ -315,7 +293,6 @@ public class ParallelClient
                     null);
         }
 
-        @Override
         public QueryResults finalResults()
         {
             ParallelStatus status = currentStatus();
@@ -331,7 +308,6 @@ public class ParallelClient
                     null);
         }
 
-        @Override
         public void close()
         {
             //TODO: send close requests
@@ -339,7 +315,6 @@ public class ParallelClient
             statusExecutor.shutdownNow();
         }
 
-        @Override
         public boolean isQueueEmpty()
         {
             return queue.isEmpty();
