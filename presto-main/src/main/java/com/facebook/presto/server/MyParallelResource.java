@@ -139,7 +139,7 @@ public class MyParallelResource
             throws InterruptedException
     {
         assertRequest(!isNullOrEmpty(statement), "SQL statement is empty");
-        int parallelCount = getParallelCount(servletRequest);
+        int parallelCount = 3; //getParallelCount(servletRequest);
 
         Session session = Session.builder(createSessionForRequest(servletRequest, transactionManager, accessControl, sessionPropertyManager, queryIdGenerator.createNextQueryId()))
                 .setSystemProperty(PARALLEL_OUTPUT, String.valueOf(true))

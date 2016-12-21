@@ -49,7 +49,7 @@ public class TaskManagerConfig
 
     private DataSize sinkMaxBufferSize = new DataSize(32, Unit.MEGABYTE);
     private DataSize maxPagePartitioningBufferSize = new DataSize(32, Unit.MEGABYTE);
-    private boolean newSinkBufferImplementation;
+    private boolean newSinkBufferImplementation = true;
 
     private Duration clientTimeout = new Duration(2, TimeUnit.MINUTES);
     private Duration infoMaxAge = new Duration(15, TimeUnit.MINUTES);
