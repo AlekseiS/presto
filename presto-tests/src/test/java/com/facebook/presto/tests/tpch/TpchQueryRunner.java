@@ -35,13 +35,25 @@ public final class TpchQueryRunner
         return createQueryRunner(ImmutableMap.of());
     }
 
+    public static DistributedQueryRunner createParallelQueryRunner()
+            throws Exception
+    {
+        return createQueryRunner(ImmutableMap.of(), ImmutableMap.of(), true);
+    }
+
     public static DistributedQueryRunner createQueryRunner(Map<String, String> extraProperties)
             throws Exception
     {
-        return createQueryRunner(extraProperties, ImmutableMap.of());
+        return createQueryRunner(extraProperties, ImmutableMap.of(), false);
     }
 
     public static DistributedQueryRunner createQueryRunner(Map<String, String> extraProperties, Map<String, String> coordinatorProperties)
+            throws Exception
+    {
+        return createQueryRunner(extraProperties, coordinatorProperties, false);
+    }
+
+    public static DistributedQueryRunner createQueryRunner(Map<String, String> extraProperties, Map<String, String> coordinatorProperties, boolean useParallelClient)
             throws Exception
     {
         Session session = testSessionBuilder()
@@ -50,7 +62,7 @@ public final class TpchQueryRunner
                 .setSchema("tiny")
                 .build();
 
-        DistributedQueryRunner queryRunner = new DistributedQueryRunner(session, 4, extraProperties, coordinatorProperties, new SqlParserOptions());
+        DistributedQueryRunner queryRunner = new DistributedQueryRunner(session, 4, extraProperties, coordinatorProperties, new SqlParserOptions(), useParallelClient);
 
         try {
             queryRunner.installPlugin(new TpchPlugin());

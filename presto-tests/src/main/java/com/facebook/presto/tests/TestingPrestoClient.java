@@ -84,6 +84,11 @@ public class TestingPrestoClient
         super(prestoServer, defaultSession);
     }
 
+    public TestingPrestoClient(TestingPrestoServer prestoServer, Session defaultSession, StatementClientSupplier clientSupplier)
+    {
+        super(prestoServer, defaultSession, clientSupplier);
+    }
+
     @Override
     protected ResultsSession<MaterializedResult> getResultSession(Session session)
     {

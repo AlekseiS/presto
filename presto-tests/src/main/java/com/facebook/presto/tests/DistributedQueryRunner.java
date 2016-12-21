@@ -14,6 +14,7 @@
 package com.facebook.presto.tests;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.client.ParallelClient;
 import com.facebook.presto.connector.ConnectorId;
 import com.facebook.presto.execution.QueryInfo;
 import com.facebook.presto.execution.QueryManager;
@@ -96,6 +97,18 @@ public class DistributedQueryRunner
             SqlParserOptions parserOptions)
             throws Exception
     {
+        this(defaultSession, workersCount, extraProperties, ImmutableMap.of(), new SqlParserOptions(), false);
+    }
+
+    public DistributedQueryRunner(
+            Session defaultSession,
+            int workersCount,
+            Map<String, String> extraProperties,
+            Map<String, String> coordinatorProperties,
+            SqlParserOptions parserOptions,
+            boolean useParallelClient)
+            throws Exception
+    {
         requireNonNull(defaultSession, "defaultSession is null");
 
         try {
@@ -132,7 +145,12 @@ public class DistributedQueryRunner
 
         // copy session using property manager in coordinator
         defaultSession = defaultSession.toSessionRepresentation().toSession(coordinator.getMetadata().getSessionPropertyManager());
-        this.prestoClient = closer.register(new TestingPrestoClient(coordinator, defaultSession));
+        if (useParallelClient) {
+            this.prestoClient = closer.register(new TestingPrestoClient(coordinator, defaultSession, ParallelClient::new));
+        }
+        else {
+            this.prestoClient = closer.register(new TestingPrestoClient(coordinator, defaultSession));
+        }
 
         long start = System.nanoTime();
         while (!allNodesGloballyVisible()) {

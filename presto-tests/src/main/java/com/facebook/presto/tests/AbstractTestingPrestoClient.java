@@ -57,12 +57,20 @@ public abstract class AbstractTestingPrestoClient<T>
     private final Session defaultSession;
 
     private final HttpClient httpClient;
+    private final StatementClientSupplier clientSupplier;
+
+    protected AbstractTestingPrestoClient(TestingPrestoServer prestoServer, Session defaultSession)
+    {
+        this(prestoServer, defaultSession, (httpClient, session, sql) -> new StatmentClientImpl(httpClient, QUERY_RESULTS_CODEC, session, sql));
+    }
 
     protected AbstractTestingPrestoClient(TestingPrestoServer prestoServer,
-            Session defaultSession)
+            Session defaultSession,
+            StatementClientSupplier clientSupplier)
     {
         this.prestoServer = requireNonNull(prestoServer, "prestoServer is null");
         this.defaultSession = requireNonNull(defaultSession, "defaultSession is null");
+        this.clientSupplier = requireNonNull(clientSupplier, "clientSupplier is null");
 
         this.httpClient = new JettyHttpClient(
                 new HttpClientConfig()
@@ -89,7 +97,7 @@ public abstract class AbstractTestingPrestoClient<T>
 
         ClientSession clientSession = toClientSession(session, prestoServer.getBaseUrl(), true, new Duration(2, TimeUnit.MINUTES));
 
-        try (StatementClient client = new StatmentClientImpl(httpClient, QUERY_RESULTS_CODEC, clientSession, sql)) {
+        try (StatementClient client = clientSupplier.newClient(httpClient, clientSession, sql)) {
             while (client.isValid()) {
                 QueryResults results = client.current();
 
