@@ -102,7 +102,7 @@ public class ParallelClient
     private final long requestTimeoutNanos;
     private final String user;
 
-    private final AtomicReference<CoordinatorAndTasks> state = new AtomicReference<CoordinatorAndTasks>();
+    private final AtomicReference<CoordinatorAndTasks> state = new AtomicReference<>();
 
     private class TaskDownload
             implements Runnable, AutoCloseable
@@ -541,19 +541,6 @@ public class ParallelClient
 
         gone.set(true);
         throw new RuntimeException("Error fetching next", cause);
-    }
-
-    private static URI createTaskCloseUri(URI uri)
-    {
-        String path = uri.getPath();
-        int from = path.length() - 1;
-        if (path.charAt(from) == '/') {
-            from--;
-        }
-        int idx = path.lastIndexOf('/', from);
-        checkState(idx >= 0);
-        String newPath = path.substring(0, idx).replace("download", "results");
-        return uriBuilderFrom(uri).replacePath(newPath).build();
     }
 
     private void processQueryResponse(JsonResponse<ParallelStatus> response)
