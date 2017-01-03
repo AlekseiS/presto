@@ -17,6 +17,7 @@ import com.facebook.presto.OutputBuffers;
 import com.facebook.presto.OutputBuffers.OutputBufferId;
 import com.facebook.presto.Session;
 import com.facebook.presto.TaskSource;
+import com.facebook.presto.client.Column;
 import com.facebook.presto.event.query.QueryMonitor;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
@@ -27,6 +28,7 @@ import com.facebook.presto.memory.NodeMemoryConfig;
 import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.QueryId;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.LocalExecutionPlanner;
 import com.facebook.presto.sql.planner.PlanFragment;
 import com.google.common.base.Preconditions;
@@ -425,5 +427,26 @@ public class SqlTaskManager
     {
         requireNonNull(taskId, "taskId is null");
         tasks.getUnchecked(taskId).addStateChangeListener(stateChangeListener);
+    }
+
+    @Override
+    public Session getSession(TaskId taskId)
+    {
+        requireNonNull(taskId, "taskId is null");
+        return tasks.getUnchecked(taskId).getSession();
+    }
+
+    @Override
+    public List<Type> getOutputTypes(TaskId taskId)
+    {
+        requireNonNull(taskId, "taskId is null");
+        return tasks.getUnchecked(taskId).getOutputTypes();
+    }
+
+    @Override
+    public List<Column> getOutputColumns(TaskId taskId)
+    {
+        requireNonNull(taskId, "taskId is null");
+        return tasks.getUnchecked(taskId).getOutputColumns();
     }
 }

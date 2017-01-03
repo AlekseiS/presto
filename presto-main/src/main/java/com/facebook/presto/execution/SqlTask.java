@@ -17,6 +17,8 @@ import com.facebook.presto.OutputBuffers;
 import com.facebook.presto.OutputBuffers.OutputBufferId;
 import com.facebook.presto.Session;
 import com.facebook.presto.TaskSource;
+import com.facebook.presto.client.ClientTypeSignature;
+import com.facebook.presto.client.Column;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.execution.buffer.LazyOutputBuffer;
@@ -25,7 +27,11 @@ import com.facebook.presto.execution.buffer.SharedOutputBuffer;
 import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.operator.TaskContext;
 import com.facebook.presto.operator.TaskStats;
+import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.TypeSignature;
 import com.facebook.presto.sql.planner.PlanFragment;
+import com.facebook.presto.sql.planner.plan.OutputNode;
+import com.facebook.presto.sql.planner.plan.PlanNode;
 import com.facebook.presto.sql.planner.plan.PlanNodeId;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableList;
@@ -72,6 +78,9 @@ public class SqlTask
 
     private final AtomicReference<TaskHolder> taskHolderReference = new AtomicReference<>(new TaskHolder());
     private final AtomicBoolean needsPlan = new AtomicBoolean(true);
+
+    private final AtomicReference<List<Column>> outputColumns = new AtomicReference<>();
+    private final AtomicReference<List<Type>> outputTypes = new AtomicReference<>();
 
     public SqlTask(
             TaskId taskId,
@@ -139,6 +148,25 @@ public class SqlTask
                 }
             }
         });
+    }
+
+    public Session getSession()
+    {
+        TaskHolder taskHolder = taskHolderReference.get();
+        checkState(taskHolder != null);
+        SqlTaskExecution execution = taskHolder.getTaskExecution();
+        checkState(execution != null);
+        return execution.getTaskContext().getSession();
+    }
+
+    public List<Type> getOutputTypes()
+    {
+        return outputTypes.get();
+    }
+
+    public List<Column> getOutputColumns()
+    {
+        return outputColumns.get();
     }
 
     private static final class UpdateSystemMemory
@@ -312,9 +340,15 @@ public class SqlTask
                 taskExecution = taskHolder.getTaskExecution();
                 if (taskExecution == null) {
                     checkState(fragment.isPresent(), "fragment must be present");
-                    taskExecution = sqlTaskExecutionFactory.create(session, queryContext, taskStateMachine, outputBuffer, fragment.get(), sources);
+                    PlanFragment planFragment = fragment.get();
+                    taskExecution = sqlTaskExecutionFactory.create(session, queryContext, taskStateMachine, outputBuffer, planFragment, sources);
                     taskHolderReference.compareAndSet(taskHolder, new TaskHolder(taskExecution));
                     needsPlan.set(false);
+                    PlanNode root = planFragment.getRoot();
+                    if (root instanceof OutputNode) {
+                        outputTypes.set(planFragment.getTypes());
+                        outputColumns.set(createColumnsList(((OutputNode) root).getColumnNames(), planFragment.getTypes()));
+                    }
                 }
             }
 
@@ -331,6 +365,20 @@ public class SqlTask
         }
 
         return getTaskInfo();
+    }
+
+    private static List<Column> createColumnsList(List<String> names, List<Type> types)
+    {
+        //TODO: deduplicate with StatementResource.createColumnsList
+        checkArgument(names.size() == types.size(), "names and types size mismatch");
+        ImmutableList.Builder<Column> list = ImmutableList.builder();
+        for (int i = 0; i < names.size(); i++) {
+            String name = names.get(i);
+            TypeSignature typeSignature = types.get(i).getTypeSignature();
+            String type = typeSignature.toString();
+            list.add(new Column(name, type, new ClientTypeSignature(typeSignature)));
+        }
+        return list.build();
     }
 
     public CompletableFuture<BufferResult> getTaskResults(OutputBufferId bufferId, long startingSequenceId, DataSize maxSize)
