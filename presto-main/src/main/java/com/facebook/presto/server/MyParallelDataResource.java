@@ -128,7 +128,10 @@ public class MyParallelDataResource
                     data = Iterables.concat(resultPages.build());
                 }
             }
-            URI nextUri = result.isBufferComplete() ? null : uriBuilderFrom(uriInfo.getBaseUri())
+            if (result.isBufferComplete() && pages.isEmpty()) {
+                taskManager.abortTaskResults(taskId, bufferId);
+            }
+            URI nextUri = result.isBufferComplete() && pages.isEmpty() ? null : uriBuilderFrom(uriInfo.getBaseUri())
                     .appendPath("v1")
                     .appendPath("paralleldata")
                     .appendPath(taskId.toString())
