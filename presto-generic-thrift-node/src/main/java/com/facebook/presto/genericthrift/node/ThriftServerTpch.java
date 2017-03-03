@@ -71,6 +71,8 @@ public class ThriftServerTpch
     private final ObjectMapper mapper = new ObjectMapper();
     private final ListeningExecutorService splitsExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
+    private final ListeningExecutorService dataExecutor =
+            listeningDecorator(newCachedThreadPool(threadsNamed("data-generator-%s")));
 
     @Override
     public List<ThriftPropertyMetadata> listSessionProperties()
@@ -196,7 +198,12 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ThriftRowsBatch getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+    public ListenableFuture<ThriftRowsBatch> getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+    {
+        return dataExecutor.submit(() -> getRowsInternal(splitId, columnNames, maxRowCount, continuationToken));
+    }
+
+    private ThriftRowsBatch getRowsInternal(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
     {
         requireNonNull(columnNames, "columnNames is null");
         SplitInfo splitInfo;
@@ -298,6 +305,7 @@ public class ThriftServerTpch
     public void close()
     {
         splitsExecutor.shutdownNow();
+        dataExecutor.shutdownNow();
     }
 
     private static final class SplitInfo

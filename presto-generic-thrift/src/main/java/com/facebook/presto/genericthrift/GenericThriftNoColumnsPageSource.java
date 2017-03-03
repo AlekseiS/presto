@@ -21,8 +21,11 @@ import com.facebook.presto.spi.Page;
 import com.google.common.collect.ImmutableList;
 
 import java.io.IOException;
+import java.util.concurrent.CompletableFuture;
 
 import static com.google.common.base.Preconditions.checkState;
+import static io.airlift.concurrent.MoreFutures.getFutureValue;
+import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
 import static java.util.Objects.requireNonNull;
 
 public class GenericThriftNoColumnsPageSource
@@ -34,6 +37,7 @@ public class GenericThriftNoColumnsPageSource
 
     private String nextToken;
     private boolean firstCall = true;
+    private CompletableFuture<ThriftRowsBatch> future;
 
     public GenericThriftNoColumnsPageSource(PrestoClientProvider clientProvider, GenericThriftSplit split)
     {
@@ -77,11 +81,30 @@ public class GenericThriftNoColumnsPageSource
         if (isFinished()) {
             return null;
         }
-        ThriftRowsBatch response = client.getRows(split.getSplitId(), ImmutableList.of(), MAX_RECORDS_PER_REQUEST, nextToken);
-        firstCall = false;
-        nextToken = response.getNextToken();
-        checkState(response.getRowCount() > 0 || nextToken == null, "Batch cannot be empty when continuation token is present");
-        return response.getRowCount() > 0 ? new Page(response.getRowCount()) : null;
+        if (future != null) {
+            if (!future.isDone()) {
+                return null;
+            }
+            else {
+                ThriftRowsBatch response = getFutureValue(future);
+                future = null;
+                firstCall = false;
+                nextToken = response.getNextToken();
+                checkState(response.getRowCount() > 0 || nextToken == null,
+                        "Batch cannot be empty when continuation token is present");
+                return response.getRowCount() > 0 ? new Page(response.getRowCount()) : null;
+            }
+        }
+        else {
+            future = toCompletableFuture(client.getRows(split.getSplitId(), ImmutableList.of(), MAX_RECORDS_PER_REQUEST, nextToken));
+            return null;
+        }
+    }
+
+    @Override
+    public CompletableFuture<?> isBlocked()
+    {
+        return future == null || future.isDone() ? NOT_BLOCKED : future;
     }
 
     @Override
@@ -94,6 +117,9 @@ public class GenericThriftNoColumnsPageSource
     public void close()
             throws IOException
     {
+        if (future != null) {
+            future.cancel(true);
+        }
         client.close();
     }
 }

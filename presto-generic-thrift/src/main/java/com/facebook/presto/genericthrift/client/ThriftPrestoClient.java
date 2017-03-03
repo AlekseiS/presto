@@ -49,7 +49,7 @@ public interface ThriftPrestoClient
     ListenableFuture<ThriftSplitBatch> getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable String continuationToken);
 
     @ThriftMethod
-    ThriftRowsBatch getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken);
+    ListenableFuture<ThriftRowsBatch> getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken);
 
     @Override
     void close();
