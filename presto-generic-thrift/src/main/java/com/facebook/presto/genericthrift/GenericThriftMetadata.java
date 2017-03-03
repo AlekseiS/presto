@@ -17,6 +17,7 @@ import com.facebook.presto.genericthrift.client.ThriftNullableTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
 import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
+import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
 import com.facebook.presto.spi.ColumnNotFoundException;

@@ -14,6 +14,9 @@
 package com.facebook.presto.genericthrift;
 
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
+import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
+import com.facebook.presto.genericthrift.clientproviders.PrestoThriftClientProvider;
+import com.facebook.presto.genericthrift.clientproviders.RetryingPrestoClientProvider;
 import com.google.inject.Binder;
 import com.google.inject.Module;
 import com.google.inject.Scopes;

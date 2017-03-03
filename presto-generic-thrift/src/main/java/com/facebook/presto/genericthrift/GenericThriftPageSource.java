@@ -16,6 +16,7 @@ package com.facebook.presto.genericthrift;
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
+import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.genericthrift.readers.ColumnReader;
 import com.facebook.presto.genericthrift.readers.ColumnReaders;
 import com.facebook.presto.spi.ConnectorPageSource;

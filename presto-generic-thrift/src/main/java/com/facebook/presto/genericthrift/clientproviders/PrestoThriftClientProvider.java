@@ -11,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.genericthrift;
+package com.facebook.presto.genericthrift.clientproviders;
 
 import com.facebook.nifty.client.FramedClientConnector;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;

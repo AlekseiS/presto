@@ -19,6 +19,7 @@ import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
 import com.facebook.presto.genericthrift.client.ThriftSplit;
 import com.facebook.presto.genericthrift.client.ThriftSplitBatch;
 import com.facebook.presto.genericthrift.client.ThriftTableLayout;
+import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorSplitSource;

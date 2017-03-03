@@ -11,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.genericthrift;
+package com.facebook.presto.genericthrift.clientproviders;
 
 import com.facebook.presto.genericthrift.client.ThriftConnectorSession;
 import com.facebook.presto.genericthrift.client.ThriftNullableTableMetadata;
@@ -172,7 +172,7 @@ public class RetryingPrestoClientProvider
     @BindingAnnotation
     @Target(PARAMETER)
     @Retention(RUNTIME)
-    @interface NonRetrying
+    public @interface NonRetrying
     {
     }
 }

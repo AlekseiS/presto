@@ -15,6 +15,7 @@ package com.facebook.presto.genericthrift;
 
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
+import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.Page;
 import com.google.common.collect.ImmutableList;
