@@ -16,6 +16,7 @@ package com.facebook.presto.genericthrift.node;
 import com.facebook.swift.codec.guice.ThriftCodecModule;
 import com.facebook.swift.service.guice.ThriftClientModule;
 import com.facebook.swift.service.guice.ThriftServerModule;
+import com.facebook.swift.service.guice.ThriftServerStatsModule;
 import com.google.common.collect.ImmutableList;
 import com.google.inject.Module;
 import io.airlift.bootstrap.Bootstrap;
@@ -43,6 +44,7 @@ public final class ThriftTpchNode
                 new ThriftCodecModule(),
                 new ThriftClientModule(),
                 new ThriftServerModule(),
+                new ThriftServerStatsModule(),
                 new ThriftTpchNodeModule());
     }
 

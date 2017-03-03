@@ -18,8 +18,10 @@ import com.facebook.presto.spi.ConnectorHandleResolver;
 import com.facebook.presto.spi.connector.Connector;
 import com.facebook.presto.spi.connector.ConnectorContext;
 import com.facebook.presto.spi.connector.ConnectorFactory;
+import com.facebook.presto.spi.type.TypeManager;
 import com.facebook.swift.codec.guice.ThriftCodecModule;
 import com.facebook.swift.service.guice.ThriftClientModule;
+import com.facebook.swift.service.guice.ThriftClientStatsModule;
 import com.google.common.base.Throwables;
 import com.google.inject.Injector;
 import com.google.inject.Module;
@@ -67,9 +69,13 @@ public class GenericThriftConnectorFactory
                     new MBeanModule(),
                     new ThriftCodecModule(),
                     new ThriftClientModule(),
-                    binder -> binder.bind(MBeanServer.class).toInstance(new RebindSafeMBeanServer(getPlatformMBeanServer())),
+                    new ThriftClientStatsModule(),
+                    binder -> {
+                        binder.bind(MBeanServer.class).toInstance(new RebindSafeMBeanServer(getPlatformMBeanServer()));
+                        binder.bind(TypeManager.class).toInstance(context.getTypeManager());
+                    },
                     locationModule,
-                    new GenericThriftModule(context.getTypeManager()));
+                    new GenericThriftModule());
 
             Injector injector = app
                     .strictConfig()
