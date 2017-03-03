@@ -30,6 +30,7 @@ import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
 import java.lang.annotation.Retention;
@@ -75,8 +76,8 @@ public class RetryingPrestoClientProvider
         return new RetryingClient(() -> original.connectToAnyOf(hosts), retry);
     }
 
-    // not thread-safe
-    private final class RetryingClient
+    @NotThreadSafe
+    private static final class RetryingClient
             implements ThriftPrestoClient
     {
         private final Supplier<ThriftPrestoClient> clientSupplier;
