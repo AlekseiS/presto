@@ -20,6 +20,7 @@ import com.google.inject.Module;
 import com.google.inject.Scopes;
 
 import static com.facebook.swift.service.guice.ThriftClientBinder.thriftClientBinder;
+import static io.airlift.configuration.ConfigBinder.configBinder;
 import static java.util.Objects.requireNonNull;
 
 public class GenericThriftModule
@@ -42,5 +43,8 @@ public class GenericThriftModule
         binder.bind(GenericThriftPageSourceProvider.class).in(Scopes.SINGLETON);
         binder.bind(TypeManager.class).toInstance(typeManager);
         binder.bind(PrestoClientProvider.class).to(PrestoThriftClientProvider.class).in(Scopes.SINGLETON);
+        configBinder(binder).bindConfig(GenericThriftConfig.class);
+        binder.bind(GenericThriftInternalSessionProperties.class).in(Scopes.SINGLETON);
+        binder.bind(GenericThriftClientSessionProperties.class).in(Scopes.SINGLETON);
     }
 }

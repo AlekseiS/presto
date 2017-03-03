@@ -18,11 +18,15 @@ import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.facebook.presto.spi.session.PropertyMetadata;
 import com.facebook.presto.spi.transaction.IsolationLevel;
+import com.google.common.collect.ImmutableList;
 import io.airlift.bootstrap.LifeCycleManager;
 import io.airlift.log.Logger;
 
 import javax.inject.Inject;
+
+import java.util.List;
 
 import static com.facebook.presto.genericthrift.GenericThriftTransactionHandle.INSTANCE;
 import static java.util.Objects.requireNonNull;
@@ -35,17 +39,23 @@ public class GenericThriftConnector
     private final GenericThriftMetadata metadata;
     private final GenericThriftSplitManager splitManager;
     private final GenericThriftPageSourceProvider pageSourceProvider;
+    private final GenericThriftInternalSessionProperties internalSessionProperties;
+    private final GenericThriftClientSessionProperties clientSessionProperties;
 
     @Inject
     public GenericThriftConnector(LifeCycleManager lifeCycleManager,
             GenericThriftMetadata metadata,
             GenericThriftSplitManager splitManager,
-            GenericThriftPageSourceProvider pageSourceProvider)
+            GenericThriftPageSourceProvider pageSourceProvider,
+            GenericThriftInternalSessionProperties internalSessionProperties,
+            GenericThriftClientSessionProperties clientSessionProperties)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
         this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
+        this.internalSessionProperties = requireNonNull(internalSessionProperties, "internalSessionProperties is null");
+        this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
     }
 
     @Override
@@ -70,6 +80,15 @@ public class GenericThriftConnector
     public ConnectorPageSourceProvider getPageSourceProvider()
     {
         return pageSourceProvider;
+    }
+
+    @Override
+    public List<PropertyMetadata<?>> getSessionProperties()
+    {
+        return ImmutableList.<PropertyMetadata<?>>builder()
+                .addAll(internalSessionProperties.getSessionProperties())
+                .addAll(clientSessionProperties.getSessionProperties())
+                .build();
     }
 
     @Override

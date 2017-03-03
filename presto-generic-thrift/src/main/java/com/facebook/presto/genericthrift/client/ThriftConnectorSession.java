@@ -13,11 +13,11 @@
  */
 package com.facebook.presto.genericthrift.client;
 
+import com.facebook.presto.genericthrift.GenericThriftClientSessionProperties;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
-import com.google.common.collect.ImmutableMap;
 
 import java.util.Map;
 
@@ -29,19 +29,19 @@ public final class ThriftConnectorSession
     private final String queryId;
     private final String user;
     private final long startTime; // unix time in millis
-    private final Map<String, ThriftSingleValue> properties;
+    private final Map<String, ThriftSessionValue> properties;
 
     @ThriftConstructor
     public ThriftConnectorSession(
             String queryId,
             String user,
             long startTime,
-            Map<String, ThriftSingleValue> properties)
+            Map<String, ThriftSessionValue> properties)
     {
         this.queryId = requireNonNull(queryId, "queryId is null");
         this.user = requireNonNull(user, "user is null");
         this.startTime = requireNonNull(startTime, "startTime is null");
-        this.properties = ImmutableMap.copyOf(requireNonNull(properties, "properties is null"));
+        this.properties = requireNonNull(properties, "properties is null");
     }
 
     @ThriftField(1)
@@ -63,14 +63,13 @@ public final class ThriftConnectorSession
     }
 
     @ThriftField(4)
-    public Map<String, ThriftSingleValue> getProperties()
+    public Map<String, ThriftSessionValue> getProperties()
     {
         return properties;
     }
 
-    public static ThriftConnectorSession fromConnectorSession(ConnectorSession session)
+    public static ThriftConnectorSession fromConnectorSession(ConnectorSession session, GenericThriftClientSessionProperties clientSessionProperties)
     {
-        // TODO: populate session properties
-        return new ThriftConnectorSession(session.getQueryId(), session.getUser(), session.getStartTime(), ImmutableMap.of());
+        return new ThriftConnectorSession(session.getQueryId(), session.getUser(), session.getStartTime(), clientSessionProperties.getSessionValues(session));
     }
 }

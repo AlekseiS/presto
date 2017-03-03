@@ -56,19 +56,21 @@ public class GenericThriftMetadata
 {
     private final PrestoClientProvider clientProvider;
     private final TypeManager typeManager;
+    private final GenericThriftClientSessionProperties clientSessionProperties;
 
     @Inject
-    public GenericThriftMetadata(PrestoClientProvider clientProvider, TypeManager typeManager)
+    public GenericThriftMetadata(PrestoClientProvider clientProvider, TypeManager typeManager, GenericThriftClientSessionProperties clientSessionProperties)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
         this.typeManager = requireNonNull(typeManager, "typeManager is null");
+        this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
     }
 
     @Override
     public List<String> listSchemaNames(ConnectorSession session)
     {
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            return client.listSchemaNames(fromConnectorSession(session));
+            return client.listSchemaNames(fromConnectorSession(session, clientSessionProperties));
         }
     }
 
@@ -76,7 +78,7 @@ public class GenericThriftMetadata
     public ConnectorTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            ThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromConnectorSession(session), fromSchemaTableName(tableName));
+            ThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromConnectorSession(session, clientSessionProperties), fromSchemaTableName(tableName));
             if (thriftTableMetadata.getThriftTableMetadata() == null) {
                 return null;
             }
@@ -92,7 +94,7 @@ public class GenericThriftMetadata
         List<ThriftTableLayoutResult> thriftLayoutResults;
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
             thriftLayoutResults = client.getTableLayouts(
-                    fromConnectorSession(session),
+                    fromConnectorSession(session, clientSessionProperties),
                     new ThriftSchemaTableName(tableHandle.getSchemaName(), tableHandle.getTableName()),
                     fromTupleDomain(constraint.getSummary()),
                     desiredColumns.map(GenericThriftMetadata::columnNames).orElse(null));
@@ -137,7 +139,7 @@ public class GenericThriftMetadata
     private ConnectorTableMetadata getTableMetadata(ConnectorSession session, SchemaTableName schemaTableName)
     {
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            ThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromConnectorSession(session), fromSchemaTableName(schemaTableName));
+            ThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromConnectorSession(session, clientSessionProperties), fromSchemaTableName(schemaTableName));
             if (thriftTableMetadata.getThriftTableMetadata() == null) {
                 throw new TableNotFoundException(schemaTableName);
             }
@@ -149,7 +151,7 @@ public class GenericThriftMetadata
     public List<SchemaTableName> listTables(ConnectorSession session, String schemaNameOrNull)
     {
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            return client.listTables(fromConnectorSession(session), schemaNameOrNull)
+            return client.listTables(fromConnectorSession(session, clientSessionProperties), schemaNameOrNull)
                     .stream()
                     .map(thriftSchemaTable -> new SchemaTableName(thriftSchemaTable.getSchemaName(), thriftSchemaTable.getTableName()))
                     .collect(toList());

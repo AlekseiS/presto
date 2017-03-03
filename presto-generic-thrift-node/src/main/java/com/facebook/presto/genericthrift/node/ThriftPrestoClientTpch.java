@@ -21,6 +21,7 @@ import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftPropertyMetadata;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
 import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
+import com.facebook.presto.genericthrift.client.ThriftSessionValue;
 import com.facebook.presto.genericthrift.client.ThriftSplit;
 import com.facebook.presto.genericthrift.client.ThriftSplitBatch;
 import com.facebook.presto.genericthrift.client.ThriftTableLayout;
@@ -46,6 +47,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
@@ -57,14 +59,17 @@ import static java.util.stream.Collectors.toList;
 public class ThriftPrestoClientTpch
         implements ThriftPrestoClient
 {
-    private static final int TOTAL_SPLITS = 3;
+    private static final int DEFAULT_NUMBER_OF_SPLITS = 3;
+    private static final String NUMBER_OF_SPLITS_PARAMETER = "splits";
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private final ObjectMapper mapper = new ObjectMapper();
 
     @Override
     public List<ThriftPropertyMetadata> listSessionProperties()
     {
-        return ImmutableList.of();
+        return ImmutableList.of(new ThriftPropertyMetadata(NUMBER_OF_SPLITS_PARAMETER, "integer", "Number of splits",
+                new ThriftSessionValue(false, null, 3, null, null, null),
+                false));
     }
 
     @Override
@@ -128,10 +133,21 @@ public class ThriftPrestoClientTpch
                 new ThriftTableLayout(null, ThriftTupleDomain.fromTupleDomain(TupleDomain.all())), outputConstraint));
     }
 
+    private static int getOrElse(Map<String, ThriftSessionValue> values, String name, int defaultValue)
+    {
+        ThriftSessionValue parameterValue = values.get(name);
+        if (parameterValue != null && !parameterValue.isNullValue()) {
+            return parameterValue.getIntValue();
+        }
+        else {
+            return defaultValue;
+        }
+    }
+
     @Override
     public ThriftSplitBatch getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable String continuationToken)
     {
-        int totalParts = TOTAL_SPLITS;
+        int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
         // last sent part
         int partNumber = continuationToken == null ? 0 : Integer.parseInt(continuationToken);
         int numberOfSplits = Math.min(maxSplitCount, totalParts - partNumber);

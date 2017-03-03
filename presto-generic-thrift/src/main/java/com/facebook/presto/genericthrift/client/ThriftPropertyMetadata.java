@@ -17,8 +17,6 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
-import javax.annotation.Nullable;
-
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
@@ -27,16 +25,16 @@ public final class ThriftPropertyMetadata
     private final String name;
     private final String type;
     private final String description;
-    private final ThriftSingleValue defaultValue;
+    private final ThriftSessionValue defaultValue;
     private final boolean hidden;
 
     @ThriftConstructor
-    public ThriftPropertyMetadata(String name, String type, String description, @Nullable ThriftSingleValue defaultValue, boolean hidden)
+    public ThriftPropertyMetadata(String name, String type, String description, ThriftSessionValue defaultValue, boolean hidden)
     {
         this.name = requireNonNull(name, "name is null");
         this.type = requireNonNull(type, "type is null");
         this.description = requireNonNull(description, "description is null");
-        this.defaultValue = defaultValue;
+        this.defaultValue = requireNonNull(defaultValue, "defaultValue is null");
         this.hidden = hidden;
     }
 
@@ -58,9 +56,8 @@ public final class ThriftPropertyMetadata
         return description;
     }
 
-    @Nullable
     @ThriftField(4)
-    public ThriftSingleValue getDefaultValue()
+    public ThriftSessionValue getDefaultValue()
     {
         return defaultValue;
     }

@@ -34,6 +34,7 @@ import static java.util.Objects.requireNonNull;
 @ThriftStruct
 public final class ThriftSingleValue
 {
+    public static final String VALUE_COLUMN_NAME = "value";
     private final List<ThriftColumnData> columnsData;
 
     @ThriftConstructor
@@ -73,13 +74,13 @@ public final class ThriftSingleValue
             }
         }
         else {
-            ColumnReader reader = ColumnReaders.createColumnReader(value.getColumnsData(), "value", type, 1);
+            ColumnReader reader = ColumnReaders.createColumnReader(value.getColumnsData(), VALUE_COLUMN_NAME, type, 1);
             return new Marker(type, Optional.of(reader.readBlock(1)), toMarkerBound(bound));
         }
     }
 
     private static ThriftSingleValue withValue(Object value, Type type)
     {
-        return new ThriftSingleValue(ImmutableList.of(new ThriftColumnData.Builder().setValue(0, value, type).setColumnName("value").build()));
+        return new ThriftSingleValue(ImmutableList.of(new ThriftColumnData.Builder().setValue(0, value, type).setColumnName(VALUE_COLUMN_NAME).build()));
     }
 }

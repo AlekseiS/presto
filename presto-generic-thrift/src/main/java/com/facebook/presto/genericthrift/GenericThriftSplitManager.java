@@ -43,11 +43,13 @@ public class GenericThriftSplitManager
         implements ConnectorSplitManager
 {
     private final PrestoClientProvider clientProvider;
+    private final GenericThriftClientSessionProperties clientSessionProperties;
 
     @Inject
-    public GenericThriftSplitManager(PrestoClientProvider clientProvider)
+    public GenericThriftSplitManager(PrestoClientProvider clientProvider, GenericThriftClientSessionProperties clientSessionProperties)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
+        this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
     }
 
     @Override
@@ -56,7 +58,7 @@ public class GenericThriftSplitManager
         GenericThriftTableLayoutHandle layoutHandle = (GenericThriftTableLayoutHandle) layout;
         return new GenericThriftSplitSource(
                 clientProvider.connectToAnyHost(),
-                fromConnectorSession(session),
+                fromConnectorSession(session, clientSessionProperties),
                 fromSchemaTableName(layoutHandle.getSchemaTableName()),
                 new ThriftTableLayout(
                         layoutHandle.getOutputColumns()
