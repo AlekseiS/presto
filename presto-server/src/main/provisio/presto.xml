@@ -139,4 +139,10 @@
             <unpack />
         </artifact>
     </artifactSet>
+
+    <artifactSet to="plugin/generic-thrift">
+        <artifact id="${project.groupId}:presto-generic-thrift:zip:${project.version}">
+            <unpack />
+        </artifact>
+    </artifactSet>
 </runtime>
