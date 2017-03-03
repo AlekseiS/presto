@@ -24,6 +24,7 @@ import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 
 public class SliceColumnReader
@@ -54,7 +55,7 @@ public class SliceColumnReader
     public Block readBlock(int nextBatchSize)
     {
         BlockBuilder builder = type.createBlockBuilder(new BlockBuilderStatus(), nextBatchSize);
-        int end = Math.min(idx + nextBatchSize, totalRecords);
+        int end = min(idx + nextBatchSize, totalRecords);
         while (idx < end) {
             if (nulls != null && nulls[idx]) {
                 builder.appendNull();

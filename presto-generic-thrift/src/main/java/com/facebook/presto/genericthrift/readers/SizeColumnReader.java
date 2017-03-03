@@ -14,62 +14,62 @@
 package com.facebook.presto.genericthrift.readers;
 
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
-import com.facebook.presto.spi.block.Block;
-import com.facebook.presto.spi.block.BlockBuilder;
-import com.facebook.presto.spi.block.BlockBuilderStatus;
 import com.facebook.presto.spi.type.Type;
 
+import java.util.Arrays;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static java.lang.Math.min;
+import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
 
-public class LongColumnReader
-        implements ColumnReader
+public class SizeColumnReader
 {
-    private final Type type;
     private final boolean[] nulls;
     private final long[] longs;
-    private final int totalRecords;
-    private int idx;
 
-    public LongColumnReader(Type type, boolean[] nulls, long[] longs, int totalRecords)
+    public SizeColumnReader(boolean[] nulls, long[] longs, int totalRecords)
     {
         checkArgument(totalRecords >= 0, "totalRecords must be non-negative");
         checkArgument(totalRecords == 0 || nulls != null || longs != null, "nulls array or values array must be present");
         checkArgument(nulls == null || nulls.length == totalRecords, "nulls must be null or of the expected size");
         checkArgument(longs == null || longs.length == totalRecords, "longs must be null or of the expected size");
-        this.type = requireNonNull(type, "type must be not null");
+        checkConsistency(nulls, longs, totalRecords);
         this.nulls = nulls;
         this.longs = longs;
-        this.totalRecords = totalRecords;
     }
 
-    @Override
-    public Block readBlock(int nextBatchSize)
+    private static void checkConsistency(boolean[] nulls, long[] longs, int totalRecords)
     {
-        BlockBuilder builder = type.createBlockBuilder(new BlockBuilderStatus(), nextBatchSize);
-        int end = min(idx + nextBatchSize, totalRecords);
-        while (idx < end) {
-            if (nulls != null && nulls[idx]) {
-                builder.appendNull();
+        for (int i = 0; i < totalRecords; i++) {
+            if (nulls != null && nulls[i] && longs[i] != 0) {
+                throw new IllegalArgumentException("value in 'longs' array must be zero when the element is null");
             }
-            else {
-                type.writeLong(builder, longs[idx]);
-            }
-            idx++;
+            // check the value is integer
+            toIntExact(longs[i]);
         }
-        return builder.build();
     }
 
-    @Override
-    public boolean hasMoreRecords()
+    public int sum(int begin, int end)
     {
-        return idx < totalRecords;
+        long result = 0L;
+        for (int i = begin; i < end; i++) {
+            result += longs[i];
+        }
+        return toIntExact(result);
     }
 
-    public static LongColumnReader createReader(List<ThriftColumnData> columnsData, String columnName, Type type, int totalRecords)
+    public int sum()
+    {
+        return sum(0, longs.length);
+    }
+
+    public int get(int idx)
+    {
+        return (int) longs[idx];
+    }
+
+    public static SizeColumnReader createReader(List<ThriftColumnData> columnsData, String columnName, Type type, int totalRecords)
     {
         requireNonNull(columnName, "columnName must be non-null");
         ThriftColumnData columnData = ReaderUtils.columnByName(columnsData, columnName);
@@ -78,6 +78,11 @@ public class LongColumnReader
                         && columnData.getBytes() == null
                         && columnData.getOffsets() == null,
                 "Remaining value containers must be null");
-        return new LongColumnReader(type, columnData.getNulls(), columnData.getLongs(), totalRecords);
+        return new SizeColumnReader(columnData.getNulls(), columnData.getLongs(), totalRecords);
+    }
+
+    public boolean[] nullValues(int begin, int end)
+    {
+        return (begin == 0 && end == nulls.length) ? nulls : Arrays.copyOfRange(nulls, begin, end);
     }
 }

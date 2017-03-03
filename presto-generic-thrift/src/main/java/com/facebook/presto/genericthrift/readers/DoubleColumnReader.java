@@ -22,6 +22,7 @@ import com.facebook.presto.spi.type.Type;
 import java.util.List;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.Math.min;
 import static java.util.Objects.requireNonNull;
 
 public class DoubleColumnReader
@@ -49,7 +50,7 @@ public class DoubleColumnReader
     public Block readBlock(int nextBatchSize)
     {
         BlockBuilder builder = type.createBlockBuilder(new BlockBuilderStatus(), nextBatchSize);
-        int end = Math.min(idx + nextBatchSize, totalRecords);
+        int end = min(idx + nextBatchSize, totalRecords);
         while (idx < end) {
             if (nulls != null && nulls[idx]) {
                 builder.appendNull();

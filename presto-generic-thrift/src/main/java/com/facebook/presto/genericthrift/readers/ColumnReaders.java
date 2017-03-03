@@ -18,6 +18,7 @@ import com.facebook.presto.spi.type.Type;
 
 import java.util.List;
 
+import static com.facebook.presto.spi.type.StandardTypes.ARRAY;
 import static com.facebook.presto.spi.type.StandardTypes.BIGINT;
 import static com.facebook.presto.spi.type.StandardTypes.DATE;
 import static com.facebook.presto.spi.type.StandardTypes.DOUBLE;
@@ -53,6 +54,8 @@ public final class ColumnReaders
             case VARCHAR:
             case VARBINARY:
                 return SliceColumnReader.createReader(columnsData, columnName, columnType, totalRecords);
+            case ARRAY:
+                return ArrayColumnReader.createReader(columnsData, columnName, columnType, totalRecords);
             default:
                 throw new IllegalArgumentException("Unsupported type: " + columnType);
         }
