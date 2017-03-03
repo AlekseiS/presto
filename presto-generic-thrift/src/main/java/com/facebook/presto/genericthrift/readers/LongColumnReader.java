@@ -76,7 +76,7 @@ public class LongColumnReader
         checkArgument(columnData.getBooleans() == null
                         && columnData.getDoubles() == null
                         && columnData.getBytes() == null
-                        && columnData.getOffsets() == null,
+                        && columnData.getSizes() == null,
                 "Remaining value containers must be null");
         return new LongColumnReader(type, columnData.getNulls(), columnData.getLongs(), totalRecords);
     }

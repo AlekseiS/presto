@@ -41,7 +41,7 @@ public final class ThriftColumnData
     private final double[] doubles;
     private final boolean[] booleans;
     private final byte[] bytes;
-    private final int[] offsets;
+    private final int[] sizes;
     private final String columnName;
 
     @ThriftConstructor
@@ -51,7 +51,7 @@ public final class ThriftColumnData
             @Nullable double[] doubles,
             @Nullable boolean[] booleans,
             @Nullable byte[] bytes,
-            @Nullable int[] offsets,
+            @Nullable int[] sizes,
             String columnName)
     {
         this.nulls = nulls;
@@ -59,7 +59,7 @@ public final class ThriftColumnData
         this.doubles = doubles;
         this.booleans = booleans;
         this.bytes = bytes;
-        this.offsets = offsets;
+        this.sizes = sizes;
         this.columnName = requireNonNull(columnName, "columnName is null");
     }
 
@@ -94,9 +94,9 @@ public final class ThriftColumnData
     }
 
     @ThriftField(value = 6, requiredness = OPTIONAL)
-    public int[] getOffsets()
+    public int[] getSizes()
     {
-        return offsets;
+        return sizes;
     }
 
     @ThriftField(value = 7)
@@ -206,7 +206,7 @@ public final class ThriftColumnData
         public ThriftColumnData build()
         {
             byte[] bytes = null;
-            int[] offsets = null;
+            int[] sizes = null;
             if (slices != null && !slices.isEmpty()) {
                 int totalSize = 0;
                 for (Slice slice : slices) {
@@ -215,18 +215,20 @@ public final class ThriftColumnData
                     }
                 }
                 bytes = new byte[totalSize];
-                offsets = new int[slices.size() + 1];
+                sizes = new int[slices.size()];
                 int nextOffset = 0;
-                int idx = 0;
-                for (Slice slice : slices) {
-                    offsets[idx] = nextOffset;
+                for (int idx = 0; idx < slices.size(); idx++) {
+                    Slice slice = slices.get(idx);
                     if (slice != null) {
-                        slice.getBytes(0, bytes, nextOffset, slice.length());
-                        nextOffset += slice.length();
+                        int sliceSize = slice.length();
+                        sizes[idx] = sliceSize;
+                        slice.getBytes(0, bytes, nextOffset, sliceSize);
+                        nextOffset += sliceSize;
                     }
-                    idx++;
+                    else {
+                        sizes[idx] = 0;
+                    }
                 }
-                offsets[idx] = nextOffset;
                 checkState(nextOffset == totalSize, "Size of byte array doesn't match expected one: %s vs %s", nextOffset, totalSize);
             }
             return new ThriftColumnData(
@@ -235,7 +237,7 @@ public final class ThriftColumnData
                     doubles == null ? null : Doubles.toArray(doubles),
                     booleans == null ? null : Booleans.toArray(booleans),
                     bytes,
-                    offsets,
+                    sizes,
                     columnName);
         }
 

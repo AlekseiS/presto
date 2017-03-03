@@ -76,7 +76,7 @@ public class DoubleColumnReader
         checkArgument(columnData.getBooleans() == null
                         && columnData.getLongs() == null
                         && columnData.getBytes() == null
-                        && columnData.getOffsets() == null,
+                        && columnData.getSizes() == null,
                 "Remaining value containers must be null");
         return new DoubleColumnReader(type, columnData.getNulls(), columnData.getDoubles(), totalRecords);
     }

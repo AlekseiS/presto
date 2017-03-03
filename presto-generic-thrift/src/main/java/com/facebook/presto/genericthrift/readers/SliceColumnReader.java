@@ -33,21 +33,22 @@ public class SliceColumnReader
     private final Type type;
     private final boolean[] nulls;
     private final byte[] bytes;
-    private final int[] offsets;
+    private final int[] sizes;
     private final int totalRecords;
     private int idx;
+    private int offset;
 
-    public SliceColumnReader(Type type, boolean[] nulls, byte[] bytes, int[] offsets, int totalRecords)
+    public SliceColumnReader(Type type, boolean[] nulls, byte[] bytes, int[] sizes, int totalRecords)
     {
         checkArgument(totalRecords >= 0, "totalRecords must be non-negative");
         checkArgument(totalRecords == 0 || nulls != null || bytes != null, "nulls array or values array must be present");
         checkArgument(nulls == null || nulls.length == totalRecords, "nulls must be null or of the expected size");
-        checkArgument(offsets == null || offsets.length == totalRecords + 1, "offsets must be null or of the expected size");
-        checkArgument(offsets == null || bytes != null, "bytes must be present when offsets is present");
+        checkArgument(sizes == null || sizes.length == totalRecords, "sizes must be null or of the expected size");
+        checkArgument(sizes == null || bytes != null, "bytes must be present when sizes is present");
         this.type = requireNonNull(type, "type must be not null");
         this.nulls = nulls;
         this.bytes = bytes;
-        this.offsets = offsets;
+        this.sizes = sizes;
         this.totalRecords = totalRecords;
     }
 
@@ -58,11 +59,13 @@ public class SliceColumnReader
         int end = min(idx + nextBatchSize, totalRecords);
         while (idx < end) {
             if (nulls != null && nulls[idx]) {
+                checkState(sizes == null || sizes[idx] == 0, "size must be zero when element is null");
                 builder.appendNull();
             }
             else {
-                checkState(offsets[idx + 1] >= offsets[idx], "Offsets out of order for index %s", idx);
-                type.writeSlice(builder, Slices.wrappedBuffer(bytes, offsets[idx], offsets[idx + 1] - offsets[idx]));
+                checkState(sizes != null && sizes[idx] >= 0, "size is not present or is negative");
+                type.writeSlice(builder, Slices.wrappedBuffer(bytes, offset, sizes[idx]));
+                offset += sizes[idx];
             }
             idx++;
         }
@@ -83,6 +86,6 @@ public class SliceColumnReader
                         && columnData.getLongs() == null
                         && columnData.getDoubles() == null,
                 "Remaining value containers must be null");
-        return new SliceColumnReader(type, columnData.getNulls(), columnData.getBytes(), columnData.getOffsets(), totalRecords);
+        return new SliceColumnReader(type, columnData.getNulls(), columnData.getBytes(), columnData.getSizes(), totalRecords);
     }
 }
