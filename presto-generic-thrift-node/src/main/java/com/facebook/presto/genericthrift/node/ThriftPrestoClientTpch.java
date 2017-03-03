@@ -11,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.genericthrift.testimpl;
+package com.facebook.presto.genericthrift.node;
 
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
 import com.facebook.presto.genericthrift.client.ThriftColumnMetadata;

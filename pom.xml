@@ -114,6 +114,7 @@
         <module>presto-plugin-toolkit</module>
         <module>presto-resource-group-managers</module>
         <module>presto-generic-thrift</module>
+        <module>presto-generic-thrift-node</module>
     </modules>
 
     <dependencyManagement>
@@ -370,6 +371,12 @@
                 <artifactId>presto-generic-thrift</artifactId>
                 <version>${project.version}</version>
                 <type>zip</type>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-generic-thrift-node</artifactId>
+                <version>${project.version}</version>
             </dependency>
 
             <dependency>
