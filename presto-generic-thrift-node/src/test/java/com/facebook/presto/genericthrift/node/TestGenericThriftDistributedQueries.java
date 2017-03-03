@@ -60,7 +60,7 @@ public class TestGenericThriftDistributedQueries
     {
         List<ThriftServer> servers = new ArrayList<>(nodes);
         for (int i = 0; i < nodes; i++) {
-            ThriftServiceProcessor processor = new ThriftServiceProcessor(new ThriftCodecManager(), ImmutableList.of(), new ThriftPrestoClientTpch());
+            ThriftServiceProcessor processor = new ThriftServiceProcessor(new ThriftCodecManager(), ImmutableList.of(), new ThriftServerTpch());
 
             servers.add(new ThriftServer(processor).start());
         }
