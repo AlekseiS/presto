@@ -25,6 +25,7 @@ import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftTupleDomain;
 import com.facebook.presto.genericthrift.util.RetryDriver;
 import com.facebook.presto.spi.HostAddress;
+import com.google.common.util.concurrent.ListenableFuture;
 import com.google.inject.BindingAnnotation;
 import io.airlift.log.Logger;
 import io.airlift.units.Duration;
@@ -137,7 +138,7 @@ public class RetryingPrestoClientProvider
         }
 
         @Override
-        public ThriftSplitBatch getSplitBatch(
+        public ListenableFuture<ThriftSplitBatch> getSplitBatch(
                 ThriftConnectorSession session,
                 ThriftSchemaTableName schemaTableName,
                 ThriftTableLayout layout,

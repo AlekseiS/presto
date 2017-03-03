@@ -26,12 +26,16 @@ import com.facebook.presto.spi.ConnectorSplitSource;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
 
+import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -39,9 +43,9 @@ import static com.facebook.presto.genericthrift.client.ThriftConnectorSession.fr
 import static com.facebook.presto.genericthrift.client.ThriftSchemaTableName.fromSchemaTableName;
 import static com.facebook.presto.genericthrift.client.ThriftTupleDomain.fromTupleDomain;
 import static com.google.common.base.Preconditions.checkState;
+import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
 import static io.airlift.concurrent.Threads.threadsNamed;
 import static java.util.Objects.requireNonNull;
-import static java.util.concurrent.CompletableFuture.supplyAsync;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.stream.Collectors.toList;
 
@@ -57,7 +61,7 @@ public class GenericThriftSplitManager
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
         this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
-        this.executor = newCachedThreadPool(threadsNamed("splits-fetcher-%s"));
+        this.executor = newCachedThreadPool(threadsNamed("splits-transform-%s"));
     }
 
     @Override
@@ -79,6 +83,13 @@ public class GenericThriftSplitManager
                 executor);
     }
 
+    @SuppressWarnings("unused")
+    @PreDestroy
+    public void destroy()
+    {
+        executor.shutdownNow();
+    }
+
     private static class GenericThriftSplitSource
             implements ConnectorSplitSource
     {
@@ -92,7 +103,7 @@ public class GenericThriftSplitManager
 
         private final AtomicBoolean hasMoreData;
         private final AtomicReference<String> continuationToken;
-        private final AtomicReference<CompletableFuture<List<ConnectorSplit>>> future;
+        private final AtomicReference<Future<?>> future;
 
         public GenericThriftSplitSource(
                 ThriftPrestoClient client,
@@ -114,17 +125,20 @@ public class GenericThriftSplitManager
         @Override
         public CompletableFuture<List<ConnectorSplit>> getNextBatch(int maxSize)
         {
-            CompletableFuture<List<ConnectorSplit>> newFuture = supplyAsync(() -> {
-                checkState(hasMoreData.get());
-                String currentContinuationToken = continuationToken.get();
-                ThriftSplitBatch batch = client.getSplitBatch(session, schemaTableName, layout, maxSize, currentContinuationToken);
-                List<ConnectorSplit> splits = batch.getSplits().stream().map(ThriftSplit::toConnectorSplit).collect(toList());
-                checkState(continuationToken.compareAndSet(currentContinuationToken, batch.getNextToken()));
-                checkState(hasMoreData.compareAndSet(true, continuationToken.get() != null));
-                return splits;
-            }, executor);
-            future.set(newFuture);
-            return newFuture;
+            checkState(hasMoreData.get());
+            String currentContinuationToken = continuationToken.get();
+            ListenableFuture<ThriftSplitBatch> splitsFuture = client.getSplitBatch(session, schemaTableName, layout, maxSize, currentContinuationToken);
+            ListenableFuture<List<ConnectorSplit>> resultFuture = Futures.transform(
+                    splitsFuture,
+                    batch -> {
+                        List<ConnectorSplit> splits = batch.getSplits().stream().map(ThriftSplit::toConnectorSplit).collect(toList());
+                        checkState(continuationToken.compareAndSet(currentContinuationToken, batch.getNextToken()));
+                        checkState(hasMoreData.compareAndSet(true, continuationToken.get() != null));
+                        return splits;
+                    },
+                    executor);
+            future.set(resultFuture);
+            return toCompletableFuture(resultFuture);
         }
 
         @Override
@@ -136,7 +150,7 @@ public class GenericThriftSplitManager
         @Override
         public void close()
         {
-            CompletableFuture<?> currentFuture = future.getAndSet(null);
+            Future<?> currentFuture = future.getAndSet(null);
             if (currentFuture != null) {
                 currentFuture.cancel(true);
             }

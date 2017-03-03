@@ -15,6 +15,7 @@ package com.facebook.presto.genericthrift.client;
 
 import com.facebook.swift.service.ThriftMethod;
 import com.facebook.swift.service.ThriftService;
+import com.google.common.util.concurrent.ListenableFuture;
 
 import javax.annotation.Nullable;
 
@@ -45,7 +46,7 @@ public interface ThriftPrestoClient
     List<ThriftTableLayoutResult> getTableLayouts(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTupleDomain outputConstraint, @Nullable Set<String> desiredColumns);
 
     @ThriftMethod
-    ThriftSplitBatch getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable String continuationToken);
+    ListenableFuture<ThriftSplitBatch> getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable String continuationToken);
 
     @ThriftMethod
     ThriftRowsBatch getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken);

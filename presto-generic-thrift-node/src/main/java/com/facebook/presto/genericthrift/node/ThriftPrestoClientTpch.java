@@ -36,6 +36,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
 import io.airlift.slice.Slice;
 import io.airlift.tpch.TpchColumn;
 import io.airlift.tpch.TpchColumnType;
@@ -43,6 +45,7 @@ import io.airlift.tpch.TpchEntity;
 import io.airlift.tpch.TpchTable;
 
 import javax.annotation.Nullable;
+import javax.annotation.PreDestroy;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +56,10 @@ import java.util.Set;
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
+import static io.airlift.concurrent.Threads.threadsNamed;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.stream.Collectors.toList;
 
 public class ThriftPrestoClientTpch
@@ -63,6 +69,8 @@ public class ThriftPrestoClientTpch
     private static final String NUMBER_OF_SPLITS_PARAMETER = "splits";
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private final ObjectMapper mapper = new ObjectMapper();
+    private final ListeningExecutorService splitsExecutor =
+            listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
 
     @Override
     public List<ThriftPropertyMetadata> listSessionProperties()
@@ -145,7 +153,21 @@ public class ThriftPrestoClientTpch
     }
 
     @Override
-    public ThriftSplitBatch getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable String continuationToken)
+    public ListenableFuture<ThriftSplitBatch> getSplitBatch(
+            ThriftConnectorSession session,
+            ThriftSchemaTableName schemaTableName,
+            ThriftTableLayout layout,
+            int maxSplitCount,
+            @Nullable String continuationToken)
+    {
+        return splitsExecutor.submit(() -> getSplitBatchInternal(session, schemaTableName, maxSplitCount, continuationToken));
+    }
+
+    private ThriftSplitBatch getSplitBatchInternal(
+            ThriftConnectorSession session,
+            ThriftSchemaTableName schemaTableName,
+            int maxSplitCount,
+            @Nullable String continuationToken)
     {
         int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
         // last sent part
@@ -271,9 +293,11 @@ public class ThriftPrestoClientTpch
         throw new IllegalArgumentException("Invalid schema name: " + schemaName);
     }
 
+    @PreDestroy
     @Override
     public void close()
     {
+        splitsExecutor.shutdownNow();
     }
 
     private static final class SplitInfo
