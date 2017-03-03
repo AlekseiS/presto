@@ -13,8 +13,6 @@
  */
 package com.facebook.presto.genericthrift.client;
 
-import com.facebook.presto.spi.type.StandardTypes;
-import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
@@ -100,48 +98,5 @@ public final class ThriftSessionValue
     public String getStringValue()
     {
         return stringValue;
-    }
-
-    public static Object toJavaValue(ThriftSessionValue value)
-    {
-        if (value.isNullValue()) {
-            return null;
-        }
-        else if (value.getLongValue() != null) {
-            return value.getLongValue();
-        }
-        else if (value.getIntValue() != null) {
-            return value.getIntValue();
-        }
-        else if (value.getBooleanValue() != null) {
-            return value.getBooleanValue();
-        }
-        else if (value.getStringValue() != null) {
-            return value.getStringValue();
-        }
-        else {
-            throw new IllegalArgumentException("Unknown type for session value");
-        }
-    }
-
-    public static ThriftSessionValue fromJavaValue(Object value, Type type)
-    {
-        if (value == null) {
-            return new ThriftSessionValue(true, null, null, null, null, null);
-        }
-        switch (type.getTypeSignature().getBase()) {
-            case StandardTypes.BIGINT:
-                return new ThriftSessionValue(false, (long) value, null, null, null, null);
-            case StandardTypes.INTEGER:
-                return new ThriftSessionValue(false, null, (int) value, null, null, null);
-            case StandardTypes.BOOLEAN:
-                return new ThriftSessionValue(false, null, null, (boolean) value, null, null);
-            case StandardTypes.DOUBLE:
-                return new ThriftSessionValue(false, null, null, null, (double) value, null);
-            case StandardTypes.VARCHAR:
-                return new ThriftSessionValue(false, null, null, null, null, (String) value);
-            default:
-                throw new IllegalArgumentException("Unsupported type for session value: " + type);
-        }
     }
 }

@@ -31,8 +31,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static com.facebook.presto.genericthrift.client.ThriftSessionValue.fromJavaValue;
-import static com.facebook.presto.genericthrift.client.ThriftSessionValue.toJavaValue;
 import static com.facebook.presto.spi.session.PropertyMetadata.booleanSessionProperty;
 import static com.facebook.presto.spi.session.PropertyMetadata.doubleSessionProperty;
 import static com.facebook.presto.spi.session.PropertyMetadata.integerSessionProperty;
@@ -68,18 +66,23 @@ public final class GenericThriftClientSessionProperties
                     .stream()
                     .map(thriftProperty -> {
                         Type type = typeManager.getType(parseTypeSignature(thriftProperty.getType()));
-                        Object value = toJavaValue(thriftProperty.getDefaultValue());
+                        ThriftSessionValue sessionValue = thriftProperty.getDefaultValue();
                         switch (type.getTypeSignature().getBase()) {
                             case StandardTypes.BIGINT:
-                                return longSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(), (Long) value, thriftProperty.isHidden());
+                                return longSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(),
+                                        sessionValue.isNullValue() ? null : sessionValue.getLongValue(), thriftProperty.isHidden());
                             case StandardTypes.INTEGER:
-                                return integerSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(), (Integer) value, thriftProperty.isHidden());
+                                return integerSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(),
+                                        sessionValue.isNullValue() ? null : sessionValue.getIntValue(), thriftProperty.isHidden());
                             case StandardTypes.BOOLEAN:
-                                return booleanSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(), (Boolean) value, thriftProperty.isHidden());
+                                return booleanSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(),
+                                        sessionValue.isNullValue() ? null : sessionValue.getBooleanValue(), thriftProperty.isHidden());
                             case StandardTypes.DOUBLE:
-                                return doubleSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(), (Double) value, thriftProperty.isHidden());
+                                return doubleSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(),
+                                        sessionValue.isNullValue() ? null : sessionValue.getDoubleValue(), thriftProperty.isHidden());
                             case StandardTypes.VARCHAR:
-                                return stringSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(), (String) value, thriftProperty.isHidden());
+                                return stringSessionProperty(thriftProperty.getName(), thriftProperty.getDescription(),
+                                        sessionValue.isNullValue() ? null : sessionValue.getStringValue(), thriftProperty.isHidden());
                             default:
                                 throw new IllegalArgumentException("Unsupported type for session property: " + type);
                         }
@@ -105,9 +108,30 @@ public final class GenericThriftClientSessionProperties
         for (PropertyMetadata<?> property : properties) {
             Object value = session.getProperty(property.getName(), property.getJavaType());
             if (!Objects.equals(property.getDefaultValue(), value)) {
-                result.put(property.getName(), fromJavaValue(value, property.getSqlType()));
+                result.put(property.getName(), toThriftSessionValue(value, property.getSqlType()));
             }
         }
         return result;
+    }
+
+    private static ThriftSessionValue toThriftSessionValue(Object value, Type type)
+    {
+        if (value == null) {
+            return new ThriftSessionValue(true, null, null, null, null, null);
+        }
+        switch (type.getTypeSignature().getBase()) {
+            case StandardTypes.BIGINT:
+                return new ThriftSessionValue(false, (long) value, null, null, null, null);
+            case StandardTypes.INTEGER:
+                return new ThriftSessionValue(false, null, (int) value, null, null, null);
+            case StandardTypes.BOOLEAN:
+                return new ThriftSessionValue(false, null, null, (boolean) value, null, null);
+            case StandardTypes.DOUBLE:
+                return new ThriftSessionValue(false, null, null, null, (double) value, null);
+            case StandardTypes.VARCHAR:
+                return new ThriftSessionValue(false, null, null, null, null, (String) value);
+            default:
+                throw new IllegalArgumentException("Unsupported type for session value: " + type);
+        }
     }
 }
