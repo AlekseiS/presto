@@ -34,13 +34,13 @@ public interface ThriftPrestoClient
     List<ThriftPropertyMetadata> listSessionProperties();
 
     @ThriftMethod
-    List<String> listSchemaNames(ThriftConnectorSession session);
+    List<String> listSchemaNames();
 
     @ThriftMethod
-    List<ThriftSchemaTableName> listTables(ThriftConnectorSession session, @Nullable String schemaNameOrNull);
+    List<ThriftSchemaTableName> listTables(@Nullable String schemaNameOrNull);
 
     @ThriftMethod
-    ThriftNullableTableMetadata getTableMetadata(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName);
+    ThriftNullableTableMetadata getTableMetadata(ThriftSchemaTableName schemaTableName);
 
     @ThriftMethod
     List<ThriftTableLayoutResult> getTableLayouts(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTupleDomain outputConstraint, @Nullable Set<String> desiredColumns);

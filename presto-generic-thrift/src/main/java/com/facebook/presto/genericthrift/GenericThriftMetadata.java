@@ -20,7 +20,6 @@ import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
 import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
-import com.facebook.presto.spi.ColumnNotFoundException;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableLayout;
@@ -33,58 +32,103 @@ import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.TableNotFoundException;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.type.TypeManager;
+import com.google.common.cache.CacheBuilder;
+import com.google.common.cache.CacheLoader;
+import com.google.common.cache.LoadingCache;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import io.airlift.units.Duration;
 
+import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.concurrent.ExecutorService;
 
 import static com.facebook.presto.genericthrift.client.ThriftConnectorSession.fromConnectorSession;
 import static com.facebook.presto.genericthrift.client.ThriftSchemaTableName.fromSchemaTableName;
 import static com.facebook.presto.genericthrift.client.ThriftTableLayoutResult.toConnectorTableLayoutResult;
 import static com.facebook.presto.genericthrift.client.ThriftTableMetadata.toConnectorTableMetadata;
 import static com.facebook.presto.genericthrift.client.ThriftTupleDomain.fromTupleDomain;
+import static com.google.common.cache.CacheLoader.asyncReloading;
+import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.Executors.newFixedThreadPool;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.MINUTES;
 import static java.util.stream.Collectors.toList;
 import static java.util.stream.Collectors.toSet;
 
 public class GenericThriftMetadata
         implements ConnectorMetadata
 {
+    private static final int NUMBER_OF_REFRESH_THREADS = 10;
+    private static final Duration EXPIRE_AFTER_WRITE = new Duration(10, MINUTES);
+    private static final Duration REFRESH_AFTER_WRITE = new Duration(2, MINUTES);
+
     private final PrestoClientProvider clientProvider;
-    private final TypeManager typeManager;
     private final GenericThriftClientSessionProperties clientSessionProperties;
+    private final ExecutorService executor;
+    private final LoadingCache<SchemaTableName, Optional<ConnectorTableMetadata>> tableCache;
 
     @Inject
     public GenericThriftMetadata(PrestoClientProvider clientProvider, TypeManager typeManager, GenericThriftClientSessionProperties clientSessionProperties)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
-        this.typeManager = requireNonNull(typeManager, "typeManager is null");
+        requireNonNull(typeManager, "typeManager is null");
         this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
+        this.executor = newFixedThreadPool(NUMBER_OF_REFRESH_THREADS, daemonThreadsNamed("metadata-refresh-%s"));
+        this.tableCache = CacheBuilder.newBuilder()
+                .expireAfterWrite(EXPIRE_AFTER_WRITE.toMillis(), MILLISECONDS)
+                .refreshAfterWrite(REFRESH_AFTER_WRITE.toMillis(), MILLISECONDS)
+                .build(asyncReloading(new CacheLoader<SchemaTableName, Optional<ConnectorTableMetadata>>()
+                {
+                    @Override
+                    public Optional<ConnectorTableMetadata> load(SchemaTableName schemaTableName)
+                            throws Exception
+                    {
+                        requireNonNull(schemaTableName, "schemaTableName is null");
+                        try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
+                            ThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromSchemaTableName(schemaTableName));
+                            if (thriftTableMetadata.getThriftTableMetadata() == null) {
+                                return Optional.empty();
+                            }
+                            else {
+                                return Optional.of(toConnectorTableMetadata(thriftTableMetadata.getThriftTableMetadata(), typeManager));
+                            }
+                        }
+                    }
+                }, executor));
+    }
+
+    @SuppressWarnings("unused")
+    @PreDestroy
+    public void destroy()
+    {
+        executor.shutdownNow();
     }
 
     @Override
     public List<String> listSchemaNames(ConnectorSession session)
     {
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            return client.listSchemaNames(fromConnectorSession(session, clientSessionProperties));
+            return client.listSchemaNames();
         }
     }
 
     @Override
     public ConnectorTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
-        try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            ThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromConnectorSession(session, clientSessionProperties), fromSchemaTableName(tableName));
-            if (thriftTableMetadata.getThriftTableMetadata() == null) {
-                return null;
-            }
-            ThriftSchemaTableName schemaTableName = thriftTableMetadata.getThriftTableMetadata().getSchemaTableName();
-            return new GenericThriftTableHandle(schemaTableName.getSchemaName(), schemaTableName.getTableName());
+        Optional<ConnectorTableMetadata> tableMetadata = tableCache.getUnchecked(tableName);
+        if (!tableMetadata.isPresent()) {
+            return null;
+        }
+        else {
+            SchemaTableName actualTableName = tableMetadata.get().getTable();
+            return new GenericThriftTableHandle(actualTableName.getSchemaName(), actualTableName.getTableName());
         }
     }
 
@@ -131,20 +175,20 @@ public class GenericThriftMetadata
     }
 
     @Override
-    public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle table)
+    public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
-        GenericThriftTableHandle handle = ((GenericThriftTableHandle) table);
-        return getTableMetadata(session, new SchemaTableName(handle.getSchemaName(), handle.getTableName()));
+        GenericThriftTableHandle handle = ((GenericThriftTableHandle) tableHandle);
+        return getTableMetadata(new SchemaTableName(handle.getSchemaName(), handle.getTableName()));
     }
 
-    private ConnectorTableMetadata getTableMetadata(ConnectorSession session, SchemaTableName schemaTableName)
+    private ConnectorTableMetadata getTableMetadata(SchemaTableName schemaTableName)
     {
-        try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            ThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromConnectorSession(session, clientSessionProperties), fromSchemaTableName(schemaTableName));
-            if (thriftTableMetadata.getThriftTableMetadata() == null) {
-                throw new TableNotFoundException(schemaTableName);
-            }
-            return toConnectorTableMetadata(thriftTableMetadata.getThriftTableMetadata(), typeManager);
+        Optional<ConnectorTableMetadata> table = tableCache.getUnchecked(schemaTableName);
+        if (!table.isPresent()) {
+            throw new TableNotFoundException(schemaTableName);
+        }
+        else {
+            return table.get();
         }
     }
 
@@ -152,7 +196,7 @@ public class GenericThriftMetadata
     public List<SchemaTableName> listTables(ConnectorSession session, String schemaNameOrNull)
     {
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
-            return client.listTables(fromConnectorSession(session, clientSessionProperties), schemaNameOrNull)
+            return client.listTables(schemaNameOrNull)
                     .stream()
                     .map(thriftSchemaTable -> new SchemaTableName(thriftSchemaTable.getSchemaName(), thriftSchemaTable.getTableName()))
                     .collect(toList());
@@ -165,7 +209,8 @@ public class GenericThriftMetadata
         ConnectorTableMetadata tableMetadata = getTableMetadata(session, tableHandle);
         ImmutableMap.Builder<String, ColumnHandle> result = ImmutableMap.builder();
         for (ColumnMetadata columnMetadata : tableMetadata.getColumns()) {
-            result.put(columnMetadata.getName(), new GenericThriftColumnHandle(columnMetadata.getName(), columnMetadata.getType()));
+            result.put(columnMetadata.getName(),
+                    new GenericThriftColumnHandle(columnMetadata.getName(), columnMetadata.getType(), columnMetadata.getComment(), columnMetadata.isHidden()));
         }
         return result.build();
     }
@@ -173,17 +218,8 @@ public class GenericThriftMetadata
     @Override
     public ColumnMetadata getColumnMetadata(ConnectorSession session, ConnectorTableHandle tableHandle, ColumnHandle columnHandle)
     {
-        GenericThriftColumnHandle requiredColumn = ((GenericThriftColumnHandle) columnHandle);
-        ConnectorTableMetadata tableMetadata = getTableMetadata(session, tableHandle);
-        for (ColumnMetadata actualColumn : tableMetadata.getColumns()) {
-            if (actualColumn.getName().equals(requiredColumn.getColumnName())) {
-                return actualColumn;
-            }
-        }
-        GenericThriftTableHandle table = (GenericThriftTableHandle) tableHandle;
-        throw new ColumnNotFoundException(
-                new SchemaTableName(table.getSchemaName(), table.getTableName()),
-                requiredColumn.getColumnName());
+        GenericThriftColumnHandle handle = ((GenericThriftColumnHandle) columnHandle);
+        return new ColumnMetadata(handle.getColumnName(), handle.getColumnType(), handle.getComment(), handle.isHidden());
     }
 
     @Override
@@ -192,7 +228,7 @@ public class GenericThriftMetadata
         requireNonNull(prefix, "prefix is null");
         ImmutableMap.Builder<SchemaTableName, List<ColumnMetadata>> columns = ImmutableMap.builder();
         for (SchemaTableName tableName : listTables(session, prefix.getSchemaName())) {
-            ConnectorTableMetadata tableMetadata = getTableMetadata(session, tableName);
+            ConnectorTableMetadata tableMetadata = getTableMetadata(tableName);
             columns.put(tableName, tableMetadata.getColumns());
         }
         return columns.build();

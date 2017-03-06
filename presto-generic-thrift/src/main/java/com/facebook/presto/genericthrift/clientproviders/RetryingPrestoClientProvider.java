@@ -109,21 +109,21 @@ public class RetryingPrestoClientProvider
         }
 
         @Override
-        public List<String> listSchemaNames(ThriftConnectorSession session)
+        public List<String> listSchemaNames()
         {
-            return retry.run("listSchemaNames", () -> getClient().listSchemaNames(session));
+            return retry.run("listSchemaNames", () -> getClient().listSchemaNames());
         }
 
         @Override
-        public List<ThriftSchemaTableName> listTables(ThriftConnectorSession session, @Nullable String schemaNameOrNull)
+        public List<ThriftSchemaTableName> listTables(@Nullable String schemaNameOrNull)
         {
-            return retry.run("listTables", () -> getClient().listTables(session, schemaNameOrNull));
+            return retry.run("listTables", () -> getClient().listTables(schemaNameOrNull));
         }
 
         @Override
-        public ThriftNullableTableMetadata getTableMetadata(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName)
+        public ThriftNullableTableMetadata getTableMetadata(ThriftSchemaTableName schemaTableName)
         {
-            return retry.run("getTableMetadata", () -> getClient().getTableMetadata(session, schemaTableName));
+            return retry.run("getTableMetadata", () -> getClient().getTableMetadata(schemaTableName));
         }
 
         @Override

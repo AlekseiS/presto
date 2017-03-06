@@ -83,13 +83,13 @@ public class ThriftServerTpch
     }
 
     @Override
-    public List<String> listSchemaNames(ThriftConnectorSession session)
+    public List<String> listSchemaNames()
     {
         return SCHEMAS;
     }
 
     @Override
-    public List<ThriftSchemaTableName> listTables(ThriftConnectorSession session, @Nullable String schemaNameOrNull)
+    public List<ThriftSchemaTableName> listTables(@Nullable String schemaNameOrNull)
     {
         List<ThriftSchemaTableName> result = new ArrayList<>();
         for (String schemaName : getSchemaNames(schemaNameOrNull)) {
@@ -114,7 +114,7 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ThriftNullableTableMetadata getTableMetadata(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName)
+    public ThriftNullableTableMetadata getTableMetadata(ThriftSchemaTableName schemaTableName)
     {
         String schemaName = schemaTableName.getSchemaName();
         String tableName = schemaTableName.getTableName();

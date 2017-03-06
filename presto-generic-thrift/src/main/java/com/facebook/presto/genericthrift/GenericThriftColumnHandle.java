@@ -18,6 +18,8 @@ import com.facebook.presto.spi.type.Type;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import javax.annotation.Nullable;
+
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -28,14 +30,20 @@ public final class GenericThriftColumnHandle
 {
     private final String columnName;
     private final Type columnType;
+    private final String comment;
+    private final boolean hidden;
 
     @JsonCreator
     public GenericThriftColumnHandle(
             @JsonProperty("columnName") String columnName,
-            @JsonProperty("columnType") Type columnType)
+            @JsonProperty("columnType") Type columnType,
+            @JsonProperty("comment") @Nullable String comment,
+            @JsonProperty("hidden") boolean hidden)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
         this.columnType = requireNonNull(columnType, "columnType is null");
+        this.comment = comment;
+        this.hidden = hidden;
     }
 
     @JsonProperty
@@ -48,6 +56,19 @@ public final class GenericThriftColumnHandle
     public Type getColumnType()
     {
         return columnType;
+    }
+
+    @Nullable
+    @JsonProperty
+    public String getComment()
+    {
+        return comment;
+    }
+
+    @JsonProperty
+    public boolean isHidden()
+    {
+        return hidden;
     }
 
     @Override
@@ -67,15 +88,19 @@ public final class GenericThriftColumnHandle
         }
         final GenericThriftColumnHandle other = (GenericThriftColumnHandle) obj;
         return Objects.equals(this.columnName, other.columnName) &&
-                Objects.equals(this.columnType, other.columnType);
+                Objects.equals(this.columnType, other.columnType) &&
+                Objects.equals(this.comment, other.comment) &&
+                this.hidden == other.hidden;
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("columnName", getColumnName())
-                .add("columnType", getColumnType())
+                .add("columnName", columnName)
+                .add("columnType", columnType)
+                .add("comment", comment)
+                .add("hidden", hidden)
                 .toString();
     }
 }
