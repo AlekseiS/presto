@@ -14,6 +14,7 @@
 package com.facebook.presto.genericthrift;
 
 import com.facebook.presto.spi.connector.Connector;
+import com.facebook.presto.spi.connector.ConnectorIndexProvider;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
 import com.facebook.presto.spi.connector.ConnectorPageSourceProvider;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
@@ -41,6 +42,7 @@ public class GenericThriftConnector
     private final GenericThriftPageSourceProvider pageSourceProvider;
     private final GenericThriftInternalSessionProperties internalSessionProperties;
     private final GenericThriftClientSessionProperties clientSessionProperties;
+    private final GenericThriftIndexProvider indexProvider;
 
     @Inject
     public GenericThriftConnector(LifeCycleManager lifeCycleManager,
@@ -48,7 +50,8 @@ public class GenericThriftConnector
             GenericThriftSplitManager splitManager,
             GenericThriftPageSourceProvider pageSourceProvider,
             GenericThriftInternalSessionProperties internalSessionProperties,
-            GenericThriftClientSessionProperties clientSessionProperties)
+            GenericThriftClientSessionProperties clientSessionProperties,
+            GenericThriftIndexProvider indexProvider)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
@@ -56,6 +59,7 @@ public class GenericThriftConnector
         this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
         this.internalSessionProperties = requireNonNull(internalSessionProperties, "internalSessionProperties is null");
         this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
+        this.indexProvider = requireNonNull(indexProvider, "indexProvider is null");
     }
 
     @Override
@@ -89,6 +93,12 @@ public class GenericThriftConnector
                 .addAll(internalSessionProperties.getSessionProperties())
                 .addAll(clientSessionProperties.getSessionProperties())
                 .build();
+    }
+
+    @Override
+    public ConnectorIndexProvider getIndexProvider()
+    {
+        return indexProvider;
     }
 
     @Override

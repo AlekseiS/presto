@@ -41,5 +41,6 @@ public class GenericThriftModule
         configBinder(binder).bindConfig(GenericThriftConfig.class);
         binder.bind(GenericThriftInternalSessionProperties.class).in(Scopes.SINGLETON);
         binder.bind(GenericThriftClientSessionProperties.class).in(Scopes.SINGLETON);
+        binder.bind(GenericThriftIndexProvider.class).in(Scopes.SINGLETON);
     }
 }

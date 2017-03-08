@@ -14,6 +14,7 @@
 package com.facebook.presto.genericthrift.clientproviders;
 
 import com.facebook.presto.genericthrift.client.ThriftConnectorSession;
+import com.facebook.presto.genericthrift.client.ThriftNullableIndexLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftNullableTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftPropertyMetadata;
@@ -153,6 +154,17 @@ public class RetryingPrestoClientProvider
         public ListenableFuture<ThriftRowsBatch> getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
         {
             return retry.run("getRows", () -> getClient().getRows(splitId, columnNames, maxRowCount, continuationToken));
+        }
+
+        @Override
+        public ThriftNullableIndexLayoutResult resolveIndex(
+                ThriftConnectorSession session,
+                ThriftSchemaTableName schemaTableName,
+                Set<String> indexableColumnNames,
+                Set<String> outputColumnNames,
+                ThriftTupleDomain outputConstraint)
+        {
+            return retry.run("resolveIndex", () -> getClient().resolveIndex(session, schemaTableName, indexableColumnNames, outputColumnNames, outputConstraint));
         }
 
         @Override

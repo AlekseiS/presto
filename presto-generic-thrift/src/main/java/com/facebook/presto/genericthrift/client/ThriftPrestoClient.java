@@ -28,7 +28,7 @@ public interface ThriftPrestoClient
         extends Closeable
 {
     /**
-     * Loaded exactly once on Presto start up
+     * Loaded once on Presto start up.
      */
     @ThriftMethod
     List<ThriftPropertyMetadata> listSessionProperties();
@@ -50,6 +50,9 @@ public interface ThriftPrestoClient
 
     @ThriftMethod
     ListenableFuture<ThriftRowsBatch> getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken);
+
+    @ThriftMethod
+    ThriftNullableIndexLayoutResult resolveIndex(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, Set<String> indexableColumnNames, Set<String> outputColumnNames, ThriftTupleDomain outputConstraint);
 
     @Override
     void close();

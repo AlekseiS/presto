@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.genericthrift;
 
+import com.facebook.presto.genericthrift.client.ThriftNullableIndexLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftNullableTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
@@ -20,6 +21,7 @@ import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
 import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
+import com.facebook.presto.spi.ConnectorResolvedIndex;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableLayout;
@@ -31,6 +33,7 @@ import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.TableNotFoundException;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -53,6 +56,7 @@ import static com.facebook.presto.genericthrift.client.ThriftSchemaTableName.fro
 import static com.facebook.presto.genericthrift.client.ThriftTableLayoutResult.toConnectorTableLayoutResult;
 import static com.facebook.presto.genericthrift.client.ThriftTableMetadata.toConnectorTableMetadata;
 import static com.facebook.presto.genericthrift.client.ThriftTupleDomain.fromTupleDomain;
+import static com.facebook.presto.genericthrift.client.ThriftTupleDomain.toTupleDomain;
 import static com.google.common.cache.CacheLoader.asyncReloading;
 import static io.airlift.concurrent.Threads.daemonThreadsNamed;
 import static java.util.Objects.requireNonNull;
@@ -232,5 +236,31 @@ public class GenericThriftMetadata
             columns.put(tableName, tableMetadata.getColumns());
         }
         return columns.build();
+    }
+
+    @Override
+    public Optional<ConnectorResolvedIndex> resolveIndex(
+            ConnectorSession session,
+            ConnectorTableHandle tableHandle,
+            Set<ColumnHandle> indexableColumns,
+            Set<ColumnHandle> outputColumns,
+            TupleDomain<ColumnHandle> tupleDomain)
+    {
+        GenericThriftTableHandle thriftTableHandle = (GenericThriftTableHandle) tableHandle;
+        try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
+            ThriftNullableIndexLayoutResult result = client.resolveIndex(fromConnectorSession(session, clientSessionProperties),
+                    new ThriftSchemaTableName(thriftTableHandle.getSchemaName(), thriftTableHandle.getTableName()),
+                    indexableColumns.stream().map(handle -> ((GenericThriftColumnHandle) handle).getColumnName()).collect(toSet()),
+                    outputColumns.stream().map(handle -> ((GenericThriftColumnHandle) handle).getColumnName()).collect(toSet()),
+                    fromTupleDomain(tupleDomain));
+            if (result.getIndexLayoutResult() == null) {
+                return Optional.empty();
+            }
+            else {
+                return Optional.of(new ConnectorResolvedIndex(
+                        new GenericThriftIndexHandle(result.getIndexLayoutResult().getIndexId()),
+                        toTupleDomain(result.getIndexLayoutResult().getUnenforcedPredicate(), getColumnHandles(session, tableHandle))));
+            }
+        }
     }
 }

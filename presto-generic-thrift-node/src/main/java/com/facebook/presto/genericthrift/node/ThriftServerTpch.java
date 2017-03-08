@@ -16,6 +16,7 @@ package com.facebook.presto.genericthrift.node;
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
 import com.facebook.presto.genericthrift.client.ThriftColumnMetadata;
 import com.facebook.presto.genericthrift.client.ThriftConnectorSession;
+import com.facebook.presto.genericthrift.client.ThriftNullableIndexLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftNullableTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftPropertyMetadata;
@@ -201,6 +202,12 @@ public class ThriftServerTpch
     public ListenableFuture<ThriftRowsBatch> getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
     {
         return dataExecutor.submit(() -> getRowsInternal(splitId, columnNames, maxRowCount, continuationToken));
+    }
+
+    @Override
+    public ThriftNullableIndexLayoutResult resolveIndex(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, Set<String> indexableColumnNames, Set<String> outputColumnNames, ThriftTupleDomain outputConstraint)
+    {
+        return new ThriftNullableIndexLayoutResult(null);
     }
 
     private ThriftRowsBatch getRowsInternal(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
