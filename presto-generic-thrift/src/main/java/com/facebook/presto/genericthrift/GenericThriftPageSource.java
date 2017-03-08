@@ -19,10 +19,11 @@ import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
 import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.genericthrift.readers.ColumnReader;
 import com.facebook.presto.genericthrift.readers.ColumnReaders;
+import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.block.Block;
-import com.google.common.collect.ImmutableList;
+import com.facebook.presto.spi.type.Type;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -35,7 +36,6 @@ import static com.google.common.base.Preconditions.checkState;
 import static io.airlift.concurrent.MoreFutures.getFutureValue;
 import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 public class GenericThriftPageSource
         implements ConnectorPageSource
@@ -45,8 +45,9 @@ public class GenericThriftPageSource
 
     private final ThriftPrestoClient client;
     private final GenericThriftSplit split;
-    private final List<GenericThriftColumnHandle> columns;
     private final List<String> columnNames;
+    private final List<Type> columnTypes;
+    private final int numberOfColumns;
 
     private final ArrayList<ColumnReader> readers;
     private String nextToken;
@@ -56,12 +57,18 @@ public class GenericThriftPageSource
     public GenericThriftPageSource(
             PrestoClientProvider clientProvider,
             GenericThriftSplit split,
-            List<GenericThriftColumnHandle> columns)
+            List<ColumnHandle> columns)
     {
         this.split = requireNonNull(split, "split is null");
         checkArgument(columns != null && !columns.isEmpty(), "columns is null or empty");
-        this.columns = ImmutableList.copyOf(columns);
-        this.columnNames = columns.stream().map(GenericThriftColumnHandle::getColumnName).collect(toList());
+        this.numberOfColumns = columns.size();
+        this.columnNames = new ArrayList<>(numberOfColumns);
+        this.columnTypes = new ArrayList<>(numberOfColumns);
+        for (ColumnHandle columnHandle : columns) {
+            GenericThriftColumnHandle thriftColumnHandle = (GenericThriftColumnHandle) columnHandle;
+            columnNames.add(thriftColumnHandle.getColumnName());
+            columnTypes.add(thriftColumnHandle.getColumnType());
+        }
         requireNonNull(clientProvider, "clientProvider is null");
         if (split.getAddresses().isEmpty()) {
             this.client = clientProvider.connectToAnyHost();
@@ -116,9 +123,8 @@ public class GenericThriftPageSource
                 future = null;
                 nextToken = response.getNextToken();
                 List<ThriftColumnData> columnsData = response.getColumnsData();
-                for (int i = 0; i < columns.size(); i++) {
-                    GenericThriftColumnHandle column = columns.get(i);
-                    readers.set(i, ColumnReaders.createColumnReader(columnsData, column.getColumnName(), column.getColumnType(), response.getRowCount()));
+                for (int i = 0; i < numberOfColumns; i++) {
+                    readers.set(i, ColumnReaders.createColumnReader(columnsData, columnNames.get(i), columnTypes.get(i), response.getRowCount()));
                 }
                 checkState(readersHaveMoreData() || nextToken == null, "Batch cannot be empty when continuation token is present");
                 return nextPageFromCurrentBatch();
@@ -141,8 +147,8 @@ public class GenericThriftPageSource
     private Page nextPageFromCurrentBatch()
     {
         if (readersHaveMoreData()) {
-            Block[] blocks = new Block[columns.size()];
-            for (int i = 0; i < columns.size(); i++) {
+            Block[] blocks = new Block[numberOfColumns];
+            for (int i = 0; i < numberOfColumns; i++) {
                 blocks[i] = readers.get(i).readBlock(DEFAULT_NUM_RECORDS);
             }
             return new Page(blocks);

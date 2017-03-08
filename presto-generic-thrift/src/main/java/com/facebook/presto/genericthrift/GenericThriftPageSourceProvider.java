@@ -26,7 +26,6 @@ import javax.inject.Inject;
 import java.util.List;
 
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 public class GenericThriftPageSourceProvider
         implements ConnectorPageSourceProvider
@@ -46,8 +45,7 @@ public class GenericThriftPageSourceProvider
             return new GenericThriftNoColumnsPageSource(clientProvider, (GenericThriftSplit) split);
         }
         else {
-            List<GenericThriftColumnHandle> genericThriftColumns = columns.stream().map(columnHandle -> (GenericThriftColumnHandle) columnHandle).collect(toList());
-            return new GenericThriftPageSource(clientProvider, (GenericThriftSplit) split, genericThriftColumns);
+            return new GenericThriftPageSource(clientProvider, (GenericThriftSplit) split, columns);
         }
     }
 }
