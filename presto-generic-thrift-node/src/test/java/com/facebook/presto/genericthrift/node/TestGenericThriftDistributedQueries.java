@@ -52,7 +52,7 @@ public class TestGenericThriftDistributedQueries
     public TestGenericThriftDistributedQueries(List<ThriftServer> servers)
             throws Exception
     {
-        super(createQueryRunner(servers));
+        super(() -> createQueryRunner(servers));
         this.thriftServers = requireNonNull(servers, "servers is null");
     }
 
@@ -92,7 +92,6 @@ public class TestGenericThriftDistributedQueries
     public void tearDown()
             throws Exception
     {
-        Closeables.close(queryRunner, true);
         for (ThriftServer server : thriftServers) {
             Closeables.close(server, true);
         }
