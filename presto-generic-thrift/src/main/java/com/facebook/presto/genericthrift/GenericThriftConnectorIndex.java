@@ -27,7 +27,7 @@ public class GenericThriftConnectorIndex
         implements ConnectorIndex
 {
     private final PrestoClientProvider clientProvider;
-    private final String indexId;
+    private final byte[] indexId;
     private final List<ColumnHandle> outputColumns;
 
     private String continuationToken;

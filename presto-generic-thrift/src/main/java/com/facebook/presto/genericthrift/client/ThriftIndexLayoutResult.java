@@ -22,18 +22,18 @@ import static java.util.Objects.requireNonNull;
 @ThriftStruct
 public final class ThriftIndexLayoutResult
 {
-    private final String indexId;
+    private final byte[] indexId;
     private final ThriftTupleDomain unenforcedPredicate;
 
     @ThriftConstructor
-    public ThriftIndexLayoutResult(String indexId, ThriftTupleDomain unenforcedPredicate)
+    public ThriftIndexLayoutResult(byte[] indexId, ThriftTupleDomain unenforcedPredicate)
     {
         this.indexId = requireNonNull(indexId, "indexId is null");
         this.unenforcedPredicate = requireNonNull(unenforcedPredicate, "unenforcedPredicate is null");
     }
 
     @ThriftField(1)
-    public String getIndexId()
+    public byte[] getIndexId()
     {
         return indexId;
     }

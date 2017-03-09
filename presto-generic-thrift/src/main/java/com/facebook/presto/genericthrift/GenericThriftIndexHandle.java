@@ -22,22 +22,16 @@ import static java.util.Objects.requireNonNull;
 public class GenericThriftIndexHandle
         implements ConnectorIndexHandle
 {
-    private final String indexId;
+    private final byte[] indexId;
 
     @JsonCreator
-    public GenericThriftIndexHandle(@JsonProperty("indexId") String indexId)
+    public GenericThriftIndexHandle(@JsonProperty("indexId") byte[] indexId)
     {
         this.indexId = requireNonNull(indexId, "indexId is null");
     }
 
     @JsonProperty
-    public String getIndexId()
-    {
-        return indexId;
-    }
-
-    @Override
-    public String toString()
+    public byte[] getIndexId()
     {
         return indexId;
     }
