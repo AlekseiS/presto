@@ -27,12 +27,12 @@ import static java.util.stream.Collectors.toList;
 @ThriftStruct
 public final class ThriftSplit
 {
-    private final String splitId;
+    private final byte[] splitId;
     private final List<ThriftHostAddress> hosts;
 
     @ThriftConstructor
     public ThriftSplit(
-            @ThriftField(name = "splitId") String splitId,
+            @ThriftField(name = "splitId") byte[] splitId,
             @ThriftField(name = "hosts") List<ThriftHostAddress> hosts)
     {
         this.splitId = requireNonNull(splitId, "splitId is null");
@@ -40,7 +40,7 @@ public final class ThriftSplit
     }
 
     @ThriftField(1)
-    public String getSplitId()
+    public byte[] getSplitId()
     {
         return splitId;
     }

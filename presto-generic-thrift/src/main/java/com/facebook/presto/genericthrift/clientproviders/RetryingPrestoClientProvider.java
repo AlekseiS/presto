@@ -151,7 +151,7 @@ public class RetryingPrestoClientProvider
         }
 
         @Override
-        public ListenableFuture<ThriftRowsBatch> getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+        public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
         {
             return retry.run("getRows", () -> getClient().getRows(splitId, columnNames, maxRowCount, continuationToken));
         }

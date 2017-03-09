@@ -184,9 +184,9 @@ public class ThriftServerTpch
                     schemaTableName.getTableName(),
                     partNumber + 1,
                     totalParts);
-            String splitId;
+            byte[] splitId;
             try {
-                splitId = mapper.writeValueAsString(splitInfo);
+                splitId = mapper.writeValueAsBytes(splitInfo);
             }
             catch (JsonProcessingException e) {
                 throw new RuntimeException(e);
@@ -199,7 +199,7 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ListenableFuture<ThriftRowsBatch> getRows(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+    public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
     {
         return dataExecutor.submit(() -> getRowsInternal(splitId, columnNames, maxRowCount, continuationToken));
     }
@@ -210,7 +210,7 @@ public class ThriftServerTpch
         return new ThriftNullableIndexLayoutResult(null);
     }
 
-    private ThriftRowsBatch getRowsInternal(String splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+    private ThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
     {
         requireNonNull(columnNames, "columnNames is null");
         SplitInfo splitInfo;

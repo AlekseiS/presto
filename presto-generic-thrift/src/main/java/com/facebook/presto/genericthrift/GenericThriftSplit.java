@@ -27,12 +27,12 @@ import static java.util.Objects.requireNonNull;
 public class GenericThriftSplit
         implements ConnectorSplit
 {
-    private final String splitId;
+    private final byte[] splitId;
     private final List<HostAddress> addresses;
 
     @JsonCreator
     public GenericThriftSplit(
-            @JsonProperty("splitId") String splitId,
+            @JsonProperty("splitId") byte[] splitId,
             @JsonProperty("addresses") List<HostAddress> addresses)
     {
         this.splitId = requireNonNull(splitId, "splitId is null");
@@ -40,7 +40,7 @@ public class GenericThriftSplit
     }
 
     @JsonProperty
-    public String getSplitId()
+    public byte[] getSplitId()
     {
         return splitId;
     }
