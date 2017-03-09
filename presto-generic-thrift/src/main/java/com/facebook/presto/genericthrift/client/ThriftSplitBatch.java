@@ -29,10 +29,10 @@ import static java.util.Objects.requireNonNull;
 public final class ThriftSplitBatch
 {
     private final List<ThriftSplit> splits;
-    private final String nextToken;
+    private final byte[] nextToken;
 
     @ThriftConstructor
-    public ThriftSplitBatch(List<ThriftSplit> splits, @Nullable String nextToken)
+    public ThriftSplitBatch(List<ThriftSplit> splits, @Nullable byte[] nextToken)
     {
         this.splits = ImmutableList.copyOf(requireNonNull(splits, "splits"));
         this.nextToken = nextToken;
@@ -46,7 +46,7 @@ public final class ThriftSplitBatch
 
     @Nullable
     @ThriftField(value = 2, requiredness = OPTIONAL)
-    public String getNextToken()
+    public byte[] getNextToken()
     {
         return nextToken;
     }

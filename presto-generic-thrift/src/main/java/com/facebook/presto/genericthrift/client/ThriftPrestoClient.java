@@ -46,10 +46,10 @@ public interface ThriftPrestoClient
     List<ThriftTableLayoutResult> getTableLayouts(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTupleDomain outputConstraint, @Nullable Set<String> desiredColumns);
 
     @ThriftMethod
-    ListenableFuture<ThriftSplitBatch> getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable String continuationToken);
+    ListenableFuture<ThriftSplitBatch> getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable byte[] continuationToken);
 
     @ThriftMethod
-    ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken);
+    ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken);
 
     @ThriftMethod
     ThriftNullableIndexLayoutResult resolveIndex(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, Set<String> indexableColumnNames, Set<String> outputColumnNames, ThriftTupleDomain outputConstraint);

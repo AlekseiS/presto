@@ -144,14 +144,14 @@ public class RetryingPrestoClientProvider
                 ThriftSchemaTableName schemaTableName,
                 ThriftTableLayout layout,
                 int maxSplitCount,
-                @Nullable String continuationToken)
+                @Nullable byte[] continuationToken)
         {
             return retry.run("getSplitBatch",
                     () -> getClient().getSplitBatch(session, schemaTableName, layout, maxSplitCount, continuationToken));
         }
 
         @Override
-        public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+        public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
         {
             return retry.run("getRows", () -> getClient().getRows(splitId, columnNames, maxRowCount, continuationToken));
         }

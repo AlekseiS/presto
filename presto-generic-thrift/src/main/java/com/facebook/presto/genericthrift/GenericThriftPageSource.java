@@ -50,7 +50,7 @@ public class GenericThriftPageSource
     private final int numberOfColumns;
 
     private final ArrayList<ColumnReader> readers;
-    private String nextToken;
+    private byte[] nextToken;
     private boolean firstCall = true;
     private CompletableFuture<ThriftRowsBatch> future;
 

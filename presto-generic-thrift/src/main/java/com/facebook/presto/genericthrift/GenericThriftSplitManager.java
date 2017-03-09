@@ -102,7 +102,7 @@ public class GenericThriftSplitManager
         // the code assumes getNextBatch is called by a single thread
 
         private final AtomicBoolean hasMoreData;
-        private final AtomicReference<String> continuationToken;
+        private final AtomicReference<byte[]> continuationToken;
         private final AtomicReference<Future<?>> future;
 
         public GenericThriftSplitSource(
@@ -126,11 +126,12 @@ public class GenericThriftSplitManager
         public CompletableFuture<List<ConnectorSplit>> getNextBatch(int maxSize)
         {
             checkState(hasMoreData.get());
-            String currentContinuationToken = continuationToken.get();
+            byte[] currentContinuationToken = continuationToken.get();
             ListenableFuture<ThriftSplitBatch> splitsFuture = client.getSplitBatch(session, schemaTableName, layout, maxSize, currentContinuationToken);
             ListenableFuture<List<ConnectorSplit>> resultFuture = Futures.transform(
                     splitsFuture,
                     batch -> {
+                        requireNonNull(batch, "batch is null");
                         List<ConnectorSplit> splits = batch.getSplits().stream().map(ThriftSplit::toConnectorSplit).collect(toList());
                         checkState(continuationToken.compareAndSet(currentContinuationToken, batch.getNextToken()));
                         checkState(hasMoreData.compareAndSet(true, continuationToken.get() != null));

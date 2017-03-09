@@ -28,10 +28,10 @@ public final class ThriftRowsBatch
 {
     private final List<ThriftColumnData> columnsData;
     private final int rowCount;
-    private final String nextToken;
+    private final byte[] nextToken;
 
     @ThriftConstructor
-    public ThriftRowsBatch(List<ThriftColumnData> columnsData, int rowCount, String nextToken)
+    public ThriftRowsBatch(List<ThriftColumnData> columnsData, int rowCount, byte[] nextToken)
     {
         this.columnsData = requireNonNull(columnsData, "columnsData is null");
         checkArgument(rowCount >= 0, "rowCount is negative");
@@ -52,7 +52,7 @@ public final class ThriftRowsBatch
     }
 
     @ThriftField(value = 3, requiredness = OPTIONAL)
-    public String getNextToken()
+    public byte[] getNextToken()
     {
         return nextToken;
     }

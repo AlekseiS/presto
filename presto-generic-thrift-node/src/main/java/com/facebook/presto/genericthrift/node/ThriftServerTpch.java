@@ -37,6 +37,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.primitives.Ints;
+import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import io.airlift.slice.Slice;
@@ -161,7 +163,7 @@ public class ThriftServerTpch
             ThriftSchemaTableName schemaTableName,
             ThriftTableLayout layout,
             int maxSplitCount,
-            @Nullable String continuationToken)
+            @Nullable byte[] continuationToken)
     {
         return splitsExecutor.submit(() -> getSplitBatchInternal(session, schemaTableName, maxSplitCount, continuationToken));
     }
@@ -170,11 +172,11 @@ public class ThriftServerTpch
             ThriftConnectorSession session,
             ThriftSchemaTableName schemaTableName,
             int maxSplitCount,
-            @Nullable String continuationToken)
+            @Nullable byte[] continuationToken)
     {
         int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
         // last sent part
-        int partNumber = continuationToken == null ? 0 : Integer.parseInt(continuationToken);
+        int partNumber = continuationToken == null ? 0 : Ints.fromByteArray(continuationToken);
         int numberOfSplits = Math.min(maxSplitCount, totalParts - partNumber);
 
         List<ThriftSplit> splits = new ArrayList<>(numberOfSplits);
@@ -194,12 +196,12 @@ public class ThriftServerTpch
             splits.add(new ThriftSplit(splitId, ImmutableList.of()));
             partNumber++;
         }
-        String nextToken = partNumber < totalParts ? String.valueOf(partNumber) : null;
+        byte[] nextToken = partNumber < totalParts ? Ints.toByteArray(partNumber) : null;
         return new ThriftSplitBatch(splits, nextToken);
     }
 
     @Override
-    public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+    public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
     {
         return dataExecutor.submit(() -> getRowsInternal(splitId, columnNames, maxRowCount, continuationToken));
     }
@@ -210,7 +212,7 @@ public class ThriftServerTpch
         return new ThriftNullableIndexLayoutResult(null);
     }
 
-    private ThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable String continuationToken)
+    private ThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
     {
         requireNonNull(columnNames, "columnNames is null");
         SplitInfo splitInfo;
@@ -222,7 +224,7 @@ public class ThriftServerTpch
         }
         RecordCursor cursor = createCursor(splitInfo, columnNames);
 
-        long skip = continuationToken != null ? Long.valueOf(continuationToken) : 0;
+        long skip = continuationToken != null ? Longs.fromByteArray(continuationToken) : 0;
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
         for (long i = 0; i < skip; i++) {
             checkState(cursor.advanceNextPosition(), "Cursor is expected to have data");
@@ -265,7 +267,7 @@ public class ThriftServerTpch
         return new ThriftRowsBatch(
                 columns.stream().map(ThriftColumnData.Builder::build).collect(toList()),
                 rowIdx,
-                hasNext ? String.valueOf(skip + rowIdx) : null);
+                hasNext ? Longs.toByteArray(skip + rowIdx) : null);
     }
 
     private static RecordCursor createCursor(SplitInfo splitInfo, List<String> columnNames)

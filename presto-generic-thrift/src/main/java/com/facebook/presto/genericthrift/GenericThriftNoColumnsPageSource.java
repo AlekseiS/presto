@@ -35,7 +35,7 @@ public class GenericThriftNoColumnsPageSource
     private final GenericThriftSplit split;
     private final ThriftPrestoClient client;
 
-    private String nextToken;
+    private byte[] nextToken;
     private boolean firstCall = true;
     private CompletableFuture<ThriftRowsBatch> future;
 
