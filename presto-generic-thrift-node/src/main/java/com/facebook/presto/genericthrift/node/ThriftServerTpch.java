@@ -186,13 +186,7 @@ public class ThriftServerTpch
                     schemaTableName.getTableName(),
                     partNumber + 1,
                     totalParts);
-            byte[] splitId;
-            try {
-                splitId = mapper.writeValueAsBytes(splitInfo);
-            }
-            catch (JsonProcessingException e) {
-                throw new RuntimeException(e);
-            }
+            byte[] splitId = serialize(splitInfo);
             splits.add(new ThriftSplit(splitId, ImmutableList.of()));
             partNumber++;
         }
@@ -215,13 +209,7 @@ public class ThriftServerTpch
     private ThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
     {
         requireNonNull(columnNames, "columnNames is null");
-        SplitInfo splitInfo;
-        try {
-            splitInfo = mapper.readValue(splitId, SplitInfo.class);
-        }
-        catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
         RecordCursor cursor = createCursor(splitInfo, columnNames);
 
         long skip = continuationToken != null ? Longs.fromByteArray(continuationToken) : 0;
@@ -315,6 +303,26 @@ public class ThriftServerTpch
     {
         splitsExecutor.shutdownNow();
         dataExecutor.shutdownNow();
+    }
+
+    private byte[] serialize(Object value)
+    {
+        try {
+            return mapper.writeValueAsBytes(value);
+        }
+        catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private <T> T deserialize(byte[] value, Class<T> tClass)
+    {
+        try {
+            return mapper.readValue(value, tClass);
+        }
+        catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static final class SplitInfo
