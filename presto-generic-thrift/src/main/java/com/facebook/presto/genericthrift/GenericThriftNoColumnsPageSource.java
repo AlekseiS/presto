@@ -18,7 +18,6 @@ import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
 import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.Page;
-import com.google.common.collect.ImmutableList;
 
 import java.io.IOException;
 import java.util.concurrent.CompletableFuture;
@@ -96,7 +95,7 @@ public class GenericThriftNoColumnsPageSource
             }
         }
         else {
-            future = toCompletableFuture(client.getRows(split.getSplitId(), ImmutableList.of(), MAX_RECORDS_PER_REQUEST, nextToken));
+            future = toCompletableFuture(client.getRows(split.getSplitId(), MAX_RECORDS_PER_REQUEST, nextToken));
             return null;
         }
     }

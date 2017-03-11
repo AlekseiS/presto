@@ -43,16 +43,42 @@ public interface ThriftPrestoClient
     ThriftNullableTableMetadata getTableMetadata(ThriftSchemaTableName schemaTableName);
 
     @ThriftMethod
-    List<ThriftTableLayoutResult> getTableLayouts(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTupleDomain outputConstraint, @Nullable Set<String> desiredColumns);
+    List<ThriftTableLayoutResult> getTableLayouts(
+            ThriftConnectorSession session,
+            ThriftSchemaTableName schemaTableName,
+            ThriftTupleDomain outputConstraint,
+            @Nullable Set<String> desiredColumns);
 
     @ThriftMethod
-    ListenableFuture<ThriftSplitBatch> getSplitBatch(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTableLayout layout, int maxSplitCount, @Nullable byte[] continuationToken);
+    ListenableFuture<ThriftSplitBatch> getSplits(
+            ThriftConnectorSession session,
+            ThriftTableLayout layout,
+            int maxSplitCount,
+            @Nullable byte[] continuationToken);
 
     @ThriftMethod
-    ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken);
+    ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken);
 
     @ThriftMethod
-    ThriftNullableIndexLayoutResult resolveIndex(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, Set<String> indexableColumnNames, Set<String> outputColumnNames, ThriftTupleDomain outputConstraint);
+    ThriftNullableIndexLayoutResult resolveIndex(
+            ThriftConnectorSession session,
+            ThriftSchemaTableName schemaTableName,
+            Set<String> indexableColumnNames,
+            Set<String> outputColumnNames,
+            ThriftTupleDomain outputConstraint);
+
+    @ThriftMethod
+    ThriftSplitsOrRows getRowsOrSplitsForIndex(
+            byte[] indexId,
+            ThriftRowsBatch keys,
+            int maxSplitCount,
+            int maxRowCount);
+
+    @ThriftMethod
+    ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, byte[] continuationToken);
+
+    @ThriftMethod
+    ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, byte[] continuationToken);
 
     @Override
     void close();

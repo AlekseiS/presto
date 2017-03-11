@@ -25,12 +25,12 @@ import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
 import com.facebook.presto.genericthrift.client.ThriftSessionValue;
 import com.facebook.presto.genericthrift.client.ThriftSplit;
 import com.facebook.presto.genericthrift.client.ThriftSplitBatch;
+import com.facebook.presto.genericthrift.client.ThriftSplitsOrRows;
 import com.facebook.presto.genericthrift.client.ThriftTableLayout;
 import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftTupleDomain;
 import com.facebook.presto.spi.RecordCursor;
-import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.tpch.TpchMetadata;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -139,11 +139,15 @@ public class ThriftServerTpch
     }
 
     @Override
-    public List<ThriftTableLayoutResult> getTableLayouts(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, ThriftTupleDomain outputConstraint, @Nullable Set<String> desiredColumns)
+    public List<ThriftTableLayoutResult> getTableLayouts(
+            ThriftConnectorSession session,
+            ThriftSchemaTableName schemaTableName,
+            ThriftTupleDomain outputConstraint,
+            @Nullable Set<String> desiredColumns)
     {
-        return ImmutableList.of(new ThriftTableLayoutResult(
-                // this layout is capable of returning all columns regardless of desired ones
-                new ThriftTableLayout(null, ThriftTupleDomain.fromTupleDomain(TupleDomain.all())), outputConstraint));
+        List<String> columns = desiredColumns != null ? ImmutableList.copyOf(desiredColumns) : allColumns(schemaTableName.getTableName());
+        byte[] layoutId = serialize(new LayoutInfo(schemaTableName.getSchemaName(), schemaTableName.getTableName(), columns));
+        return ImmutableList.of(new ThriftTableLayoutResult(new ThriftTableLayout(layoutId, outputConstraint), outputConstraint));
     }
 
     private static int getOrElse(Map<String, ThriftSessionValue> values, String name, int defaultValue)
@@ -158,22 +162,22 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ListenableFuture<ThriftSplitBatch> getSplitBatch(
+    public ListenableFuture<ThriftSplitBatch> getSplits(
             ThriftConnectorSession session,
-            ThriftSchemaTableName schemaTableName,
             ThriftTableLayout layout,
             int maxSplitCount,
             @Nullable byte[] continuationToken)
     {
-        return splitsExecutor.submit(() -> getSplitBatchInternal(session, schemaTableName, maxSplitCount, continuationToken));
+        return splitsExecutor.submit(() -> getSplitsInternal(session, layout, maxSplitCount, continuationToken));
     }
 
-    private ThriftSplitBatch getSplitBatchInternal(
+    private ThriftSplitBatch getSplitsInternal(
             ThriftConnectorSession session,
-            ThriftSchemaTableName schemaTableName,
+            ThriftTableLayout layout,
             int maxSplitCount,
             @Nullable byte[] continuationToken)
     {
+        LayoutInfo layoutInfo = deserialize(layout.getLayoutId(), LayoutInfo.class);
         int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
         // last sent part
         int partNumber = continuationToken == null ? 0 : Ints.fromByteArray(continuationToken);
@@ -182,10 +186,11 @@ public class ThriftServerTpch
         List<ThriftSplit> splits = new ArrayList<>(numberOfSplits);
         for (int i = 0; i < numberOfSplits; i++) {
             SplitInfo splitInfo = new SplitInfo(
-                    schemaTableName.getSchemaName(),
-                    schemaTableName.getTableName(),
+                    layoutInfo.getSchemaName(),
+                    layoutInfo.getTableName(),
                     partNumber + 1,
-                    totalParts);
+                    totalParts,
+                    layoutInfo.getColumnNames());
             byte[] splitId = serialize(splitInfo);
             splits.add(new ThriftSplit(splitId, ImmutableList.of()));
             partNumber++;
@@ -195,9 +200,9 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
+    public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken)
     {
-        return dataExecutor.submit(() -> getRowsInternal(splitId, columnNames, maxRowCount, continuationToken));
+        return dataExecutor.submit(() -> getRowsInternal(splitId, maxRowCount, continuationToken));
     }
 
     @Override
@@ -206,11 +211,29 @@ public class ThriftServerTpch
         return new ThriftNullableIndexLayoutResult(null);
     }
 
-    private ThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
+    @Override
+    public ThriftSplitsOrRows getRowsOrSplitsForIndex(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, int maxRowCount)
     {
-        requireNonNull(columnNames, "columnNames is null");
+        throw new UnsupportedOperationException("not implemented yet");
+    }
+
+    @Override
+    public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, byte[] continuationToken)
+    {
+        throw new UnsupportedOperationException("not implemented yet");
+    }
+
+    @Override
+    public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, byte[] continuationToken)
+    {
+        throw new UnsupportedOperationException("not implemented yet");
+    }
+
+    private ThriftRowsBatch getRowsInternal(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken)
+    {
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
-        RecordCursor cursor = createCursor(splitInfo, columnNames);
+        List<String> columnNames = splitInfo.getColumnNames();
+        RecordCursor cursor = createCursor(splitInfo, splitInfo.getColumnNames());
 
         long skip = continuationToken != null ? Longs.fromByteArray(continuationToken) : 0;
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
@@ -256,6 +279,11 @@ public class ThriftServerTpch
                 columns.stream().map(ThriftColumnData.Builder::build).collect(toList()),
                 rowIdx,
                 hasNext ? Longs.toByteArray(skip + rowIdx) : null);
+    }
+
+    private static List<String> allColumns(String tableName)
+    {
+        return TpchTable.getTable(tableName).getColumns().stream().map(TpchColumn::getColumnName).collect(toList());
     }
 
     private static RecordCursor createCursor(SplitInfo splitInfo, List<String> columnNames)
@@ -331,18 +359,21 @@ public class ThriftServerTpch
         private final String tableName;
         private final int partNumber;
         private final int totalParts;
+        private final List<String> columnNames;
 
         @JsonCreator
         public SplitInfo(
                 @JsonProperty("schemaName") String schemaName,
                 @JsonProperty("tableName") String tableName,
                 @JsonProperty("partNumber") int partNumber,
-                @JsonProperty("totalParts") int totalParts)
+                @JsonProperty("totalParts") int totalParts,
+                @JsonProperty("columnNames") List<String> columnNames)
         {
             this.schemaName = requireNonNull(schemaName, "schemaName is null");
             this.tableName = requireNonNull(tableName, "tableName is null");
             this.partNumber = partNumber;
             this.totalParts = totalParts;
+            this.columnNames = requireNonNull(columnNames, "columnNames is null");
         }
 
         @JsonProperty
@@ -367,6 +398,48 @@ public class ThriftServerTpch
         public int getTotalParts()
         {
             return totalParts;
+        }
+
+        @JsonProperty
+        public List<String> getColumnNames()
+        {
+            return columnNames;
+        }
+    }
+
+    private static final class LayoutInfo
+    {
+        private final String schemaName;
+        private final String tableName;
+        private final List<String> columnNames;
+
+        @JsonCreator
+        public LayoutInfo(
+                @JsonProperty("schemaName") String schemaName,
+                @JsonProperty("tableName") String tableName,
+                @JsonProperty("columnNames") List<String> columnNames)
+        {
+            this.schemaName = requireNonNull(schemaName, "schemaName is null");
+            this.tableName = requireNonNull(tableName, "tableName is null");
+            this.columnNames = requireNonNull(columnNames, "columnNames is null");
+        }
+
+        @JsonProperty
+        public String getSchemaName()
+        {
+            return schemaName;
+        }
+
+        @JsonProperty
+        public String getTableName()
+        {
+            return tableName;
+        }
+
+        @JsonProperty
+        public List<String> getColumnNames()
+        {
+            return columnNames;
         }
     }
 }

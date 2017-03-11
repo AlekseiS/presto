@@ -15,7 +15,6 @@ package com.facebook.presto.genericthrift.client;
 
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutResult;
-import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
@@ -53,11 +52,10 @@ public final class ThriftTableLayoutResult
 
     public static ConnectorTableLayoutResult toConnectorTableLayoutResult(
             ThriftTableLayoutResult result,
-            SchemaTableName schemaTableName,
             Map<String, ColumnHandle> allColumns)
     {
         return new ConnectorTableLayoutResult(
-                toConnectorTableLayout(result.getLayout(), schemaTableName, allColumns),
+                toConnectorTableLayout(result.getLayout(), allColumns),
                 toTupleDomain(result.getUnenforcedPredicate(), allColumns));
     }
 }

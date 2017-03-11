@@ -16,44 +16,35 @@ package com.facebook.presto.genericthrift.client;
 import com.facebook.presto.genericthrift.GenericThriftTableLayoutHandle;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorTableLayout;
-import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 import com.google.common.collect.ImmutableList;
 
-import javax.annotation.Nullable;
-
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static com.facebook.presto.genericthrift.client.ThriftTupleDomain.toTupleDomain;
-import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 @ThriftStruct
 public final class ThriftTableLayout
 {
-    private final List<String> outputColumns;
+    private final byte[] layoutId;
     private final ThriftTupleDomain predicate;
 
     @ThriftConstructor
-    public ThriftTableLayout(
-            @ThriftField(name = "outputColumns") @Nullable List<String> outputColumns,
-            @ThriftField(name = "predicate") ThriftTupleDomain predicate)
+    public ThriftTableLayout(byte[] layoutId, ThriftTupleDomain predicate)
     {
-        this.outputColumns = outputColumns == null ? null : ImmutableList.copyOf(outputColumns);
+        this.layoutId = requireNonNull(layoutId, "layoutId is null");
         this.predicate = requireNonNull(predicate, "predicate is null");
     }
 
-    @Nullable
-    @ThriftField(value = 1, requiredness = OPTIONAL)
-    public List<String> getOutputColumns()
+    @ThriftField(1)
+    public byte[] getLayoutId()
     {
-        return outputColumns;
+        return layoutId;
     }
 
     @ThriftField(2)
@@ -62,17 +53,14 @@ public final class ThriftTableLayout
         return predicate;
     }
 
-    public static ConnectorTableLayout toConnectorTableLayout(ThriftTableLayout thriftLayout, SchemaTableName schemaTableName, Map<String, ColumnHandle> allColumns)
+    public static ConnectorTableLayout toConnectorTableLayout(
+            ThriftTableLayout thriftLayout,
+            Map<String, ColumnHandle> allColumns)
     {
-        Optional<List<ColumnHandle>> columns = Optional.ofNullable(thriftLayout.getOutputColumns())
-                .map(outputColumns -> outputColumns
-                        .stream()
-                        .map(columnName -> requireNonNull(allColumns.get(columnName), "Column handle is not present"))
-                        .collect(toList()));
         TupleDomain<ColumnHandle> predicate = toTupleDomain(thriftLayout.getPredicate(), allColumns);
         return new ConnectorTableLayout(
-                new GenericThriftTableLayoutHandle(schemaTableName, columns, predicate),
-                columns,
+                new GenericThriftTableLayoutHandle(thriftLayout.getLayoutId(), predicate),
+                Optional.empty(),
                 predicate,
                 Optional.empty(),
                 Optional.empty(),

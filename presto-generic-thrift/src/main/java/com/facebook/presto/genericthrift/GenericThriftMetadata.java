@@ -140,19 +140,19 @@ public class GenericThriftMetadata
     public List<ConnectorTableLayoutResult> getTableLayouts(ConnectorSession session, ConnectorTableHandle table, Constraint<ColumnHandle> constraint, Optional<Set<ColumnHandle>> desiredColumns)
     {
         GenericThriftTableHandle tableHandle = (GenericThriftTableHandle) table;
+        Optional<Set<String>> desiredColumnNames = desiredColumns.map(GenericThriftMetadata::columnNames);
         List<ThriftTableLayoutResult> thriftLayoutResults;
         try (ThriftPrestoClient client = clientProvider.connectToAnyHost()) {
             thriftLayoutResults = client.getTableLayouts(
                     fromConnectorSession(session, clientSessionProperties),
                     new ThriftSchemaTableName(tableHandle.getSchemaName(), tableHandle.getTableName()),
                     fromTupleDomain(constraint.getSummary()),
-                    desiredColumns.map(GenericThriftMetadata::columnNames).orElse(null));
+                    desiredColumnNames.orElse(null));
         }
         Map<String, ColumnHandle> allColumns = getColumnHandles(session, table);
         return thriftLayoutResults.stream()
                 .map(result -> toConnectorTableLayoutResult(
                         result,
-                        new SchemaTableName(tableHandle.getSchemaName(), tableHandle.getTableName()),
                         allColumns))
                 .collect(toList());
     }
@@ -170,7 +170,7 @@ public class GenericThriftMetadata
         GenericThriftTableLayoutHandle thriftHandle = (GenericThriftTableLayoutHandle) handle;
         return new ConnectorTableLayout(
                 thriftHandle,
-                thriftHandle.getOutputColumns(),
+                Optional.empty(),
                 thriftHandle.getPredicate(),
                 Optional.empty(),
                 Optional.empty(),

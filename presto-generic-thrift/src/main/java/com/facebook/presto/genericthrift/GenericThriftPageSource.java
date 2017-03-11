@@ -134,7 +134,7 @@ public class GenericThriftPageSource
             // no data request in progress
             if (firstCall || (!readersHaveMoreData() && nextToken != null)) {
                 // no data in the current batch, but can request more; will send a request
-                future = toCompletableFuture(client.getRows(split.getSplitId(), columnNames, MAX_RECORDS_PER_REQUEST, nextToken));
+                future = toCompletableFuture(client.getRows(split.getSplitId(), MAX_RECORDS_PER_REQUEST, nextToken));
                 return null;
             }
             else {

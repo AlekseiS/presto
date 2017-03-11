@@ -21,6 +21,7 @@ import com.facebook.presto.genericthrift.client.ThriftPropertyMetadata;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
 import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
 import com.facebook.presto.genericthrift.client.ThriftSplitBatch;
+import com.facebook.presto.genericthrift.client.ThriftSplitsOrRows;
 import com.facebook.presto.genericthrift.client.ThriftTableLayout;
 import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftTupleDomain;
@@ -139,21 +140,20 @@ public class RetryingPrestoClientProvider
         }
 
         @Override
-        public ListenableFuture<ThriftSplitBatch> getSplitBatch(
+        public ListenableFuture<ThriftSplitBatch> getSplits(
                 ThriftConnectorSession session,
-                ThriftSchemaTableName schemaTableName,
                 ThriftTableLayout layout,
                 int maxSplitCount,
                 @Nullable byte[] continuationToken)
         {
-            return retry.run("getSplitBatch",
-                    () -> getClient().getSplitBatch(session, schemaTableName, layout, maxSplitCount, continuationToken));
+            return retry.run("getSplits",
+                    () -> getClient().getSplits(session, layout, maxSplitCount, continuationToken));
         }
 
         @Override
-        public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
+        public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken)
         {
-            return retry.run("getRows", () -> getClient().getRows(splitId, columnNames, maxRowCount, continuationToken));
+            return retry.run("getRows", () -> getClient().getRows(splitId, maxRowCount, continuationToken));
         }
 
         @Override
@@ -165,6 +165,24 @@ public class RetryingPrestoClientProvider
                 ThriftTupleDomain outputConstraint)
         {
             return retry.run("resolveIndex", () -> getClient().resolveIndex(session, schemaTableName, indexableColumnNames, outputColumnNames, outputConstraint));
+        }
+
+        @Override
+        public ThriftSplitsOrRows getRowsOrSplitsForIndex(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, int maxRowCount)
+        {
+            return retry.run("getRowsOrSplitsForIndex", () -> getClient().getRowsOrSplitsForIndex(indexId, keys, maxSplitCount, maxRowCount));
+        }
+
+        @Override
+        public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, byte[] continuationToken)
+        {
+            return retry.run("getSplitsForIndexContinued", () -> getClient().getSplitsForIndexContinued(indexId, keys, maxSplitCount, continuationToken));
+        }
+
+        @Override
+        public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, byte[] continuationToken)
+        {
+            return retry.run("getRowsForIndexContinued", () -> getClient().getRowsForIndexContinued(indexId, keys, maxRowCount, continuationToken));
         }
 
         @Override

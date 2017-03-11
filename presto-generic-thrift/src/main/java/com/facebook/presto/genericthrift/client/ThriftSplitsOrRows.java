@@ -19,34 +19,34 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
-import java.util.List;
-
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
-import static java.util.Objects.requireNonNull;
+import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
-public final class ThriftSplitBatch
+public final class ThriftSplitsOrRows
 {
-    private final List<ThriftSplit> splits;
-    private final byte[] nextToken;
+    private final ThriftSplitBatch splits;
+    private final ThriftRowsBatch rows;
 
     @ThriftConstructor
-    public ThriftSplitBatch(List<ThriftSplit> splits, @Nullable byte[] nextToken)
+    public ThriftSplitsOrRows(@Nullable ThriftSplitBatch splits, @Nullable ThriftRowsBatch rows)
     {
-        this.splits = requireNonNull(splits, "splits is null");
-        this.nextToken = nextToken;
+        checkArgument(splits == null ^ rows == null, "exactly one of splits and rows must be present");
+        this.splits = splits;
+        this.rows = rows;
     }
 
-    @ThriftField(1)
-    public List<ThriftSplit> getSplits()
+    @Nullable
+    @ThriftField(value = 1, requiredness = OPTIONAL)
+    public ThriftSplitBatch getSplits()
     {
         return splits;
     }
 
     @Nullable
     @ThriftField(value = 2, requiredness = OPTIONAL)
-    public byte[] getNextToken()
+    public ThriftRowsBatch getRows()
     {
-        return nextToken;
+        return rows;
     }
 }

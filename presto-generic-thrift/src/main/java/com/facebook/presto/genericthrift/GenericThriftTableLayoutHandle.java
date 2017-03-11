@@ -15,45 +15,35 @@ package com.facebook.presto.genericthrift;
 
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
-import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.predicate.TupleDomain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.List;
+import java.util.Arrays;
 import java.util.Objects;
-import java.util.Optional;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 public class GenericThriftTableLayoutHandle
         implements ConnectorTableLayoutHandle
 {
-    private final SchemaTableName schemaTableName;
-    private final Optional<List<ColumnHandle>> outputColumns;
+    private final byte[] layoutId;
     private final TupleDomain<ColumnHandle> predicate;
 
     @JsonCreator
     public GenericThriftTableLayoutHandle(
-            @JsonProperty("schemaTableName") SchemaTableName schemaTableName,
-            @JsonProperty("outputColumns") Optional<List<ColumnHandle>> outputColumns,
+            @JsonProperty("layoutId") byte[] layoutId,
             @JsonProperty("predicate") TupleDomain<ColumnHandle> predicate)
     {
-        this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
-        this.outputColumns = requireNonNull(outputColumns, "outputColumns is null");
+        this.layoutId = requireNonNull(layoutId, "layoutId is null");
         this.predicate = requireNonNull(predicate, "predicate is null");
     }
 
     @JsonProperty
-    public SchemaTableName getSchemaTableName()
+    public byte[] getLayoutId()
     {
-        return schemaTableName;
-    }
-
-    @JsonProperty
-    public Optional<List<ColumnHandle>> getOutputColumns()
-    {
-        return outputColumns;
+        return layoutId;
     }
 
     @JsonProperty
@@ -73,14 +63,22 @@ public class GenericThriftTableLayoutHandle
         }
 
         GenericThriftTableLayoutHandle other = (GenericThriftTableLayoutHandle) o;
-        return Objects.equals(schemaTableName, other.schemaTableName)
-                && Objects.equals(outputColumns, other.outputColumns)
+        return Arrays.equals(layoutId, other.layoutId)
                 && Objects.equals(predicate, other.predicate);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(schemaTableName, outputColumns, predicate);
+        return Objects.hash(layoutId, predicate);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("layoutId", layoutId)
+                .add("predicate", predicate)
+                .toString();
     }
 }

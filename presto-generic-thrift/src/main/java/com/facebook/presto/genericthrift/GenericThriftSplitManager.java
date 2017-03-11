@@ -15,7 +15,6 @@ package com.facebook.presto.genericthrift;
 
 import com.facebook.presto.genericthrift.client.ThriftConnectorSession;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
-import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
 import com.facebook.presto.genericthrift.client.ThriftSplit;
 import com.facebook.presto.genericthrift.client.ThriftSplitBatch;
 import com.facebook.presto.genericthrift.client.ThriftTableLayout;
@@ -40,7 +39,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static com.facebook.presto.genericthrift.client.ThriftConnectorSession.fromConnectorSession;
-import static com.facebook.presto.genericthrift.client.ThriftSchemaTableName.fromSchemaTableName;
 import static com.facebook.presto.genericthrift.client.ThriftTupleDomain.fromTupleDomain;
 import static com.google.common.base.Preconditions.checkState;
 import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
@@ -71,15 +69,7 @@ public class GenericThriftSplitManager
         return new GenericThriftSplitSource(
                 clientProvider.connectToAnyHost(),
                 fromConnectorSession(session, clientSessionProperties),
-                fromSchemaTableName(layoutHandle.getSchemaTableName()),
-                new ThriftTableLayout(
-                        layoutHandle.getOutputColumns()
-                                .map(columns -> columns
-                                        .stream()
-                                        .map(column -> ((GenericThriftColumnHandle) column).getColumnName())
-                                        .collect(toList()))
-                                .orElse(null),
-                        fromTupleDomain(layoutHandle.getPredicate())),
+                new ThriftTableLayout(layoutHandle.getLayoutId(), fromTupleDomain(layoutHandle.getPredicate())),
                 executor);
     }
 
@@ -95,7 +85,6 @@ public class GenericThriftSplitManager
     {
         private final ThriftPrestoClient client;
         private final ThriftConnectorSession session;
-        private final ThriftSchemaTableName schemaTableName;
         private final ThriftTableLayout layout;
         private final ExecutorService executor;
 
@@ -108,13 +97,11 @@ public class GenericThriftSplitManager
         public GenericThriftSplitSource(
                 ThriftPrestoClient client,
                 ThriftConnectorSession session,
-                ThriftSchemaTableName schemaTableName,
                 ThriftTableLayout layout,
                 ExecutorService executor)
         {
             this.client = requireNonNull(client, "client is null");
             this.session = requireNonNull(session, "session is null");
-            this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
             this.layout = requireNonNull(layout, "layout is null");
             this.executor = requireNonNull(executor, "executor is null");
             this.continuationToken = new AtomicReference<>(null);
@@ -127,7 +114,7 @@ public class GenericThriftSplitManager
         {
             checkState(hasMoreData.get());
             byte[] currentContinuationToken = continuationToken.get();
-            ListenableFuture<ThriftSplitBatch> splitsFuture = client.getSplitBatch(session, schemaTableName, layout, maxSize, currentContinuationToken);
+            ListenableFuture<ThriftSplitBatch> splitsFuture = client.getSplits(session, layout, maxSize, currentContinuationToken);
             ListenableFuture<List<ConnectorSplit>> resultFuture = Futures.transform(
                     splitsFuture,
                     batch -> {
