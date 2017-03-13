@@ -19,26 +19,26 @@ import io.airlift.slice.Slice;
 
 public final class ColumnWriters
 {
-    public static final int INITIAL_CAPACITY = 1024;
+    public static final int DEFAULT_INITIAL_CAPACITY = 1024;
 
     private ColumnWriters()
     {
     }
 
-    public static ColumnWriter create(String columnName, Type columnType)
+    public static ColumnWriter create(String columnName, Type columnType, int initialCapacity)
     {
         Class<?> javaType = columnType.getJavaType();
         if (javaType == long.class) {
-            return new LongColumnWriter(columnName, INITIAL_CAPACITY);
+            return new LongColumnWriter(columnName, initialCapacity);
         }
         else if (javaType == double.class) {
-            return new DoubleColumnWriter(columnName, INITIAL_CAPACITY);
+            return new DoubleColumnWriter(columnName, initialCapacity);
         }
         else if (javaType == boolean.class) {
-            return new BooleanColumnWriter(columnName, INITIAL_CAPACITY);
+            return new BooleanColumnWriter(columnName, initialCapacity);
         }
         else if (javaType == Slice.class) {
-            return new BytesColumnWriter(columnName, INITIAL_CAPACITY);
+            return new BytesColumnWriter(columnName, initialCapacity);
         }
         else if (javaType == Block.class) {
             throw new UnsupportedOperationException("Complex types like array and map are not yet supported");
@@ -46,5 +46,10 @@ public final class ColumnWriters
         else {
             throw new IllegalArgumentException("Unsupported writer type: " + columnType);
         }
+    }
+
+    public static ColumnWriter create(String columnName, Type columnType)
+    {
+        return create(columnName, columnType, DEFAULT_INITIAL_CAPACITY);
     }
 }

@@ -15,6 +15,8 @@ package com.facebook.presto.genericthrift.writers;
 
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
 import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
@@ -46,19 +48,41 @@ public class BooleanColumnWriter
     public void append(RecordCursor cursor, int field)
     {
         if (cursor.isNull(field)) {
-            if (idx >= nulls.length) {
-                nulls = Arrays.copyOf(nulls, 2 * idx);
-            }
-            nulls[idx] = true;
-            hasNulls = true;
+            appendNull();
         }
         else {
-            if (idx >= booleans.length) {
-                booleans = Arrays.copyOf(booleans, 2 * idx);
-            }
-            booleans[idx] = cursor.getBoolean(field);
-            hasData = true;
+            appendValue(cursor.getBoolean(field));
         }
+    }
+
+    @Override
+    public void append(Block block, int position, Type type)
+    {
+        if (block.isNull(position)) {
+            appendNull();
+        }
+        else {
+            appendValue(type.getBoolean(block, position));
+        }
+    }
+
+    private void appendNull()
+    {
+        if (idx >= nulls.length) {
+            nulls = Arrays.copyOf(nulls, 2 * idx);
+        }
+        nulls[idx] = true;
+        hasNulls = true;
+        idx++;
+    }
+
+    private void appendValue(boolean value)
+    {
+        if (idx >= booleans.length) {
+            booleans = Arrays.copyOf(booleans, 2 * idx);
+        }
+        booleans[idx] = value;
+        hasData = true;
         idx++;
     }
 

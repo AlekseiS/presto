@@ -15,12 +15,14 @@ package com.facebook.presto.genericthrift.client;
 
 import com.facebook.presto.genericthrift.readers.ColumnReader;
 import com.facebook.presto.genericthrift.readers.ColumnReaders;
+import com.facebook.presto.genericthrift.writers.ColumnWriter;
+import com.facebook.presto.genericthrift.writers.ColumnWriters;
+import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
-import com.google.common.collect.ImmutableList;
 
 import javax.annotation.Nullable;
 
@@ -29,6 +31,7 @@ import java.util.Optional;
 
 import static com.facebook.presto.genericthrift.client.ThriftRangeValueSet.ThriftRange.Bound.toMarkerBound;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
@@ -56,7 +59,12 @@ public final class ThriftSingleValue
         if (!marker.getValueBlock().isPresent()) {
             return null;
         }
-        return withValue(marker.getValue(), marker.getType());
+        ColumnWriter writer = ColumnWriters.create(VALUE_COLUMN_NAME, marker.getType(), 1);
+        Block valueBlock = marker.getValueBlock().get();
+        checkState(valueBlock.getPositionCount() == 1,
+                "Block in Marker has more than one position: %s", valueBlock.getPositionCount());
+        writer.append(valueBlock, 0, marker.getType());
+        return new ThriftSingleValue(writer.getResult());
     }
 
     public static Marker toMarker(@Nullable ThriftSingleValue value, Type type, ThriftRangeValueSet.ThriftRange.Bound bound)
@@ -77,10 +85,5 @@ public final class ThriftSingleValue
             ColumnReader reader = ColumnReaders.createColumnReader(value.getColumnsData(), VALUE_COLUMN_NAME, type, 1);
             return new Marker(type, Optional.of(reader.readBlock(1)), toMarkerBound(bound));
         }
-    }
-
-    private static ThriftSingleValue withValue(Object value, Type type)
-    {
-        return new ThriftSingleValue(ImmutableList.of(new ThriftColumnData.Builder().setValue(0, value, type).setColumnName(VALUE_COLUMN_NAME).build()));
     }
 }

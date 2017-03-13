@@ -30,6 +30,8 @@ import com.facebook.presto.genericthrift.client.ThriftTableLayout;
 import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftTupleDomain;
+import com.facebook.presto.genericthrift.writers.ColumnWriter;
+import com.facebook.presto.genericthrift.writers.ColumnWriters;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.tpch.TpchMetadata;
 import com.fasterxml.jackson.annotation.JsonCreator;
@@ -41,7 +43,6 @@ import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
-import io.airlift.slice.Slice;
 import io.airlift.tpch.TpchColumn;
 import io.airlift.tpch.TpchColumnType;
 import io.airlift.tpch.TpchEntity;
@@ -241,44 +242,24 @@ public class ThriftServerTpch
             checkState(cursor.advanceNextPosition(), "Cursor is expected to have data");
         }
         int numColumns = columnNames.size();
-        List<ThriftColumnData.Builder> columns = new ArrayList<>(numColumns);
+        List<ColumnWriter> writers = new ArrayList<>(numColumns);
         for (int i = 0; i < numColumns; i++) {
-            columns.add(new ThriftColumnData.Builder());
+            writers.add(ColumnWriters.create(columnNames.get(i), cursor.getType(i), maxRowCount));
         }
         boolean hasNext = cursor.advanceNextPosition();
         int rowIdx;
         for (rowIdx = 0; rowIdx < maxRowCount && hasNext; rowIdx++) {
             for (int columnIdx = 0; columnIdx < numColumns; columnIdx++) {
-                Class<?> javaType = cursor.getType(columnIdx).getJavaType();
-                ThriftColumnData.Builder builder = columns.get(columnIdx);
-                if (cursor.isNull(columnIdx)) {
-                    builder.setNull(rowIdx);
-                }
-                else if (javaType == long.class) {
-                    builder.setLong(rowIdx, cursor.getLong(columnIdx));
-                }
-                else if (javaType == double.class) {
-                    builder.setDouble(rowIdx, cursor.getDouble(columnIdx));
-                }
-                else if (javaType == boolean.class) {
-                    builder.setBoolean(rowIdx, cursor.getBoolean(columnIdx));
-                }
-                else if (javaType == Slice.class) {
-                    builder.setSlice(rowIdx, cursor.getSlice(columnIdx));
-                }
-                else {
-                    throw new IllegalArgumentException("Unsupported type: " + cursor.getType(columnIdx));
-                }
+                writers.get(columnIdx).append(cursor, columnIdx);
             }
             hasNext = cursor.advanceNextPosition();
         }
-        for (int columnIdx = 0; columnIdx < numColumns; columnIdx++) {
-            columns.get(columnIdx).setColumnName(columnNames.get(columnIdx));
+        List<ThriftColumnData> result = new ArrayList<>(numColumns);
+        for (ColumnWriter writer : writers) {
+            result.addAll(writer.getResult());
         }
-        return new ThriftRowsBatch(
-                columns.stream().map(ThriftColumnData.Builder::build).collect(toList()),
-                rowIdx,
-                hasNext ? Longs.toByteArray(skip + rowIdx) : null);
+
+        return new ThriftRowsBatch(result, rowIdx, hasNext ? Longs.toByteArray(skip + rowIdx) : null);
     }
 
     private static List<String> allColumns(String tableName)

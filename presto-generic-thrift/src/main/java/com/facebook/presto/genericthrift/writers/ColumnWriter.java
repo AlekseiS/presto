@@ -15,12 +15,16 @@ package com.facebook.presto.genericthrift.writers;
 
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
 import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.type.Type;
 
 import java.util.List;
 
 public interface ColumnWriter
 {
     void append(RecordCursor cursor, int field);
+
+    void append(Block block, int position, Type type);
 
     // a writer can return several columns when used with structural types, like array or map
     List<ThriftColumnData> getResult();

@@ -15,6 +15,8 @@ package com.facebook.presto.genericthrift.writers;
 
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
 import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 
@@ -50,27 +52,59 @@ public class BytesColumnWriter
     public void append(RecordCursor cursor, int field)
     {
         if (cursor.isNull(field)) {
-            if (idx >= nulls.length) {
-                nulls = Arrays.copyOf(nulls, 2 * idx);
-            }
-            nulls[idx] = true;
-            hasNulls = true;
+            appendNull();
         }
         else {
-            if (idx >= sizes.length) {
-                sizes = Arrays.copyOf(sizes, 2 * idx);
-            }
-            Slice slice = cursor.getSlice(field);
-            int length = slice.length();
-            int newBytesLength = bytesIdx + length;
-            if (newBytesLength >= bytes.length) {
-                bytes = Arrays.copyOf(bytes, newBytesLength * 2);
-            }
-            slice.getBytes(0, bytes, bytesIdx, length);
-            bytesIdx += length;
-            hasData = true;
+            appendSlice(cursor.getSlice(field));
         }
+    }
+
+    @Override
+    public void append(Block block, int position, Type type)
+    {
+        if (block.isNull(position)) {
+            appendNull();
+        }
+        else {
+            appendSlice(type.getSlice(block, position));
+        }
+    }
+
+    private void appendNull()
+    {
+        if (idx >= nulls.length) {
+            nulls = Arrays.copyOf(nulls, 2 * idx);
+        }
+        nulls[idx] = true;
+        hasNulls = true;
         idx++;
+    }
+
+    private void appendSlice(Slice slice)
+    {
+        appendSize(slice.length());
+        appendBytes(slice);
+        hasData = true;
+    }
+
+    private void appendSize(int value)
+    {
+        if (idx >= sizes.length) {
+            sizes = Arrays.copyOf(sizes, 2 * idx);
+        }
+        sizes[idx] = value;
+        idx++;
+    }
+
+    private void appendBytes(Slice slice)
+    {
+        int length = slice.length();
+        int newBytesLength = bytesIdx + length;
+        if (newBytesLength >= bytes.length) {
+            bytes = Arrays.copyOf(bytes, newBytesLength * 2);
+        }
+        slice.getBytes(0, bytes, bytesIdx, length);
+        bytesIdx += length;
     }
 
     @Override
