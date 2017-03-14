@@ -230,6 +230,14 @@ public class ThriftServerTpch
         throw new UnsupportedOperationException("not implemented yet");
     }
 
+    @PreDestroy
+    @Override
+    public void close()
+    {
+        splitsExecutor.shutdownNow();
+        dataExecutor.shutdownNow();
+    }
+
     private ThriftRowsBatch getRowsInternal(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken)
     {
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
@@ -238,9 +246,7 @@ public class ThriftServerTpch
 
         long skip = continuationToken != null ? Longs.fromByteArray(continuationToken) : 0;
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
-        for (long i = 0; i < skip; i++) {
-            checkState(cursor.advanceNextPosition(), "Cursor is expected to have data");
-        }
+        skipRows(cursor, skip);
         int numColumns = columnNames.size();
         List<ColumnWriter> writers = new ArrayList<>(numColumns);
         for (int i = 0; i < numColumns; i++) {
@@ -260,6 +266,15 @@ public class ThriftServerTpch
         }
 
         return new ThriftRowsBatch(result, rowIdx, hasNext ? Longs.toByteArray(skip + rowIdx) : null);
+    }
+
+    private static void skipRows(RecordCursor cursor, long numberOfRows)
+    {
+        boolean hasPreviousData = true;
+        for (long i = 0; i < numberOfRows; i++) {
+            hasPreviousData = cursor.advanceNextPosition();
+        }
+        checkState(hasPreviousData, "Cursor is expected to have previously generated data");
     }
 
     private static List<String> allColumns(String tableName)
@@ -304,14 +319,6 @@ public class ThriftServerTpch
                 return 1.0;
         }
         throw new IllegalArgumentException("Invalid schema name: " + schemaName);
-    }
-
-    @PreDestroy
-    @Override
-    public void close()
-    {
-        splitsExecutor.shutdownNow();
-        dataExecutor.shutdownNow();
     }
 
     private byte[] serialize(Object value)
