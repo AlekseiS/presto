@@ -15,7 +15,6 @@ package com.facebook.presto.genericthrift;
 
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
-import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -23,33 +22,30 @@ import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
-public class GenericThriftPageSource
+public class GenericThriftContinuedIndexPageSource
         extends GenericThriftAbstractPageSource
 {
-    private final byte[] splitId;
     private final ThriftPrestoClient client;
+    private final ThriftRowsBatch keys;
+    private final byte[] indexId;
 
-    public GenericThriftPageSource(
-            PrestoClientProvider clientProvider,
-            GenericThriftSplit split,
+    public GenericThriftContinuedIndexPageSource(
+            ThriftRowsBatch initialResponse,
+            ThriftPrestoClient client,
+            byte[] indexId,
+            ThriftRowsBatch keys,
             List<ColumnHandle> columns)
     {
-        super(columns);
-        requireNonNull(split, "split is null");
-        this.splitId = split.getSplitId();
-        if (split.getAddresses().isEmpty()) {
-            this.client = clientProvider.connectToAnyHost();
-        }
-        else {
-            this.client = clientProvider.connectToAnyOf(split.getAddresses());
-        }
-        requireNonNull(clientProvider, "clientProvider is null");
+        super(columns, initialResponse);
+        this.client = requireNonNull(client, "client is null");
+        this.keys = requireNonNull(keys, "keys is null");
+        this.indexId = requireNonNull(indexId, "indexId is null");
     }
 
     @Override
     public ListenableFuture<ThriftRowsBatch> sendRequestForData(byte[] nextToken, int maxRecords)
     {
-        return client.getRows(splitId, maxRecords, nextToken);
+        return client.getRowsForIndexContinued(indexId, keys, maxRecords, nextToken);
     }
 
     @Override

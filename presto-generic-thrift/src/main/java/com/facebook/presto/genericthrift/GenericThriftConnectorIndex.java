@@ -60,10 +60,10 @@ public class GenericThriftConnectorIndex
         ThriftRowsBatch keys = convertKeys(recordSet, inputColumnNames);
         ThriftPrestoClient client = clientProvider.connectToAnyHost();
         ThriftSplitsOrRows result = client.getRowsOrSplitsForIndex(indexId, keys, MAX_SPLIT_COUNT, MAX_ROW_COUNT);
+        if (result.getRows() != null) {
+            return new GenericThriftContinuedIndexPageSource(result.getRows(), client, indexId, keys, outputColumns);
+        }
         throw new UnsupportedOperationException("not implemented yet");
-//        if (result.getRows() != null) {
-//            return new GenericThriftContinuedIndexPageSource(client, result.getRows(), outputColumns, indexId, keys, MAX_ROW_COUNT);
-//        }
 //        else if (result.getSplits() != null) {
 //            return new GenericThriftSplitBasedIndexPageSource(client, result.getSplits(), outputColumns, indexId, keys, MAX_SPLIT_COUNT);
 //        }
