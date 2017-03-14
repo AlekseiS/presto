@@ -37,14 +37,18 @@ import static java.util.stream.Collectors.toList;
 public class GenericThriftConnectorIndex
         implements ConnectorIndex
 {
-    private static final int MAX_SPLIT_COUNT = 2048;
+    private static final int MAX_SPLITS_PER_BATCH = 2048;
     private static final int MAX_ROW_COUNT = 8196;
     private final PrestoClientProvider clientProvider;
     private final byte[] indexId;
     private final List<String> inputColumnNames;
     private final List<ColumnHandle> outputColumns;
 
-    public GenericThriftConnectorIndex(PrestoClientProvider clientProvider, GenericThriftIndexHandle indexHandle, List<ColumnHandle> lookupColumns, List<ColumnHandle> outputColumns)
+    public GenericThriftConnectorIndex(
+            PrestoClientProvider clientProvider,
+            GenericThriftIndexHandle indexHandle,
+            List<ColumnHandle> lookupColumns,
+            List<ColumnHandle> outputColumns)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
         this.indexId = requireNonNull(indexHandle, "indexHandle is null").getIndexId();
@@ -59,17 +63,16 @@ public class GenericThriftConnectorIndex
     {
         ThriftRowsBatch keys = convertKeys(recordSet, inputColumnNames);
         ThriftPrestoClient client = clientProvider.connectToAnyHost();
-        ThriftSplitsOrRows result = client.getRowsOrSplitsForIndex(indexId, keys, MAX_SPLIT_COUNT, MAX_ROW_COUNT);
+        ThriftSplitsOrRows result = client.getRowsOrSplitsForIndex(indexId, keys, MAX_SPLITS_PER_BATCH, MAX_ROW_COUNT);
         if (result.getRows() != null) {
             return new GenericThriftContinuedIndexPageSource(result.getRows(), client, indexId, keys, outputColumns);
         }
-        throw new UnsupportedOperationException("not implemented yet");
-//        else if (result.getSplits() != null) {
-//            return new GenericThriftSplitBasedIndexPageSource(client, result.getSplits(), outputColumns, indexId, keys, MAX_SPLIT_COUNT);
-//        }
-//        else {
-//            throw new IllegalStateException("Unknown state of splits or rows data structure");
-//        }
+        else if (result.getSplits() != null) {
+            return new GenericThriftSplitBasedIndexPageSource(result.getSplits(), clientProvider, client, indexId, keys, outputColumns, MAX_SPLITS_PER_BATCH);
+        }
+        else {
+            throw new IllegalStateException("Unknown state of splits or rows data structure");
+        }
     }
 
     private ThriftRowsBatch convertKeys(RecordSet recordSet, List<String> columnNames)

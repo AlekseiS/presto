@@ -18,7 +18,10 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
+import java.util.List;
+
 import static java.util.Objects.requireNonNull;
+import static java.util.stream.Collectors.toList;
 
 @ThriftStruct
 public final class ThriftHostAddress
@@ -27,7 +30,9 @@ public final class ThriftHostAddress
     private final int port;
 
     @ThriftConstructor
-    public ThriftHostAddress(String host, int port)
+    public ThriftHostAddress(
+            @ThriftField(name = "host") String host,
+            @ThriftField(name = "port") int port)
     {
         this.host = requireNonNull(host, "host is null");
         this.port = port;
@@ -48,5 +53,10 @@ public final class ThriftHostAddress
     public static HostAddress toHostAddress(ThriftHostAddress address)
     {
         return HostAddress.fromParts(address.getHost(), address.getPort());
+    }
+
+    public static List<HostAddress> toHostAddressList(List<ThriftHostAddress> hosts)
+    {
+        return hosts.stream().map(ThriftHostAddress::toHostAddress).collect(toList());
     }
 }

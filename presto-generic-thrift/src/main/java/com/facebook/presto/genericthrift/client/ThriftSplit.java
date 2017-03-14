@@ -21,8 +21,8 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
+import static com.facebook.presto.genericthrift.client.ThriftHostAddress.toHostAddressList;
 import static java.util.Objects.requireNonNull;
-import static java.util.stream.Collectors.toList;
 
 @ThriftStruct
 public final class ThriftSplit
@@ -55,6 +55,6 @@ public final class ThriftSplit
     {
         return new GenericThriftSplit(
                 thriftSplit.getSplitId(),
-                thriftSplit.getHosts().stream().map(ThriftHostAddress::toHostAddress).collect(toList()));
+                toHostAddressList(thriftSplit.getHosts()));
     }
 }

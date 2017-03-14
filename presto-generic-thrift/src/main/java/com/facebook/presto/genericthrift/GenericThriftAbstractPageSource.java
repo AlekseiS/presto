@@ -89,12 +89,12 @@ public abstract class GenericThriftAbstractPageSource
     @Override
     public final boolean isFinished()
     {
-        return !firstCall && !readersHaveMoreData() && nextToken == null;
+        return !firstCall && !readersHaveMoreData() && !canGetMoreData(nextToken);
     }
 
     private boolean readersHaveMoreData()
     {
-        return readers.get(0).hasMoreRecords();
+        return readers.get(0) != null && readers.get(0).hasMoreRecords();
     }
 
     @Override
@@ -113,7 +113,7 @@ public abstract class GenericThriftAbstractPageSource
         }
         else {
             // no data request in progress
-            if (firstCall || (!readersHaveMoreData() && nextToken != null)) {
+            if (firstCall || (!readersHaveMoreData() && canGetMoreData(nextToken))) {
                 // no data in the current batch, but can request more; will send a request
                 future = toCompletableFuture(sendRequestForData(nextToken, MAX_RECORDS_PER_REQUEST));
                 return null;
@@ -127,6 +127,11 @@ public abstract class GenericThriftAbstractPageSource
 
     public abstract ListenableFuture<ThriftRowsBatch> sendRequestForData(byte[] nextToken, int maxRecords);
 
+    public boolean canGetMoreData(byte[] nextToken)
+    {
+        return nextToken != null;
+    }
+
     public abstract void closeInternal();
 
     private void processResponse(ThriftRowsBatch response)
@@ -134,9 +139,17 @@ public abstract class GenericThriftAbstractPageSource
         firstCall = false;
         future = null;
         nextToken = response.getNextToken();
-        List<ThriftColumnData> columnsData = response.getColumnsData();
-        for (int i = 0; i < numberOfColumns; i++) {
-            readers.set(i, ColumnReaders.create(columnsData, columnNames.get(i), columnTypes.get(i), response.getRowCount()));
+        if (response.getRowCount() == 0) {
+            // ignore column data when batch is empty
+            for (int i = 0; i < numberOfColumns; i++) {
+                readers.set(i, null);
+            }
+        }
+        else {
+            List<ThriftColumnData> columnsData = response.getColumnsData();
+            for (int i = 0; i < numberOfColumns; i++) {
+                readers.set(i, ColumnReaders.create(columnsData, columnNames.get(i), columnTypes.get(i), response.getRowCount()));
+            }
         }
         checkState(readersHaveMoreData() || nextToken == null, "Batch cannot be empty when continuation token is present");
     }

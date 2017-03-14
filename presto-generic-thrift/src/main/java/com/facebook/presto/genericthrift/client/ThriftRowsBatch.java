@@ -16,6 +16,9 @@ package com.facebook.presto.genericthrift.client;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
+import com.google.common.collect.ImmutableList;
+
+import javax.annotation.Nullable;
 
 import java.util.List;
 
@@ -51,9 +54,15 @@ public final class ThriftRowsBatch
         return rowCount;
     }
 
+    @Nullable
     @ThriftField(value = 3, requiredness = OPTIONAL)
     public byte[] getNextToken()
     {
         return nextToken;
+    }
+
+    public static ThriftRowsBatch empty()
+    {
+        return new ThriftRowsBatch(ImmutableList.of(), 0, null);
     }
 }
