@@ -11,10 +11,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.genericthrift;
+package com.facebook.presto.genericthrift.pagesources;
 
+import com.facebook.presto.genericthrift.GenericThriftSplit;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
+import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -22,30 +24,33 @@ import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
-public class GenericThriftContinuedIndexPageSource
+public class GenericThriftNormalPageSource
         extends GenericThriftAbstractPageSource
 {
+    private final byte[] splitId;
     private final ThriftPrestoClient client;
-    private final ThriftRowsBatch keys;
-    private final byte[] indexId;
 
-    public GenericThriftContinuedIndexPageSource(
-            ThriftRowsBatch initialResponse,
-            ThriftPrestoClient client,
-            byte[] indexId,
-            ThriftRowsBatch keys,
+    public GenericThriftNormalPageSource(
+            PrestoClientProvider clientProvider,
+            GenericThriftSplit split,
             List<ColumnHandle> columns)
     {
-        super(columns, initialResponse);
-        this.client = requireNonNull(client, "client is null");
-        this.keys = requireNonNull(keys, "keys is null");
-        this.indexId = requireNonNull(indexId, "indexId is null");
+        super(columns);
+        requireNonNull(split, "split is null");
+        this.splitId = split.getSplitId();
+        if (split.getAddresses().isEmpty()) {
+            this.client = clientProvider.connectToAnyHost();
+        }
+        else {
+            this.client = clientProvider.connectToAnyOf(split.getAddresses());
+        }
+        requireNonNull(clientProvider, "clientProvider is null");
     }
 
     @Override
     public ListenableFuture<ThriftRowsBatch> sendRequestForData(byte[] nextToken, int maxRecords)
     {
-        return client.getRowsForIndexContinued(indexId, keys, maxRecords, nextToken);
+        return client.getRows(splitId, maxRecords, nextToken);
     }
 
     @Override

@@ -14,6 +14,8 @@
 package com.facebook.presto.genericthrift;
 
 import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
+import com.facebook.presto.genericthrift.pagesources.GenericThriftNoColumnsPageSource;
+import com.facebook.presto.genericthrift.pagesources.GenericThriftNormalPageSource;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.ConnectorSession;
@@ -45,7 +47,7 @@ public class GenericThriftPageSourceProvider
             return new GenericThriftNoColumnsPageSource(clientProvider, (GenericThriftSplit) split);
         }
         else {
-            return new GenericThriftPageSource(clientProvider, (GenericThriftSplit) split, columns);
+            return new GenericThriftNormalPageSource(clientProvider, (GenericThriftSplit) split, columns);
         }
     }
 }

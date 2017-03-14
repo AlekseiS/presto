@@ -18,6 +18,8 @@ import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
 import com.facebook.presto.genericthrift.client.ThriftSplitsOrRows;
 import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
+import com.facebook.presto.genericthrift.pagesources.GenericThriftContinuedIndexPageSource;
+import com.facebook.presto.genericthrift.pagesources.GenericThriftSplitBasedIndexPageSource;
 import com.facebook.presto.genericthrift.writers.ColumnWriter;
 import com.facebook.presto.genericthrift.writers.ColumnWriters;
 import com.facebook.presto.spi.ColumnHandle;
