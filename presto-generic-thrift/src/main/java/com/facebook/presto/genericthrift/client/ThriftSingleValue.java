@@ -82,7 +82,7 @@ public final class ThriftSingleValue
             }
         }
         else {
-            ColumnReader reader = ColumnReaders.createColumnReader(value.getColumnsData(), VALUE_COLUMN_NAME, type, 1);
+            ColumnReader reader = ColumnReaders.create(value.getColumnsData(), VALUE_COLUMN_NAME, type, 1);
             return new Marker(type, Optional.of(reader.readBlock(1)), toMarkerBound(bound));
         }
     }

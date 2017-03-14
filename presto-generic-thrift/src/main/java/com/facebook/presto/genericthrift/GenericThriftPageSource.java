@@ -124,7 +124,7 @@ public class GenericThriftPageSource
                 nextToken = response.getNextToken();
                 List<ThriftColumnData> columnsData = response.getColumnsData();
                 for (int i = 0; i < numberOfColumns; i++) {
-                    readers.set(i, ColumnReaders.createColumnReader(columnsData, columnNames.get(i), columnTypes.get(i), response.getRowCount()));
+                    readers.set(i, ColumnReaders.create(columnsData, columnNames.get(i), columnTypes.get(i), response.getRowCount()));
                 }
                 checkState(readersHaveMoreData() || nextToken == null, "Batch cannot be empty when continuation token is present");
                 return nextPageFromCurrentBatch();

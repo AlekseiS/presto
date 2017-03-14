@@ -67,7 +67,7 @@ public class ArrayColumnReader
     {
         SizeColumnReader sizeReader = SizeColumnReader.createReader(columnsData, columnName, IntegerType.INTEGER, totalRecords);
         int expectedRecords = sizeReader.sum();
-        ColumnReader elementsReader = ColumnReaders.createColumnReader(columnsData, columnName + ".e", type.getTypeParameters().get(0), expectedRecords);
+        ColumnReader elementsReader = ColumnReaders.create(columnsData, columnName + ".e", type.getTypeParameters().get(0), expectedRecords);
         return new ArrayColumnReader(sizeReader, elementsReader, totalRecords);
     }
 }

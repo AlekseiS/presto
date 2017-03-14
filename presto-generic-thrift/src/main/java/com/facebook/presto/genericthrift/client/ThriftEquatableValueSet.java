@@ -111,7 +111,7 @@ public final class ThriftEquatableValueSet
 
         public static Set<EquatableValueSet.ValueEntry> toValueEntries(ThriftValueEntrySet values, Type type)
         {
-            ColumnReader reader = ColumnReaders.createColumnReader(values.getColumnsData(), "value", type, values.getElementCount());
+            ColumnReader reader = ColumnReaders.create(values.getColumnsData(), "value", type, values.getElementCount());
             Set<EquatableValueSet.ValueEntry> result = new HashSet<>(values.getElementCount());
             for (int i = 0; i < values.getElementCount(); i++) {
                 result.add(new EquatableValueSet.ValueEntry(type, reader.readBlock(1)));

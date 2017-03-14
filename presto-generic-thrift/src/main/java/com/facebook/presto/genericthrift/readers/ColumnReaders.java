@@ -37,7 +37,7 @@ public final class ColumnReaders
     {
     }
 
-    public static ColumnReader createColumnReader(List<ThriftColumnData> columnsData, String columnName, Type columnType, int totalRecords)
+    public static ColumnReader create(List<ThriftColumnData> columnsData, String columnName, Type columnType, int totalRecords)
     {
         switch (columnType.getTypeSignature().getBase()) {
             case BIGINT:
