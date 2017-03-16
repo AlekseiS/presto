@@ -227,12 +227,18 @@ public class ThriftServerTpch
             Set<String> outputColumnNames,
             ThriftTupleDomain outputConstraint)
     {
-        Optional<TpchIndexedData.IndexedTable> indexedTable =
-                indexedData.getIndexedTable(schemaTableName.getTableName(), schemaNameToScaleFactor(schemaTableName.getSchemaName()), indexableColumnNames);
+        Optional<TpchIndexedData.IndexedTable> indexedTable = indexedData.getIndexedTable(
+                schemaTableName.getTableName(),
+                schemaNameToScaleFactor(schemaTableName.getSchemaName()),
+                indexableColumnNames);
         if (!indexedTable.isPresent()) {
             return new ThriftNullableIndexLayoutResult(null);
         }
-        IndexInfo indexInfo = new IndexInfo(schemaTableName.getSchemaName(), schemaTableName.getTableName(), indexableColumnNames, ImmutableList.copyOf(outputColumnNames));
+        IndexInfo indexInfo = new IndexInfo(
+                schemaTableName.getSchemaName(),
+                schemaTableName.getTableName(),
+                indexableColumnNames,
+                ImmutableList.copyOf(outputColumnNames));
         return new ThriftNullableIndexLayoutResult(new ThriftIndexLayoutResult(serialize(indexInfo), outputConstraint));
     }
 
@@ -243,13 +249,21 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, @Nullable byte[] continuationToken)
+    public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(
+            byte[] indexId,
+            ThriftRowsBatch keys,
+            int maxSplitCount,
+            @Nullable byte[] continuationToken)
     {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, @Nullable byte[] continuationToken)
+    public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(
+            byte[] indexId,
+            ThriftRowsBatch keys,
+            int maxRowCount,
+            @Nullable byte[] continuationToken)
     {
         return indexDataExecutor.submit(() -> getRowsForIndexInternal(indexId, keys, maxRowCount, continuationToken));
     }
@@ -266,13 +280,16 @@ public class ThriftServerTpch
     private ThriftRowsBatch getRowsForIndexInternal(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, @Nullable byte[] continuationToken)
     {
         IndexInfo indexInfo = deserialize(indexId, IndexInfo.class);
-        Optional<TpchIndexedData.IndexedTable> indexedTableOptional =
-                indexedData.getIndexedTable(indexInfo.getTableName(), schemaNameToScaleFactor(indexInfo.getSchemaName()), indexInfo.getIndexableColumnNames());
+        Optional<TpchIndexedData.IndexedTable> indexedTableOptional = indexedData.getIndexedTable(
+                indexInfo.getTableName(),
+                schemaNameToScaleFactor(indexInfo.getSchemaName()),
+                indexInfo.getIndexableColumnNames());
         checkState(indexedTableOptional.isPresent(), "index is not present");
         TpchIndexedData.IndexedTable table = indexedTableOptional.get();
-        RecordSet fullRecordSet = table.lookupKeys(new WrappingRecordSet(keys, table.getKeyColumns(), types(indexInfo.getTableName(), table.getKeyColumns())));
+        RecordSet keyRecordSet = new WrappingRecordSet(keys, table.getKeyColumns(), types(indexInfo.getTableName(), table.getKeyColumns()));
+        RecordSet allColumnsOutputRecordSet = table.lookupKeys(keyRecordSet);
         List<Integer> outputRemap = computeRemap(table.getOutputColumns(), indexInfo.getOutputColumnNames());
-        RecordSet outputRecordSet = new MappedRecordSet(fullRecordSet, outputRemap);
+        RecordSet outputRecordSet = new MappedRecordSet(allColumnsOutputRecordSet, outputRemap);
         return cursorToRowsBatch(outputRecordSet.cursor(), indexInfo.getOutputColumnNames(), maxRowCount, continuationToken);
     }
 
@@ -284,7 +301,11 @@ public class ThriftServerTpch
         return cursorToRowsBatch(cursor, columnNames, maxRowCount, continuationToken);
     }
 
-    private static ThriftRowsBatch cursorToRowsBatch(RecordCursor cursor, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
+    private static ThriftRowsBatch cursorToRowsBatch(
+            RecordCursor cursor,
+            List<String> columnNames,
+            int maxRowCount,
+            @Nullable byte[] continuationToken)
     {
         long skip = continuationToken != null ? Longs.fromByteArray(continuationToken) : 0;
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
