@@ -20,6 +20,7 @@ import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftPropertyMetadata;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
 import com.facebook.presto.genericthrift.client.ThriftSchemaTableName;
+import com.facebook.presto.genericthrift.client.ThriftServiceException;
 import com.facebook.presto.genericthrift.client.ThriftSplitBatch;
 import com.facebook.presto.genericthrift.client.ThriftSplitsOrRows;
 import com.facebook.presto.genericthrift.client.ThriftTableLayout;
@@ -60,6 +61,7 @@ public class RetryingPrestoClientProvider
         this.original = requireNonNull(original, "original is null");
         retry = RetryDriver.retry()
                 .maxAttempts(5)
+                .stopRetryingWhen(e -> e instanceof ThriftServiceException && !((ThriftServiceException) e).isRetryPossible())
                 .exponentialBackoff(
                         new Duration(10, TimeUnit.MILLISECONDS),
                         new Duration(20, TimeUnit.MILLISECONDS),

@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.genericthrift.client;
 
+import com.facebook.swift.service.ThriftException;
 import com.facebook.swift.service.ThriftMethod;
 import com.facebook.swift.service.ThriftService;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -30,36 +31,36 @@ public interface ThriftPrestoClient
     /**
      * Loaded once on Presto start up.
      */
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     List<ThriftPropertyMetadata> listSessionProperties();
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     List<String> listSchemaNames();
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     List<ThriftSchemaTableName> listTables(@Nullable String schemaNameOrNull);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ThriftNullableTableMetadata getTableMetadata(ThriftSchemaTableName schemaTableName);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     List<ThriftTableLayoutResult> getTableLayouts(
             ThriftConnectorSession session,
             ThriftSchemaTableName schemaTableName,
             ThriftTupleDomain outputConstraint,
             @Nullable Set<String> desiredColumns);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ListenableFuture<ThriftSplitBatch> getSplits(
             ThriftConnectorSession session,
             ThriftTableLayout layout,
             int maxSplitCount,
             @Nullable byte[] continuationToken);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ThriftNullableIndexLayoutResult resolveIndex(
             ThriftConnectorSession session,
             ThriftSchemaTableName schemaTableName,
@@ -67,21 +68,21 @@ public interface ThriftPrestoClient
             Set<String> outputColumnNames,
             ThriftTupleDomain outputConstraint);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ThriftSplitsOrRows getRowsOrSplitsForIndex(
             byte[] indexId,
             ThriftRowsBatch keys,
             int maxSplitCount,
             int maxRowCount);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(
             byte[] indexId,
             ThriftRowsBatch keys,
             int maxSplitCount,
             @Nullable byte[] continuationToken);
 
-    @ThriftMethod
+    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(
             byte[] indexId,
             ThriftRowsBatch keys,

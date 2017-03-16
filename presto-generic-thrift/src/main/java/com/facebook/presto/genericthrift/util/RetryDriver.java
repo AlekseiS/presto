@@ -14,17 +14,15 @@
 package com.facebook.presto.genericthrift.util;
 
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableList;
 import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
-import java.util.Arrays;
-import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.Predicate;
 
 import static java.util.Objects.requireNonNull;
 
@@ -41,9 +39,9 @@ public class RetryDriver
     private final Duration maxSleepTime;
     private final double scaleFactor;
     private final Duration maxRetryTime;
-    private final Function<Exception, Exception> exceptionMapper;
-    private final List<Class<? extends Exception>> exceptionWhiteList;
     private final Optional<Runnable> retryRunnable;
+    private final Predicate<Exception> stopRetrying;
+    private final Function<Exception, Exception> classifier;
 
     private RetryDriver(
             int maxAttempts,
@@ -51,18 +49,18 @@ public class RetryDriver
             Duration maxSleepTime,
             double scaleFactor,
             Duration maxRetryTime,
-            Function<Exception, Exception> exceptionMapper,
-            List<Class<? extends Exception>> exceptionWhiteList,
-            Optional<Runnable> retryRunnable)
+            Optional<Runnable> retryRunnable,
+            Predicate<Exception> stopRetrying,
+            Function<Exception, Exception> classifier)
     {
         this.maxAttempts = maxAttempts;
         this.minSleepTime = minSleepTime;
         this.maxSleepTime = maxSleepTime;
         this.scaleFactor = scaleFactor;
         this.maxRetryTime = maxRetryTime;
-        this.exceptionMapper = exceptionMapper;
-        this.exceptionWhiteList = exceptionWhiteList;
         this.retryRunnable = retryRunnable;
+        this.stopRetrying = stopRetrying;
+        this.classifier = classifier;
     }
 
     private RetryDriver()
@@ -72,9 +70,9 @@ public class RetryDriver
                 DEFAULT_SLEEP_TIME,
                 DEFAULT_SCALE_FACTOR,
                 DEFAULT_MAX_RETRY_TIME,
-                Function.identity(),
-                ImmutableList.of(),
-                Optional.empty());
+                Optional.empty(),
+                e -> false,
+                Function.identity());
     }
 
     public static RetryDriver retry()
@@ -84,39 +82,27 @@ public class RetryDriver
 
     public final RetryDriver maxAttempts(int maxAttempts)
     {
-        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, exceptionMapper, exceptionWhiteList, retryRunnable);
+        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, retryRunnable, stopRetrying, classifier);
     }
 
     public final RetryDriver exponentialBackoff(Duration minSleepTime, Duration maxSleepTime, Duration maxRetryTime, double scaleFactor)
     {
-        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, exceptionMapper, exceptionWhiteList, retryRunnable);
+        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, retryRunnable, stopRetrying, classifier);
     }
 
     public final RetryDriver onRetry(Runnable retryRunnable)
     {
-        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, exceptionMapper, exceptionWhiteList, Optional.ofNullable(retryRunnable));
+        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, Optional.ofNullable(retryRunnable), stopRetrying, classifier);
     }
 
-    public final RetryDriver exceptionMapper(Function<Exception, Exception> exceptionMapper)
+    public RetryDriver stopRetryingWhen(Predicate<Exception> stopRetrying)
     {
-        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, exceptionMapper, exceptionWhiteList, retryRunnable);
+        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, retryRunnable, stopRetrying, classifier);
     }
 
-    @SafeVarargs
-    public final RetryDriver stopOn(Class<? extends Exception>... classes)
+    public RetryDriver withClassifier(Function<Exception, Exception> classifier)
     {
-        requireNonNull(classes, "classes is null");
-        List<Class<? extends Exception>> exceptions = ImmutableList.<Class<? extends Exception>>builder()
-                .addAll(exceptionWhiteList)
-                .addAll(Arrays.asList(classes))
-                .build();
-
-        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, exceptionMapper, exceptions, retryRunnable);
-    }
-
-    public RetryDriver stopOnIllegalExceptions()
-    {
-        return stopOn(NullPointerException.class, IllegalStateException.class, IllegalArgumentException.class);
+        return new RetryDriver(maxAttempts, minSleepTime, maxSleepTime, scaleFactor, maxRetryTime, retryRunnable, stopRetrying, classifier);
     }
 
     public <V> V run(String callableName, Callable<V> callable)
@@ -137,14 +123,11 @@ public class RetryDriver
                 return callable.call();
             }
             catch (Exception e) {
-                e = exceptionMapper.apply(e);
-                for (Class<? extends Exception> clazz : exceptionWhiteList) {
-                    if (clazz.isInstance(e)) {
-                        Throwables.propagate(e);
-                    }
+                if (stopRetrying.test(e)) {
+                    throw propagate(e);
                 }
                 if (attempt >= maxAttempts || Duration.nanosSince(startTime).compareTo(maxRetryTime) >= 0) {
-                    Throwables.propagate(e);
+                    throw propagate(e);
                 }
                 log.warn("Failed on executing %s with attempt %d, will retry. Exception: %s", callableName, attempt, e.getMessage());
 
@@ -155,9 +138,14 @@ public class RetryDriver
                 }
                 catch (InterruptedException ie) {
                     Thread.currentThread().interrupt();
-                    throw Throwables.propagate(ie);
+                    throw propagate(ie);
                 }
             }
         }
+    }
+
+    private RuntimeException propagate(Exception e)
+    {
+        return Throwables.propagate(classifier.apply(e));
     }
 }
