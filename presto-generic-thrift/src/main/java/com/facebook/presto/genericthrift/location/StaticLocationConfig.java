@@ -15,10 +15,13 @@ package com.facebook.presto.genericthrift.location;
 
 import io.airlift.configuration.Config;
 
+import javax.validation.constraints.NotNull;
+
 public class StaticLocationConfig
 {
     private HostsList hosts = HostsList.empty();
 
+    @NotNull
     public HostsList getHosts()
     {
         return hosts;

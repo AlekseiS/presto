@@ -15,13 +15,11 @@ package com.facebook.presto.genericthrift.location;
 
 import com.facebook.presto.spi.HostAddress;
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.ImmutableSet;
 
 import javax.inject.Inject;
 
 import java.util.List;
 import java.util.Random;
-import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
@@ -31,16 +29,14 @@ public class StaticLocationProvider
 {
     private final Random random = new Random();
     private final List<HostAddress> hosts;
-    private final Set<HostAddress> hostsSet;
 
     @Inject
     public StaticLocationProvider(StaticLocationConfig config)
     {
         requireNonNull(config, "config is null");
-        hosts = ImmutableList.copyOf(config.getHosts().getHosts());
-        hostsSet = ImmutableSet.copyOf(config.getHosts().getHosts());
-        checkArgument(!hosts.isEmpty(), "hosts list is empty");
-        checkArgument(hosts.size() == hostsSet.size(), "addresses are not unique");
+        List<HostAddress> hosts = config.getHosts().getHosts();
+        checkArgument(!hosts.isEmpty(), "hosts is empty");
+        this.hosts = ImmutableList.copyOf(hosts);
     }
 
     @Override
@@ -52,9 +48,7 @@ public class StaticLocationProvider
     @Override
     public HostAddress getAnyOf(List<HostAddress> requestedHosts)
     {
-        checkArgument(!requestedHosts.isEmpty());
-        HostAddress result = requestedHosts.get(random.nextInt(requestedHosts.size()));
-        checkArgument(hostsSet.contains(result), "One of requested hosts is not in the list of configured hosts: %s", result);
-        return result;
+        checkArgument(requestedHosts != null && !requestedHosts.isEmpty(), "requestedHosts is null or empty");
+        return requestedHosts.get(random.nextInt(requestedHosts.size()));
     }
 }
