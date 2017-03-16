@@ -17,6 +17,10 @@ import com.facebook.presto.spi.ConnectorIndexHandle;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.util.Arrays;
+
+import static com.facebook.presto.genericthrift.util.ByteUtils.summarize;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 public class GenericThriftIndexHandle
@@ -34,5 +38,32 @@ public class GenericThriftIndexHandle
     public byte[] getIndexId()
     {
         return indexId;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Arrays.hashCode(indexId);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        GenericThriftIndexHandle other = (GenericThriftIndexHandle) obj;
+        return Arrays.equals(this.indexId, other.indexId);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("indexId", summarize(indexId))
+                .toString();
     }
 }

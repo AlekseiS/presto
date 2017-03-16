@@ -22,6 +22,7 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static com.facebook.presto.genericthrift.util.ByteUtils.summarize;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
@@ -77,7 +78,7 @@ public class GenericThriftTableLayoutHandle
     public String toString()
     {
         return toStringHelper(this)
-                .add("layoutId", layoutId)
+                .add("layoutId", summarize(layoutId))
                 .add("predicate", predicate)
                 .toString();
     }

@@ -74,7 +74,7 @@ public final class GenericThriftColumnHandle
     @Override
     public int hashCode()
     {
-        return Objects.hash(columnName, columnType);
+        return Objects.hash(columnName, columnType, comment, hidden);
     }
 
     @Override
@@ -86,7 +86,7 @@ public final class GenericThriftColumnHandle
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        final GenericThriftColumnHandle other = (GenericThriftColumnHandle) obj;
+        GenericThriftColumnHandle other = (GenericThriftColumnHandle) obj;
         return Objects.equals(this.columnName, other.columnName) &&
                 Objects.equals(this.columnType, other.columnType) &&
                 Objects.equals(this.comment, other.comment) &&

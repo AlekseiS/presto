@@ -21,6 +21,7 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
+import static com.facebook.presto.genericthrift.util.ByteUtils.summarize;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
@@ -68,7 +69,7 @@ public class GenericThriftSplit
     public String toString()
     {
         return toStringHelper(this)
-                .add("splitId", splitId)
+                .add("splitId", summarize(splitId))
                 .add("addresses", addresses)
                 .toString();
     }
