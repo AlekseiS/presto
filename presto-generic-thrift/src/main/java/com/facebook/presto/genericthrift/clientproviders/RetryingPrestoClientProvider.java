@@ -174,13 +174,13 @@ public class RetryingPrestoClientProvider
         }
 
         @Override
-        public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, byte[] continuationToken)
+        public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, @Nullable byte[] continuationToken)
         {
             return retry.run("getSplitsForIndexContinued", () -> getClient().getSplitsForIndexContinued(indexId, keys, maxSplitCount, continuationToken));
         }
 
         @Override
-        public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, byte[] continuationToken)
+        public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, @Nullable byte[] continuationToken)
         {
             return retry.run("getRowsForIndexContinued", () -> getClient().getRowsForIndexContinued(indexId, keys, maxRowCount, continuationToken));
         }

@@ -16,6 +16,7 @@ package com.facebook.presto.genericthrift.node;
 import com.facebook.presto.genericthrift.client.ThriftColumnData;
 import com.facebook.presto.genericthrift.client.ThriftColumnMetadata;
 import com.facebook.presto.genericthrift.client.ThriftConnectorSession;
+import com.facebook.presto.genericthrift.client.ThriftIndexLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftNullableIndexLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftNullableTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
@@ -30,14 +31,21 @@ import com.facebook.presto.genericthrift.client.ThriftTableLayout;
 import com.facebook.presto.genericthrift.client.ThriftTableLayoutResult;
 import com.facebook.presto.genericthrift.client.ThriftTableMetadata;
 import com.facebook.presto.genericthrift.client.ThriftTupleDomain;
+import com.facebook.presto.genericthrift.node.states.IndexInfo;
+import com.facebook.presto.genericthrift.node.states.LayoutInfo;
+import com.facebook.presto.genericthrift.node.states.SplitInfo;
+import com.facebook.presto.genericthrift.node.utils.WrappingRecordSet;
 import com.facebook.presto.genericthrift.writers.ColumnWriter;
 import com.facebook.presto.genericthrift.writers.ColumnWriters;
 import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.RecordSet;
+import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.split.MappedRecordSet;
+import com.facebook.presto.tests.tpch.TpchIndexedData;
 import com.facebook.presto.tpch.TpchMetadata;
-import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -55,14 +63,16 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 
+import static com.facebook.presto.tests.AbstractTestIndexedQueries.INDEX_SPEC;
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
+import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
 import static io.airlift.concurrent.Threads.threadsNamed;
-import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.stream.Collectors.toList;
 
@@ -77,6 +87,9 @@ public class ThriftServerTpch
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
     private final ListeningExecutorService dataExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("data-generator-%s")));
+    private final ListeningExecutorService indexDataExecutor =
+            listeningDecorator(newCachedThreadPool(threadsNamed("index-data-generator-%s")));
+    private final TpchIndexedData indexedData = new TpchIndexedData("tpchindexed", INDEX_SPEC);
 
     @Override
     public List<ThriftPropertyMetadata> listSessionProperties()
@@ -207,27 +220,38 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ThriftNullableIndexLayoutResult resolveIndex(ThriftConnectorSession session, ThriftSchemaTableName schemaTableName, Set<String> indexableColumnNames, Set<String> outputColumnNames, ThriftTupleDomain outputConstraint)
+    public ThriftNullableIndexLayoutResult resolveIndex(
+            ThriftConnectorSession session,
+            ThriftSchemaTableName schemaTableName,
+            Set<String> indexableColumnNames,
+            Set<String> outputColumnNames,
+            ThriftTupleDomain outputConstraint)
     {
-        return new ThriftNullableIndexLayoutResult(null);
+        Optional<TpchIndexedData.IndexedTable> indexedTable =
+                indexedData.getIndexedTable(schemaTableName.getTableName(), schemaNameToScaleFactor(schemaTableName.getSchemaName()), indexableColumnNames);
+        if (!indexedTable.isPresent()) {
+            return new ThriftNullableIndexLayoutResult(null);
+        }
+        IndexInfo indexInfo = new IndexInfo(schemaTableName.getSchemaName(), schemaTableName.getTableName(), indexableColumnNames, ImmutableList.copyOf(outputColumnNames));
+        return new ThriftNullableIndexLayoutResult(new ThriftIndexLayoutResult(serialize(indexInfo), outputConstraint));
     }
 
     @Override
     public ThriftSplitsOrRows getRowsOrSplitsForIndex(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, int maxRowCount)
     {
-        throw new UnsupportedOperationException("not implemented yet");
+        return new ThriftSplitsOrRows(null, getRowsForIndexInternal(indexId, keys, maxRowCount, null));
     }
 
     @Override
-    public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, byte[] continuationToken)
+    public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, @Nullable byte[] continuationToken)
     {
-        throw new UnsupportedOperationException("not implemented yet");
+        throw new UnsupportedOperationException();
     }
 
     @Override
-    public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, byte[] continuationToken)
+    public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, @Nullable byte[] continuationToken)
     {
-        throw new UnsupportedOperationException("not implemented yet");
+        return indexDataExecutor.submit(() -> getRowsForIndexInternal(indexId, keys, maxRowCount, continuationToken));
     }
 
     @PreDestroy
@@ -236,6 +260,20 @@ public class ThriftServerTpch
     {
         splitsExecutor.shutdownNow();
         dataExecutor.shutdownNow();
+        indexDataExecutor.shutdownNow();
+    }
+
+    private ThriftRowsBatch getRowsForIndexInternal(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, @Nullable byte[] continuationToken)
+    {
+        IndexInfo indexInfo = deserialize(indexId, IndexInfo.class);
+        Optional<TpchIndexedData.IndexedTable> indexedTableOptional =
+                indexedData.getIndexedTable(indexInfo.getTableName(), schemaNameToScaleFactor(indexInfo.getSchemaName()), indexInfo.getIndexableColumnNames());
+        checkState(indexedTableOptional.isPresent(), "index is not present");
+        TpchIndexedData.IndexedTable table = indexedTableOptional.get();
+        RecordSet fullRecordSet = table.lookupKeys(new WrappingRecordSet(keys, table.getKeyColumns(), types(indexInfo.getTableName(), table.getKeyColumns())));
+        List<Integer> outputRemap = computeRemap(table.getOutputColumns(), indexInfo.getOutputColumnNames());
+        RecordSet outputRecordSet = new MappedRecordSet(fullRecordSet, outputRemap);
+        return cursorToRowsBatch(outputRecordSet.cursor(), indexInfo.getOutputColumnNames(), maxRowCount, continuationToken);
     }
 
     private ThriftRowsBatch getRowsInternal(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken)
@@ -243,7 +281,11 @@ public class ThriftServerTpch
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
         List<String> columnNames = splitInfo.getColumnNames();
         RecordCursor cursor = createCursor(splitInfo, splitInfo.getColumnNames());
+        return cursorToRowsBatch(cursor, columnNames, maxRowCount, continuationToken);
+    }
 
+    private static ThriftRowsBatch cursorToRowsBatch(RecordCursor cursor, List<String> columnNames, int maxRowCount, @Nullable byte[] continuationToken)
+    {
         long skip = continuationToken != null ? Longs.fromByteArray(continuationToken) : 0;
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
         skipRows(cursor, skip);
@@ -277,9 +319,26 @@ public class ThriftServerTpch
         checkState(hasPreviousData, "Cursor is expected to have previously generated data");
     }
 
+    private static List<Integer> computeRemap(List<String> startSchema, List<String> endSchema)
+    {
+        ImmutableList.Builder<Integer> builder = ImmutableList.builder();
+        for (String columnName : endSchema) {
+            int index = startSchema.indexOf(columnName);
+            Preconditions.checkArgument(index != -1, "Column name in end that is not in the start: %s", columnName);
+            builder.add(index);
+        }
+        return builder.build();
+    }
+
     private static List<String> allColumns(String tableName)
     {
         return TpchTable.getTable(tableName).getColumns().stream().map(TpchColumn::getColumnName).collect(toList());
+    }
+
+    private static List<Type> types(String tableName, List<String> columnNames)
+    {
+        TpchTable<?> table = TpchTable.getTable(tableName);
+        return columnNames.stream().map(name -> getPrestoType(table.getColumn(name).getType())).collect(toList());
     }
 
     private static RecordCursor createCursor(SplitInfo splitInfo, List<String> columnNames)
@@ -338,96 +397,6 @@ public class ThriftServerTpch
         }
         catch (IOException e) {
             throw new RuntimeException(e);
-        }
-    }
-
-    private static final class SplitInfo
-    {
-        private final String schemaName;
-        private final String tableName;
-        private final int partNumber;
-        private final int totalParts;
-        private final List<String> columnNames;
-
-        @JsonCreator
-        public SplitInfo(
-                @JsonProperty("schemaName") String schemaName,
-                @JsonProperty("tableName") String tableName,
-                @JsonProperty("partNumber") int partNumber,
-                @JsonProperty("totalParts") int totalParts,
-                @JsonProperty("columnNames") List<String> columnNames)
-        {
-            this.schemaName = requireNonNull(schemaName, "schemaName is null");
-            this.tableName = requireNonNull(tableName, "tableName is null");
-            this.partNumber = partNumber;
-            this.totalParts = totalParts;
-            this.columnNames = requireNonNull(columnNames, "columnNames is null");
-        }
-
-        @JsonProperty
-        public String getSchemaName()
-        {
-            return schemaName;
-        }
-
-        @JsonProperty
-        public String getTableName()
-        {
-            return tableName;
-        }
-
-        @JsonProperty
-        public int getPartNumber()
-        {
-            return partNumber;
-        }
-
-        @JsonProperty
-        public int getTotalParts()
-        {
-            return totalParts;
-        }
-
-        @JsonProperty
-        public List<String> getColumnNames()
-        {
-            return columnNames;
-        }
-    }
-
-    private static final class LayoutInfo
-    {
-        private final String schemaName;
-        private final String tableName;
-        private final List<String> columnNames;
-
-        @JsonCreator
-        public LayoutInfo(
-                @JsonProperty("schemaName") String schemaName,
-                @JsonProperty("tableName") String tableName,
-                @JsonProperty("columnNames") List<String> columnNames)
-        {
-            this.schemaName = requireNonNull(schemaName, "schemaName is null");
-            this.tableName = requireNonNull(tableName, "tableName is null");
-            this.columnNames = requireNonNull(columnNames, "columnNames is null");
-        }
-
-        @JsonProperty
-        public String getSchemaName()
-        {
-            return schemaName;
-        }
-
-        @JsonProperty
-        public String getTableName()
-        {
-            return tableName;
-        }
-
-        @JsonProperty
-        public List<String> getColumnNames()
-        {
-            return columnNames;
         }
     }
 }

@@ -75,10 +75,10 @@ public interface ThriftPrestoClient
             int maxRowCount);
 
     @ThriftMethod
-    ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, byte[] continuationToken);
+    ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, @Nullable byte[] continuationToken);
 
     @ThriftMethod
-    ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, byte[] continuationToken);
+    ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, @Nullable byte[] continuationToken);
 
     @Override
     void close();

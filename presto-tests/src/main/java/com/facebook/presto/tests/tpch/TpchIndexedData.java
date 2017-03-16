@@ -46,7 +46,7 @@ import static com.google.common.base.Preconditions.checkPositionIndex;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
 
-class TpchIndexedData
+public class TpchIndexedData
 {
     private final Map<Set<TpchScaledColumn>, IndexedTable> indexedTables;
 
