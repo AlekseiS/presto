@@ -69,23 +69,10 @@ public interface ThriftPrestoClient
             ThriftTupleDomain outputConstraint);
 
     @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
-    ThriftSplitsOrRows getRowsOrSplitsForIndex(
+    ListenableFuture<ThriftSplitsOrRows> getRowsOrSplitsForIndex(
             byte[] indexId,
             ThriftRowsBatch keys,
             int maxSplitCount,
-            int maxRowCount);
-
-    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
-    ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(
-            byte[] indexId,
-            ThriftRowsBatch keys,
-            int maxSplitCount,
-            @Nullable byte[] continuationToken);
-
-    @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
-    ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(
-            byte[] indexId,
-            ThriftRowsBatch keys,
             int maxRowCount,
             @Nullable byte[] continuationToken);
 

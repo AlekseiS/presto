@@ -15,11 +15,14 @@ package com.facebook.presto.genericthrift.pagesources;
 
 import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
+import com.facebook.presto.genericthrift.client.ThriftSplitsOrRows;
 import com.facebook.presto.spi.ColumnHandle;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.List;
 
+import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.util.concurrent.Futures.transform;
 import static java.util.Objects.requireNonNull;
 
 public class GenericThriftContinuedIndexPageSource
@@ -45,12 +48,21 @@ public class GenericThriftContinuedIndexPageSource
     @Override
     public ListenableFuture<ThriftRowsBatch> sendRequestForData(byte[] nextToken, int maxRecords)
     {
-        return client.getRowsForIndexContinued(indexId, keys, maxRecords, nextToken);
+        return transform(
+                client.getRowsOrSplitsForIndex(indexId, keys, 0, maxRecords, nextToken),
+                GenericThriftContinuedIndexPageSource::getRowsBatch);
     }
 
     @Override
     public void closeInternal()
     {
         client.close();
+    }
+
+    private static ThriftRowsBatch getRowsBatch(ThriftSplitsOrRows splitsOrRows)
+    {
+        requireNonNull(splitsOrRows, "splitsOrRows is null");
+        checkState(splitsOrRows.getRows() != null, "rows must be present");
+        return splitsOrRows.getRows();
     }
 }

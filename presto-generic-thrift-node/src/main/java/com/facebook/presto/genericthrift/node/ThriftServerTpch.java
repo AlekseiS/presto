@@ -243,25 +243,10 @@ public class ThriftServerTpch
     }
 
     @Override
-    public ThriftSplitsOrRows getRowsOrSplitsForIndex(byte[] indexId, ThriftRowsBatch keys, int maxSplitCount, int maxRowCount)
-    {
-        return new ThriftSplitsOrRows(null, getRowsForIndexInternal(indexId, keys, maxRowCount, null));
-    }
-
-    @Override
-    public ListenableFuture<ThriftSplitBatch> getSplitsForIndexContinued(
+    public ListenableFuture<ThriftSplitsOrRows> getRowsOrSplitsForIndex(
             byte[] indexId,
             ThriftRowsBatch keys,
             int maxSplitCount,
-            @Nullable byte[] continuationToken)
-    {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public ListenableFuture<ThriftRowsBatch> getRowsForIndexContinued(
-            byte[] indexId,
-            ThriftRowsBatch keys,
             int maxRowCount,
             @Nullable byte[] continuationToken)
     {
@@ -277,7 +262,11 @@ public class ThriftServerTpch
         indexDataExecutor.shutdownNow();
     }
 
-    private ThriftRowsBatch getRowsForIndexInternal(byte[] indexId, ThriftRowsBatch keys, int maxRowCount, @Nullable byte[] continuationToken)
+    private ThriftSplitsOrRows getRowsForIndexInternal(
+            byte[] indexId,
+            ThriftRowsBatch keys,
+            int maxRowCount,
+            @Nullable byte[] continuationToken)
     {
         IndexInfo indexInfo = deserialize(indexId, IndexInfo.class);
         Optional<TpchIndexedData.IndexedTable> indexedTableOptional = indexedData.getIndexedTable(
@@ -290,7 +279,9 @@ public class ThriftServerTpch
         RecordSet allColumnsOutputRecordSet = table.lookupKeys(keyRecordSet);
         List<Integer> outputRemap = computeRemap(table.getOutputColumns(), indexInfo.getOutputColumnNames());
         RecordSet outputRecordSet = new MappedRecordSet(allColumnsOutputRecordSet, outputRemap);
-        return cursorToRowsBatch(outputRecordSet.cursor(), indexInfo.getOutputColumnNames(), maxRowCount, continuationToken);
+        return new ThriftSplitsOrRows(
+                null,
+                cursorToRowsBatch(outputRecordSet.cursor(), indexInfo.getOutputColumnNames(), maxRowCount, continuationToken));
     }
 
     private ThriftRowsBatch getRowsInternal(byte[] splitId, int maxRowCount, @Nullable byte[] continuationToken)

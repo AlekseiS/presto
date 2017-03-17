@@ -17,9 +17,9 @@ import com.facebook.presto.genericthrift.client.ThriftPrestoClient;
 import com.facebook.presto.genericthrift.client.ThriftRowsBatch;
 import com.facebook.presto.genericthrift.client.ThriftSplit;
 import com.facebook.presto.genericthrift.client.ThriftSplitBatch;
+import com.facebook.presto.genericthrift.client.ThriftSplitsOrRows;
 import com.facebook.presto.genericthrift.clientproviders.PrestoClientProvider;
 import com.facebook.presto.spi.ColumnHandle;
-import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import java.util.Iterator;
@@ -29,6 +29,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.facebook.presto.genericthrift.client.ThriftHostAddress.toHostAddressList;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static com.google.common.util.concurrent.Futures.transformAsync;
 import static java.util.Objects.requireNonNull;
 
@@ -81,17 +82,17 @@ public class GenericThriftSplitBasedIndexPageSource
             // current split batch is empty
             if (splitsContinuationToken.get() != null) {
                 // send request for a new split batch
-                ListenableFuture<ThriftSplitBatch> splitBatchFuture =
-                        client.get().getSplitsForIndexContinued(indexId, keys, maxSplitsPerBatch, splitsContinuationToken.get());
-                return transformAsync(splitBatchFuture, splitBatch -> {
-                    // received response with
-                    requireNonNull(splitBatch, "splitBatch is null");
+                ListenableFuture<ThriftSplitsOrRows> splitBatchFuture =
+                        client.get().getRowsOrSplitsForIndex(indexId, keys, maxSplitsPerBatch, 0, splitsContinuationToken.get());
+                return transformAsync(splitBatchFuture, splitsOrRows -> {
+                    // received response with splits
+                    ThriftSplitBatch splitBatch = getSplitBatch(splitsOrRows);
                     splitIterator.set(splitBatch.getSplits().iterator());
                     splitsContinuationToken.set(splitBatch.getNextToken());
                     checkState(splitBatch.getNextToken() == null || !splitBatch.getSplits().isEmpty(),
                             "Split batch cannot be empty when continuation token is present");
                     if (splitBatch.getSplits().isEmpty()) {
-                        return Futures.immediateFuture(ThriftRowsBatch.empty());
+                        return immediateFuture(ThriftRowsBatch.empty());
                     }
                     else {
                         return startNextSplit(maxRecords);
@@ -110,6 +111,13 @@ public class GenericThriftSplitBasedIndexPageSource
     public boolean canGetMoreData(byte[] nextToken)
     {
         return nextToken != null || splitIterator.get().hasNext() || splitsContinuationToken.get() != null;
+    }
+
+    private static ThriftSplitBatch getSplitBatch(ThriftSplitsOrRows splitsOrRows)
+    {
+        requireNonNull(splitsOrRows, "splitsOrRows is null");
+        checkState(splitsOrRows.getSplits() != null, "splits must be present");
+        return splitsOrRows.getSplits();
     }
 
     private ListenableFuture<ThriftRowsBatch> startNextSplit(int maxRecords)
