@@ -1,0 +1,53 @@
+/*
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package com.facebook.presto.thrift;
+
+import com.google.common.collect.ImmutableMap;
+import io.airlift.configuration.testing.ConfigAssertions;
+import io.airlift.units.DataSize;
+import org.testng.annotations.Test;
+
+import java.util.Map;
+
+import static io.airlift.units.DataSize.Unit.MEGABYTE;
+
+public class TestThriftConfig
+{
+    @Test
+    public void testDefaults()
+    {
+        ConfigAssertions.assertRecordedDefaults(ConfigAssertions.recordDefaults(ThriftConfig.class)
+                .setMaxResponseSize(new DataSize(16, MEGABYTE))
+                .setMaxIndexSplitsPerBatch(2048)
+                .setMetadataRefreshThreads(1)
+        );
+    }
+
+    @Test
+    public void testExplicitPropertyMappings()
+    {
+        Map<String, String> properties = new ImmutableMap.Builder<String, String>()
+                .put("presto-thrift.max-response-size", "2MB")
+                .put("presto-thrift.max-index-splits-per-batch", "128")
+                .put("presto-thrift.metadata-refresh-threads", "10")
+                .build();
+
+        ThriftConfig expected = new ThriftConfig()
+                .setMaxResponseSize(new DataSize(2, MEGABYTE))
+                .setMaxIndexSplitsPerBatch(128)
+                .setMetadataRefreshThreads(10);
+
+        ConfigAssertions.assertFullMapping(properties, expected);
+    }
+}
