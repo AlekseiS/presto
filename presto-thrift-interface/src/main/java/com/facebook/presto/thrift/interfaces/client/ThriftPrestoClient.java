@@ -92,7 +92,7 @@ public interface ThriftPrestoClient
      * @param session session properties
      * @param layout table layout chosen by the engine
      * @param maxSplitCount maximum number of splits to return
-     * @param continuationToken continuation token from a previous split batch or {@literal null} if it's the first call
+     * @param nextToken token from a previous split batch or {@literal null} if it's the first call
      * @return a batch of splits
      */
     @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
@@ -100,18 +100,18 @@ public interface ThriftPrestoClient
             ThriftConnectorSession session,
             ThriftTableLayout layout,
             int maxSplitCount,
-            @Nullable byte[] continuationToken);
+            @Nullable byte[] nextToken);
 
     /**
      * Returns a batch of rows for the given split.
      *
      * @param splitId split id as returned in split batch
      * @param maxBytes maximum size of returned data in bytes
-     * @param continuationToken continuation token from a previous batch or {@literal null} if it's the first call
+     * @param nextToken token from a previous batch or {@literal null} if it's the first call
      * @return a batch of table data
      */
     @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
-    ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] continuationToken);
+    ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] nextToken);
 
     /**
      * Returns index layout if a table can be used for index lookups with the given constraints.
@@ -135,15 +135,15 @@ public interface ThriftPrestoClient
     /**
      * Returns either a batch of index splits or a batch of data. Exactly one of the two must be present.
      * If this method returns a batch of splits then {@code getRows} will be called for each split
-     * until split's continuation token is {@literal null}. Then the next call will be made to this method
+     * until split's {@code nextToken} is {@literal null}. Then the next call will be made to this method
      * to get the next batch of splits.
-     * If this method returns a batch or rows then this method will continue to be called until continuation token is {@literal null}.
+     * If this method returns a batch or rows then this method will continue to be called until {@code nextToken} is {@literal null}.
      *
      * @param indexId index id as returned by {@code resolveIndex}
      * @param keys index key values
      * @param maxSplitCount maximum number of splits if this method returns splits
      * @param rowsMaxBytes maximum size of data if this method returns data
-     * @param continuationToken continuation token or {@literal null} if it's the first call
+     * @param nextToken token from a previous call result or {@literal null} if it's the first call
      * @return either a batch of splits or a batch of data
      */
     @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
@@ -152,7 +152,7 @@ public interface ThriftPrestoClient
             ThriftRowsBatch keys,
             int maxSplitCount,
             long rowsMaxBytes,
-            @Nullable byte[] continuationToken);
+            @Nullable byte[] nextToken);
 
     @Override
     void close();

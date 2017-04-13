@@ -149,12 +149,12 @@ public class ThriftIndexPageSource
     {
         private final AtomicReference<Iterator<ThriftSplit>> splitIterator;
         private final AtomicReference<ThriftSplit> currentSplit = new AtomicReference<>(null);
-        private final AtomicReference<byte[]> splitsContinuationToken;
+        private final AtomicReference<byte[]> splitsNextToken;
 
         public SplitBasedState(ThriftSplitBatch splits)
         {
             splitIterator = new AtomicReference<>(splits.getSplits().iterator());
-            splitsContinuationToken = new AtomicReference<>(splits.getNextToken());
+            splitsNextToken = new AtomicReference<>(splits.getNextToken());
         }
 
         @Override
@@ -170,10 +170,10 @@ public class ThriftIndexPageSource
             }
             else {
                 // current split batch is empty
-                if (splitsContinuationToken.get() != null) {
+                if (splitsNextToken.get() != null) {
                     // send request for a new split batch
                     return transformAsync(
-                            client.get().getRowsOrSplitsForIndex(indexId, keys, maxSplitsPerBatch, 0, splitsContinuationToken.get()),
+                            client.get().getRowsOrSplitsForIndex(indexId, keys, maxSplitsPerBatch, 0, splitsNextToken.get()),
                             splitsOrRows -> processSplitBatch(splitsOrRows, maxBytes));
                 }
                 else {
@@ -189,7 +189,7 @@ public class ThriftIndexPageSource
             checkState(splitsOrRows.getSplits() != null, "splits must be present");
             ThriftSplitBatch splitBatch = splitsOrRows.getSplits();
             splitIterator.set(splitBatch.getSplits().iterator());
-            splitsContinuationToken.set(splitBatch.getNextToken());
+            splitsNextToken.set(splitBatch.getNextToken());
             if (splitBatch.getSplits().isEmpty()) {
                 return immediateFuture(ThriftRowsBatch.empty());
             }
@@ -213,7 +213,7 @@ public class ThriftIndexPageSource
         @Override
         public boolean canGetMoreData(byte[] nextToken)
         {
-            return nextToken != null || splitIterator.get().hasNext() || splitsContinuationToken.get() != null;
+            return nextToken != null || splitIterator.get().hasNext() || splitsNextToken.get() != null;
         }
     }
 }

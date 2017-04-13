@@ -142,16 +142,16 @@ public class RetryingPrestoClientProvider
                 ThriftConnectorSession session,
                 ThriftTableLayout layout,
                 int maxSplitCount,
-                @Nullable byte[] continuationToken)
+                @Nullable byte[] nextToken)
         {
             return retry.run("getSplits",
-                    () -> getClient().getSplits(session, layout, maxSplitCount, continuationToken));
+                    () -> getClient().getSplits(session, layout, maxSplitCount, nextToken));
         }
 
         @Override
-        public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] continuationToken)
+        public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
         {
-            return retry.run("getRows", () -> getClient().getRows(splitId, maxBytes, continuationToken));
+            return retry.run("getRows", () -> getClient().getRows(splitId, maxBytes, nextToken));
         }
 
         @Override
@@ -172,10 +172,10 @@ public class RetryingPrestoClientProvider
                 ThriftRowsBatch keys,
                 int maxSplitCount,
                 long rowsMaxBytes,
-                @Nullable byte[] continuationToken)
+                @Nullable byte[] nextToken)
         {
             return retry.run("getRowsOrSplitsForIndex",
-                    () -> getClient().getRowsOrSplitsForIndex(indexId, keys, maxSplitCount, rowsMaxBytes, continuationToken));
+                    () -> getClient().getRowsOrSplitsForIndex(indexId, keys, maxSplitCount, rowsMaxBytes, nextToken));
         }
 
         @Override

@@ -76,7 +76,7 @@ public class ThriftSplitManager
         // the code assumes getNextBatch is called by a single thread
 
         private final AtomicBoolean hasMoreData;
-        private final AtomicReference<byte[]> continuationToken;
+        private final AtomicReference<byte[]> nextToken;
         private final AtomicReference<Future<?>> future;
 
         public ThriftSplitSource(
@@ -87,7 +87,7 @@ public class ThriftSplitManager
             this.client = requireNonNull(client, "client is null");
             this.session = requireNonNull(session, "session is null");
             this.layout = requireNonNull(layout, "layout is null");
-            this.continuationToken = new AtomicReference<>(null);
+            this.nextToken = new AtomicReference<>(null);
             this.hasMoreData = new AtomicBoolean(true);
             this.future = new AtomicReference<>(null);
         }
@@ -97,8 +97,8 @@ public class ThriftSplitManager
         {
             checkState(future.get() == null || future.get().isDone(), "previous batch not completed");
             checkState(hasMoreData.get(), "this method should not be called when there's no more data");
-            byte[] currentContinuationToken = continuationToken.get();
-            ListenableFuture<ThriftSplitBatch> splitsFuture = client.getSplits(session, layout, maxSize, currentContinuationToken);
+            byte[] currentToken = nextToken.get();
+            ListenableFuture<ThriftSplitBatch> splitsFuture = client.getSplits(session, layout, maxSize, currentToken);
             ListenableFuture<List<ConnectorSplit>> resultFuture = Futures.transform(
                     splitsFuture,
                     batch -> {
@@ -106,8 +106,8 @@ public class ThriftSplitManager
                         List<ConnectorSplit> splits = batch.getSplits().stream()
                                 .map(ThriftSplitSource::thriftSplitToConnectorSplit)
                                 .collect(toList());
-                        checkState(continuationToken.compareAndSet(currentContinuationToken, batch.getNextToken()));
-                        checkState(hasMoreData.compareAndSet(true, continuationToken.get() != null));
+                        checkState(nextToken.compareAndSet(currentToken, batch.getNextToken()));
+                        checkState(hasMoreData.compareAndSet(true, nextToken.get() != null));
                         return splits;
                     });
             future.set(resultFuture);

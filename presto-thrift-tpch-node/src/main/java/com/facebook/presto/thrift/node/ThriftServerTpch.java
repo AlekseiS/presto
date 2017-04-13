@@ -188,21 +188,21 @@ public class ThriftServerTpch
             ThriftConnectorSession session,
             ThriftTableLayout layout,
             int maxSplitCount,
-            @Nullable byte[] continuationToken)
+            @Nullable byte[] nextToken)
     {
-        return splitsExecutor.submit(() -> getSplitsInternal(session, layout, maxSplitCount, continuationToken));
+        return splitsExecutor.submit(() -> getSplitsInternal(session, layout, maxSplitCount, nextToken));
     }
 
     private ThriftSplitBatch getSplitsInternal(
             ThriftConnectorSession session,
             ThriftTableLayout layout,
             int maxSplitCount,
-            @Nullable byte[] continuationToken)
+            @Nullable byte[] nextToken)
     {
         LayoutInfo layoutInfo = deserialize(layout.getLayoutId(), LayoutInfo.class);
         int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
         // last sent part
-        int partNumber = continuationToken == null ? 0 : Ints.fromByteArray(continuationToken);
+        int partNumber = nextToken == null ? 0 : Ints.fromByteArray(nextToken);
         int numberOfSplits = min(maxSplitCount, totalParts - partNumber);
 
         List<ThriftSplit> splits = new ArrayList<>(numberOfSplits);
@@ -217,14 +217,14 @@ public class ThriftServerTpch
             splits.add(new ThriftSplit(splitId, ImmutableList.of()));
             partNumber++;
         }
-        byte[] nextToken = partNumber < totalParts ? Ints.toByteArray(partNumber) : null;
-        return new ThriftSplitBatch(splits, nextToken);
+        byte[] newNextToken = partNumber < totalParts ? Ints.toByteArray(partNumber) : null;
+        return new ThriftSplitBatch(splits, newNextToken);
     }
 
     @Override
-    public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] continuationToken)
+    public ListenableFuture<ThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
     {
-        return dataExecutor.submit(() -> getRowsInternal(splitId, maxBytes, continuationToken));
+        return dataExecutor.submit(() -> getRowsInternal(splitId, maxBytes, nextToken));
     }
 
     @Override
@@ -256,9 +256,9 @@ public class ThriftServerTpch
             ThriftRowsBatch keys,
             int maxSplitCount,
             long rowsMaxBytes,
-            @Nullable byte[] continuationToken)
+            @Nullable byte[] nextToken)
     {
-        return indexDataExecutor.submit(() -> getRowsForIndexInternal(indexId, keys, rowsMaxBytes, continuationToken));
+        return indexDataExecutor.submit(() -> getRowsForIndexInternal(indexId, keys, rowsMaxBytes, nextToken));
     }
 
     @PreDestroy
@@ -274,7 +274,7 @@ public class ThriftServerTpch
             byte[] indexId,
             ThriftRowsBatch keys,
             long rowsMaxBytes,
-            @Nullable byte[] continuationToken)
+            @Nullable byte[] nextToken)
     {
         IndexInfo indexInfo = deserialize(indexId, IndexInfo.class);
         Optional<TpchIndexedData.IndexedTable> indexedTableOptional = indexedData.getIndexedTable(
@@ -295,10 +295,10 @@ public class ThriftServerTpch
                         outputRecordSet.cursor(),
                         indexInfo.getOutputColumnNames(),
                         estimateRecords(rowsMaxBytes, outputRecordSet.getColumnTypes()),
-                        continuationToken));
+                        nextToken));
     }
 
-    private ThriftRowsBatch getRowsInternal(byte[] splitId, long maxBytes, @Nullable byte[] continuationToken)
+    private ThriftRowsBatch getRowsInternal(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
     {
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
         List<String> columnNames = splitInfo.getColumnNames();
@@ -307,7 +307,7 @@ public class ThriftServerTpch
                 cursor,
                 columnNames,
                 estimateRecords(maxBytes, types(splitInfo.getTableName(), splitInfo.getColumnNames())),
-                continuationToken);
+                nextToken);
     }
 
     private static int estimateRecords(long maxBytes, List<Type> types)
@@ -342,9 +342,9 @@ public class ThriftServerTpch
             RecordCursor cursor,
             List<String> columnNames,
             int maxRowCount,
-            @Nullable byte[] continuationToken)
+            @Nullable byte[] nextToken)
     {
-        long skip = continuationToken != null ? Longs.fromByteArray(continuationToken) : 0;
+        long skip = nextToken != null ? Longs.fromByteArray(nextToken) : 0;
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
         skipRows(cursor, skip);
         int numColumns = columnNames.size();
