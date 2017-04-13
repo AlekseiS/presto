@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static com.facebook.presto.spi.predicate.TupleDomain.withColumnDomains;
 import static com.facebook.presto.thrift.interfaces.client.ThriftDomain.fromDomain;
 import static com.facebook.presto.thrift.interfaces.client.ThriftDomain.toDomain;
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -141,6 +142,6 @@ public final class ThriftColumnHandle
             Domain domain = toDomain(kv.getValue(), handle.getColumnType());
             tupleDomains.put(handle, domain);
         }
-        return TupleDomain.withColumnDomains(tupleDomains);
+        return withColumnDomains(tupleDomains);
     }
 }

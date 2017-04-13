@@ -30,7 +30,7 @@ final class ByteColumnReader
     private static void checkConsistency(boolean[] nulls, byte[] bytes, int totalRecords)
     {
         checkArgument(totalRecords == 0 || nulls != null || bytes != null, "nulls array or values array must be present");
-        checkArgument(nulls == null || nulls.length == totalRecords, "nulls must be null or of the expected size");
+        checkArgument(nulls == null || nulls.length == totalRecords, "nulls array must be null or of the expected size");
         checkArgument(bytes == null || bytes.length == totalRecords, "bytes must be null or of the expected size");
     }
 

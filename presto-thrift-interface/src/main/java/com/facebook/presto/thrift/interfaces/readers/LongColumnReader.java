@@ -30,7 +30,7 @@ final class LongColumnReader
     private static void checkConsistency(boolean[] nulls, long[] longs, int totalRecords)
     {
         checkArgument(totalRecords == 0 || nulls != null || longs != null, "nulls array or values array must be present");
-        checkArgument(nulls == null || nulls.length == totalRecords, "nulls must be null or of the expected size");
+        checkArgument(nulls == null || nulls.length == totalRecords, "nulls array must be null or of the expected size");
         checkArgument(longs == null || longs.length == totalRecords, "longs must be null or of the expected size");
     }
 

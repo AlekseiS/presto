@@ -22,13 +22,13 @@ public final class ThriftServiceException
         extends RuntimeException
 {
     private final String message;
-    private final boolean retryPossible;
+    private final boolean retryable;
 
     @ThriftConstructor
-    public ThriftServiceException(String message, boolean retryPossible)
+    public ThriftServiceException(String message, boolean retryable)
     {
         this.message = message;
-        this.retryPossible = retryPossible;
+        this.retryable = retryable;
     }
 
     @Override
@@ -39,8 +39,8 @@ public final class ThriftServiceException
     }
 
     @ThriftField(2)
-    public boolean isRetryPossible()
+    public boolean isRetryable()
     {
-        return retryPossible;
+        return retryable;
     }
 }

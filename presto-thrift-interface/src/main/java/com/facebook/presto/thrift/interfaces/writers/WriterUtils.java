@@ -15,8 +15,12 @@ package com.facebook.presto.thrift.interfaces.writers;
 
 import java.util.Arrays;
 
+import static com.google.common.base.Preconditions.checkArgument;
+
 public final class WriterUtils
 {
+    private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
+
     private WriterUtils()
     {
     }
@@ -29,6 +33,7 @@ public final class WriterUtils
         if (booleans.length == expectedLength) {
             return booleans;
         }
+        checkArgument(expectedLength < booleans.length, "expectedLength is greater than the size of an array");
         return Arrays.copyOf(booleans, expectedLength);
     }
 
@@ -40,6 +45,7 @@ public final class WriterUtils
         if (bytes.length == expectedLength) {
             return bytes;
         }
+        checkArgument(expectedLength < bytes.length, "expectedLength is greater than the size of an array");
         return Arrays.copyOf(bytes, expectedLength);
     }
 
@@ -51,6 +57,7 @@ public final class WriterUtils
         if (ints.length == expectedLength) {
             return ints;
         }
+        checkArgument(expectedLength < ints.length, "expectedLength is greater than the size of an array");
         return Arrays.copyOf(ints, expectedLength);
     }
 
@@ -62,6 +69,7 @@ public final class WriterUtils
         if (longs.length == expectedLength) {
             return longs;
         }
+        checkArgument(expectedLength < longs.length, "expectedLength is greater than the size of an array");
         return Arrays.copyOf(longs, expectedLength);
     }
 
@@ -73,6 +81,17 @@ public final class WriterUtils
         if (doubles.length == expectedLength) {
             return doubles;
         }
+        checkArgument(expectedLength < doubles.length, "expectedLength is greater than the size of an array");
         return Arrays.copyOf(doubles, expectedLength);
+    }
+
+    public static int doubleCapacityChecked(int position)
+    {
+        if (position >= MAX_ARRAY_SIZE) {
+            throw new IllegalStateException("Cannot allocate an array larger than " + MAX_ARRAY_SIZE + " bytes");
+        }
+        else {
+            return position >= MAX_ARRAY_SIZE / 2 ? MAX_ARRAY_SIZE : 2 * position;
+        }
     }
 }

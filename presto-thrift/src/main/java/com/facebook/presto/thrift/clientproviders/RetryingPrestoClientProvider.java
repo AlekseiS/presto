@@ -57,7 +57,7 @@ public class RetryingPrestoClientProvider
         this.original = requireNonNull(original, "original is null");
         retry = RetryDriver.retry()
                 .maxAttempts(5)
-                .stopRetryingWhen(e -> e instanceof ThriftServiceException && !((ThriftServiceException) e).isRetryPossible())
+                .stopRetryingWhen(e -> e instanceof ThriftServiceException && !((ThriftServiceException) e).isRetryable())
                 .exponentialBackoff(
                         new Duration(10, TimeUnit.MILLISECONDS),
                         new Duration(20, TimeUnit.MILLISECONDS),

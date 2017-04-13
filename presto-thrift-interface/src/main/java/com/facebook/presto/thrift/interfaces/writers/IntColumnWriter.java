@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.doubleCapacityChecked;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -31,14 +32,14 @@ public class IntColumnWriter
     private final String columnName;
     private boolean[] nulls;
     private int[] ints;
-    private int idx;
+    private int index;
     private boolean hasNulls;
     private boolean hasData;
 
     public IntColumnWriter(String columnName, int initialCapacity)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
-        checkArgument(initialCapacity > 0, "initialCapacity is <=0");
+        checkArgument(initialCapacity > 0, "initialCapacity is negative or zero");
         this.nulls = new boolean[initialCapacity];
         this.ints = new int[initialCapacity];
     }
@@ -67,31 +68,31 @@ public class IntColumnWriter
 
     private void appendNull()
     {
-        if (idx >= nulls.length) {
-            nulls = Arrays.copyOf(nulls, 2 * idx);
+        if (index >= nulls.length) {
+            nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
         }
-        nulls[idx] = true;
+        nulls[index] = true;
         hasNulls = true;
-        idx++;
+        index++;
     }
 
     private void appendValue(int value)
     {
-        if (idx >= ints.length) {
-            ints = Arrays.copyOf(ints, 2 * idx);
+        if (index >= ints.length) {
+            ints = Arrays.copyOf(ints, doubleCapacityChecked(index));
         }
-        ints[idx] = value;
+        ints[index] = value;
         hasData = true;
-        idx++;
+        index++;
     }
 
     @Override
     public List<ThriftColumnData> getResult()
     {
         return ImmutableList.of(new ThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, idx),
+                WriterUtils.trim(nulls, hasNulls, index),
                 null,
-                WriterUtils.trim(ints, hasData, idx),
+                WriterUtils.trim(ints, hasData, index),
                 null,
                 null,
                 columnName));

@@ -43,9 +43,9 @@ public interface ThriftPrestoClient
     List<ThriftPropertyMetadata> listSessionProperties();
 
     /**
-     * Returns supported schema names.
+     * Returns available schema names.
      *
-     * @return supported schema names.
+     * @return available schema names
      */
     @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     List<String> listSchemaNames();
@@ -64,7 +64,7 @@ public interface ThriftPrestoClient
      * Returns metadata for a given table.
      *
      * @param schemaTableName schema and table name
-     * @return metadata for a given table. If a table doesn't exist then the result should return null value inside.
+     * @return metadata for a given table, or a {@literal null} value inside if it doesn't exist
      */
     @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ThriftNullableTableMetadata getTableMetadata(ThriftSchemaTableName schemaTableName);
@@ -103,7 +103,7 @@ public interface ThriftPrestoClient
             @Nullable byte[] continuationToken);
 
     /**
-     * Returns a batch of table data for the given split.
+     * Returns a batch of rows for the given split.
      *
      * @param splitId split id as returned in split batch
      * @param maxBytes maximum size of returned data in bytes
@@ -144,7 +144,7 @@ public interface ThriftPrestoClient
      * @param maxSplitCount maximum number of splits if this method returns splits
      * @param rowsMaxBytes maximum size of data if this method returns data
      * @param continuationToken continuation token or {@literal null} if it's the first call
-     * @return exactly one of a batch of splits or a batch of data
+     * @return either a batch of splits or a batch of data
      */
     @ThriftMethod(exception = @ThriftException(type = ThriftServiceException.class, id = 1))
     ListenableFuture<ThriftSplitsOrRows> getRowsOrSplitsForIndex(

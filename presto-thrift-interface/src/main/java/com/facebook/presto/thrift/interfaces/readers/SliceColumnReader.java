@@ -32,7 +32,7 @@ final class SliceColumnReader
     private static void checkConsistency(boolean[] nulls, byte[] bytes, int[] sizes, int totalRecords)
     {
         checkArgument(totalRecords == 0 || nulls != null || bytes != null, "nulls array or values array must be present");
-        checkArgument(nulls == null || nulls.length == totalRecords, "nulls must be null or of the expected size");
+        checkArgument(nulls == null || nulls.length == totalRecords, "nulls array must be null or of the expected size");
         checkArgument(sizes == null || sizes.length == totalRecords, "sizes must be null or of the expected size");
         checkArgument(sizes == null || bytes != null, "bytes must be present when sizes is present");
     }

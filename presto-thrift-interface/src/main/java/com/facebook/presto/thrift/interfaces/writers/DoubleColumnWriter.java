@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.doubleCapacityChecked;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -31,14 +32,14 @@ public class DoubleColumnWriter
     private final String columnName;
     private boolean[] nulls;
     private double[] doubles;
-    private int idx;
+    private int index;
     private boolean hasNulls;
     private boolean hasData;
 
     public DoubleColumnWriter(String columnName, int initialCapacity)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
-        checkArgument(initialCapacity > 0, "initialCapacity is <=0");
+        checkArgument(initialCapacity > 0, "initialCapacity is negative or zero");
         this.nulls = new boolean[initialCapacity];
         this.doubles = new double[initialCapacity];
     }
@@ -67,33 +68,33 @@ public class DoubleColumnWriter
 
     private void appendNull()
     {
-        if (idx >= nulls.length) {
-            nulls = Arrays.copyOf(nulls, 2 * idx);
+        if (index >= nulls.length) {
+            nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
         }
-        nulls[idx] = true;
+        nulls[index] = true;
         hasNulls = true;
-        idx++;
+        index++;
     }
 
     private void appendValue(double value)
     {
-        if (idx >= doubles.length) {
-            doubles = Arrays.copyOf(doubles, 2 * idx);
+        if (index >= doubles.length) {
+            doubles = Arrays.copyOf(doubles, doubleCapacityChecked(index));
         }
-        doubles[idx] = value;
+        doubles[index] = value;
         hasData = true;
-        idx++;
+        index++;
     }
 
     @Override
     public List<ThriftColumnData> getResult()
     {
         return ImmutableList.of(new ThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, idx),
+                WriterUtils.trim(nulls, hasNulls, index),
                 null,
                 null,
                 null,
-                WriterUtils.trim(doubles, hasData, idx),
+                WriterUtils.trim(doubles, hasData, index),
                 columnName));
     }
 }

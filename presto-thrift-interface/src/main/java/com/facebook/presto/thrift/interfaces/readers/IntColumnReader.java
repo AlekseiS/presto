@@ -31,7 +31,7 @@ final class IntColumnReader
     private static void checkConsistency(boolean[] nulls, int[] ints, int totalRecords)
     {
         checkArgument(totalRecords == 0 || nulls != null || ints != null, "nulls array or values array must be present");
-        checkArgument(nulls == null || nulls.length == totalRecords, "nulls must be null or of the expected size");
+        checkArgument(nulls == null || nulls.length == totalRecords, "nulls array must be null or of the expected size");
         checkArgument(ints == null || ints.length == totalRecords, "ints must be null or of the expected size");
     }
 

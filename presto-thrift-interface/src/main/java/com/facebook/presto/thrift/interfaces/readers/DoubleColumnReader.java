@@ -31,7 +31,7 @@ final class DoubleColumnReader
     private static void checkConsistency(boolean[] nulls, double[] doubles, int totalRecords)
     {
         checkArgument(totalRecords == 0 || nulls != null || doubles != null, "nulls array or values array must be present");
-        checkArgument(nulls == null || nulls.length == totalRecords, "nulls must be null or of the expected size");
+        checkArgument(nulls == null || nulls.length == totalRecords, "nulls array must be null or of the expected size");
         checkArgument(doubles == null || doubles.length == totalRecords, "doubles must be null or of the expected size");
     }
 

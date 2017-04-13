@@ -22,6 +22,7 @@ import com.google.common.collect.ImmutableList;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.doubleCapacityChecked;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -31,14 +32,14 @@ public class LongColumnWriter
     private final String columnName;
     private boolean[] nulls;
     private long[] longs;
-    private int idx;
+    private int index;
     private boolean hasNulls;
     private boolean hasData;
 
     public LongColumnWriter(String columnName, int initialCapacity)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
-        checkArgument(initialCapacity > 0, "initialCapacity is <=0");
+        checkArgument(initialCapacity > 0, "initialCapacity is negative or zero");
         this.nulls = new boolean[initialCapacity];
         this.longs = new long[initialCapacity];
     }
@@ -67,30 +68,30 @@ public class LongColumnWriter
 
     private void appendNull()
     {
-        if (idx >= nulls.length) {
-            nulls = Arrays.copyOf(nulls, 2 * idx);
+        if (index >= nulls.length) {
+            nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
         }
-        nulls[idx] = true;
+        nulls[index] = true;
         hasNulls = true;
-        idx++;
+        index++;
     }
 
     private void appendValue(long value)
     {
-        if (idx >= longs.length) {
-            longs = Arrays.copyOf(longs, 2 * idx);
+        if (index >= longs.length) {
+            longs = Arrays.copyOf(longs, doubleCapacityChecked(index));
         }
-        longs[idx] = value;
+        longs[index] = value;
         hasData = true;
-        idx++;
+        index++;
     }
 
     @Override
     public List<ThriftColumnData> getResult()
     {
         return ImmutableList.of(new ThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, idx),
-                WriterUtils.trim(longs, hasData, idx),
+                WriterUtils.trim(nulls, hasNulls, index),
+                WriterUtils.trim(longs, hasData, index),
                 null,
                 null,
                 null,

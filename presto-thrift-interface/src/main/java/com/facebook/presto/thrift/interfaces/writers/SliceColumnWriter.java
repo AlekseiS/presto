@@ -23,6 +23,7 @@ import io.airlift.slice.Slice;
 import java.util.Arrays;
 import java.util.List;
 
+import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.doubleCapacityChecked;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -33,7 +34,7 @@ public class SliceColumnWriter
     private boolean[] nulls;
     private byte[] bytes;
     private int[] sizes;
-    private int idx;
+    private int index;
     private int bytesIdx;
     private boolean hasNulls;
     private boolean hasData;
@@ -41,7 +42,7 @@ public class SliceColumnWriter
     public SliceColumnWriter(String columnName, int initialCapacity)
     {
         this.columnName = requireNonNull(columnName, "columnName is null");
-        checkArgument(initialCapacity > 0, "initialCapacity is <=0");
+        checkArgument(initialCapacity > 0, "initialCapacity is negative or zero");
         this.nulls = new boolean[initialCapacity];
         this.bytes = new byte[initialCapacity];
         this.sizes = new int[initialCapacity];
@@ -71,12 +72,12 @@ public class SliceColumnWriter
 
     private void appendNull()
     {
-        if (idx >= nulls.length) {
-            nulls = Arrays.copyOf(nulls, 2 * idx);
+        if (index >= nulls.length) {
+            nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
         }
-        nulls[idx] = true;
+        nulls[index] = true;
         hasNulls = true;
-        idx++;
+        index++;
     }
 
     private void appendSlice(Slice slice)
@@ -88,11 +89,11 @@ public class SliceColumnWriter
 
     private void appendSize(int value)
     {
-        if (idx >= sizes.length) {
-            sizes = Arrays.copyOf(sizes, 2 * idx);
+        if (index >= sizes.length) {
+            sizes = Arrays.copyOf(sizes, doubleCapacityChecked(index));
         }
-        sizes[idx] = value;
-        idx++;
+        sizes[index] = value;
+        index++;
     }
 
     private void appendBytes(Slice slice)
@@ -100,7 +101,7 @@ public class SliceColumnWriter
         int length = slice.length();
         int newBytesLength = bytesIdx + length;
         if (newBytesLength >= bytes.length) {
-            bytes = Arrays.copyOf(bytes, newBytesLength * 2);
+            bytes = Arrays.copyOf(bytes, doubleCapacityChecked(newBytesLength));
         }
         slice.getBytes(0, bytes, bytesIdx, length);
         bytesIdx += length;
@@ -110,9 +111,9 @@ public class SliceColumnWriter
     public List<ThriftColumnData> getResult()
     {
         return ImmutableList.of(new ThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, idx),
+                WriterUtils.trim(nulls, hasNulls, index),
                 null,
-                WriterUtils.trim(sizes, hasData, idx),
+                WriterUtils.trim(sizes, hasData, index),
                 WriterUtils.trim(bytes, hasData, bytesIdx),
                 null,
                 columnName));
