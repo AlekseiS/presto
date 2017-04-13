@@ -138,6 +138,11 @@ public interface ThriftPrestoClient
      * until split's {@code nextToken} is {@literal null}. Then the next call will be made to this method
      * to get the next batch of splits.
      * If this method returns a batch or rows then this method will continue to be called until {@code nextToken} is {@literal null}.
+     * <p>
+     * Having an opportunity to return either results or splits give implementer an opportunity to use the one best suited for one's goals.
+     * Returning data helps to avoid extra round-trips, especially in cases where results would fit in one batch.
+     * Returning splits allows to have control of what hosts are used to get data from
+     * as well as have an ability to divide the work into units as desired.
      *
      * @param indexId index id as returned by {@code resolveIndex}
      * @param keys index key values

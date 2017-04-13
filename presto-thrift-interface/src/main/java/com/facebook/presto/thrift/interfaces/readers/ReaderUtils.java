@@ -23,7 +23,7 @@ public final class ReaderUtils
     {
     }
 
-    public static ThriftColumnData columnByName(List<ThriftColumnData> columnsData, String columnName)
+    public static ThriftColumnData getColumnDataByName(List<ThriftColumnData> columnsData, String columnName)
     {
         for (ThriftColumnData columnData : columnsData) {
             if (columnName.equals(columnData.getColumnName())) {

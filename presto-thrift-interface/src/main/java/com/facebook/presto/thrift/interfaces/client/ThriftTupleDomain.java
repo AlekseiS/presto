@@ -34,6 +34,9 @@ public final class ThriftTupleDomain
         this.domains = domains;
     }
 
+    /**
+     * Return a map of column names to constraints.
+     */
     @Nullable
     @ThriftField(value = 1, requiredness = OPTIONAL)
     public Map<String, ThriftDomain> getDomains()

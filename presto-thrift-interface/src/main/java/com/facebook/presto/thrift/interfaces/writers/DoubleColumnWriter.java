@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.doubleCapacityChecked;
+import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.trim;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -90,11 +91,11 @@ public class DoubleColumnWriter
     public List<ThriftColumnData> getResult()
     {
         return ImmutableList.of(new ThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, index),
+                trim(nulls, hasNulls, index),
                 null,
                 null,
                 null,
-                WriterUtils.trim(doubles, hasData, index),
+                trim(doubles, hasData, index),
                 columnName));
     }
 }

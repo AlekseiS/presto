@@ -19,6 +19,7 @@ import com.facebook.presto.thrift.interfaces.client.ThriftColumnData;
 
 import java.util.List;
 
+import static com.facebook.presto.thrift.interfaces.readers.ReaderUtils.getColumnDataByName;
 import static com.google.common.base.Preconditions.checkArgument;
 
 final class ByteColumnReader
@@ -36,7 +37,7 @@ final class ByteColumnReader
 
     public static Block readBlock(List<ThriftColumnData> columnsData, String columnName, int totalRecords)
     {
-        ThriftColumnData columnData = ReaderUtils.columnByName(columnsData, columnName);
+        ThriftColumnData columnData = getColumnDataByName(columnsData, columnName);
         checkArgument(columnData.isOnlyNullsAndBytes(), "Remaining value containers must be null");
         boolean[] nulls = columnData.getNulls();
         byte[] bytes = columnData.getBytes();

@@ -21,6 +21,8 @@ import io.airlift.slice.Slices;
 
 import java.util.List;
 
+import static com.facebook.presto.thrift.interfaces.readers.ReaderUtils.calculateOffsets;
+import static com.facebook.presto.thrift.interfaces.readers.ReaderUtils.getColumnDataByName;
 import static com.google.common.base.Preconditions.checkArgument;
 
 final class SliceColumnReader
@@ -43,13 +45,13 @@ final class SliceColumnReader
         return new VariableWidthBlock(
                 totalRecords,
                 values,
-                ReaderUtils.calculateOffsets(sizes, nulls, totalRecords),
+                calculateOffsets(sizes, nulls, totalRecords),
                 nulls == null ? new boolean[totalRecords] : nulls);
     }
 
     public static Block readBlock(List<ThriftColumnData> columnsData, String columnName, int totalRecords)
     {
-        ThriftColumnData columnData = ReaderUtils.columnByName(columnsData, columnName);
+        ThriftColumnData columnData = getColumnDataByName(columnsData, columnName);
         checkArgument(columnData.isOnlyNullsIntsAndBytes(), "Remaining value containers must be null");
         boolean[] nulls = columnData.getNulls();
         byte[] bytes = columnData.getBytes();

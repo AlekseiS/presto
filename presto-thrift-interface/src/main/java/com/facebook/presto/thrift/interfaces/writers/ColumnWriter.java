@@ -26,6 +26,10 @@ public interface ColumnWriter
 
     void append(Block block, int position, Type type);
 
-    // a writer can return several columns when used with structural types, like array or map
+    /**
+     * Return column data structure with the written data.
+     * Note that a writer can return several columns when used with structural types, like array or map.
+     * This method is expected to be called exactly once per lifecycle of the writer.
+     */
     List<ThriftColumnData> getResult();
 }

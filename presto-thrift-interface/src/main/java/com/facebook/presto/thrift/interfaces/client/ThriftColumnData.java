@@ -27,9 +27,9 @@ public final class ThriftColumnData
 {
     private final boolean[] nulls;
     private final long[] longs;
-    private final double[] doubles;
-    private final byte[] bytes;
     private final int[] ints;
+    private final byte[] bytes;
+    private final double[] doubles;
     private final String columnName;
 
     @ThriftConstructor
@@ -43,9 +43,9 @@ public final class ThriftColumnData
     {
         this.nulls = nulls;
         this.longs = longs;
-        this.doubles = doubles;
-        this.bytes = bytes;
         this.ints = ints;
+        this.bytes = bytes;
+        this.doubles = doubles;
         this.columnName = requireNonNull(columnName, "columnName is null");
     }
 

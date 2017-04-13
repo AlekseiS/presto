@@ -19,6 +19,8 @@ import com.facebook.presto.thrift.interfaces.client.ThriftColumnData;
 
 import java.util.List;
 
+import static com.facebook.presto.thrift.interfaces.readers.ReaderUtils.calculateOffsets;
+import static com.facebook.presto.thrift.interfaces.readers.ReaderUtils.getColumnDataByName;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -37,7 +39,7 @@ final class IntColumnReader
 
     public static Block readBlock(List<ThriftColumnData> columnsData, String columnName, int totalRecords)
     {
-        ThriftColumnData columnData = ReaderUtils.columnByName(columnsData, columnName);
+        ThriftColumnData columnData = getColumnDataByName(columnsData, columnName);
         checkArgument(columnData.isOnlyNullsAndInts(), "Remaining value containers must be null");
         boolean[] nulls = columnData.getNulls();
         int[] ints = columnData.getInts();
@@ -50,14 +52,14 @@ final class IntColumnReader
 
     public static NullsAndOffsets readNullsAndOffsets(List<ThriftColumnData> columnsData, String columnName, int totalRecords)
     {
-        ThriftColumnData columnData = ReaderUtils.columnByName(columnsData, columnName);
+        ThriftColumnData columnData = getColumnDataByName(columnsData, columnName);
         checkArgument(columnData.isOnlyNullsAndInts(), "Remaining value containers must be null");
         boolean[] nulls = columnData.getNulls();
         int[] ints = columnData.getInts();
         checkConsistency(nulls, ints, totalRecords);
         return new NullsAndOffsets(
                 nulls == null ? new boolean[totalRecords] : nulls,
-                ReaderUtils.calculateOffsets(ints, nulls, totalRecords));
+                calculateOffsets(ints, nulls, totalRecords));
     }
 
     public static final class NullsAndOffsets

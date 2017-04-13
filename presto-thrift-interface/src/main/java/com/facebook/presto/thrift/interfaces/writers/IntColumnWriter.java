@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.doubleCapacityChecked;
+import static com.facebook.presto.thrift.interfaces.writers.WriterUtils.trim;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -90,9 +91,9 @@ public class IntColumnWriter
     public List<ThriftColumnData> getResult()
     {
         return ImmutableList.of(new ThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, index),
+                trim(nulls, hasNulls, index),
                 null,
-                WriterUtils.trim(ints, hasData, index),
+                trim(ints, hasData, index),
                 null,
                 null,
                 columnName));
