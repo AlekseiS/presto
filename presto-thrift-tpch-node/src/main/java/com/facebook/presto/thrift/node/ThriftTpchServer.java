@@ -90,7 +90,7 @@ public class ThriftTpchServer
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private static final int MAX_WRITERS_INITIAL_CAPACITY = 8192;
 
-    private final ObjectMapper mapper = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private final ListeningExecutorService splitsExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
     private final ListeningExecutorService dataExecutor =
@@ -193,7 +193,7 @@ public class ThriftTpchServer
         return splitsExecutor.submit(() -> getSplitsInternal(session, layout, maxSplitCount, nextToken));
     }
 
-    private ThriftSplitBatch getSplitsInternal(
+    private static ThriftSplitBatch getSplitsInternal(
             ThriftConnectorSession session,
             ThriftTableLayout layout,
             int maxSplitCount,
@@ -298,7 +298,7 @@ public class ThriftTpchServer
                         nextToken));
     }
 
-    private ThriftRowsBatch getRowsInternal(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
+    private static ThriftRowsBatch getRowsInternal(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
     {
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
         List<String> columnNames = splitInfo.getColumnNames();
@@ -440,20 +440,20 @@ public class ThriftTpchServer
         throw new IllegalArgumentException("Invalid schema name: " + schemaName);
     }
 
-    private byte[] serialize(Object value)
+    private static byte[] serialize(Object value)
     {
         try {
-            return mapper.writeValueAsBytes(value);
+            return OBJECT_MAPPER.writeValueAsBytes(value);
         }
         catch (JsonProcessingException e) {
             throw new RuntimeException(e);
         }
     }
 
-    private <T> T deserialize(byte[] value, Class<T> tClass)
+    private static <T> T deserialize(byte[] value, Class<T> tClass)
     {
         try {
-            return mapper.readValue(value, tClass);
+            return OBJECT_MAPPER.readValue(value, tClass);
         }
         catch (IOException e) {
             throw new RuntimeException(e);
