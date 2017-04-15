@@ -25,7 +25,7 @@ public class ThriftTpchNodeModule
     @Override
     public void configure(Binder binder)
     {
-        binder.bind(ThriftServerTpch.class).in(Scopes.SINGLETON);
-        thriftServerBinder(binder).exportThriftService(ThriftServerTpch.class);
+        binder.bind(ThriftTpchServer.class).in(Scopes.SINGLETON);
+        thriftServerBinder(binder).exportThriftService(ThriftTpchServer.class);
     }
 }

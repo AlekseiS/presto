@@ -82,7 +82,7 @@ import static java.lang.Math.toIntExact;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.stream.Collectors.toList;
 
-public class ThriftServerTpch
+public class ThriftTpchServer
         implements ThriftPrestoClient
 {
     private static final int DEFAULT_NUMBER_OF_SPLITS = 3;

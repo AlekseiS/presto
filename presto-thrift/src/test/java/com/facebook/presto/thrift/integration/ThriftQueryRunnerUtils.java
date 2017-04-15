@@ -19,7 +19,7 @@ import com.facebook.presto.testing.QueryRunner;
 import com.facebook.presto.tests.DistributedQueryRunner;
 import com.facebook.presto.thrift.ThriftPlugin;
 import com.facebook.presto.thrift.location.HostsList;
-import com.facebook.presto.thrift.node.ThriftServerTpch;
+import com.facebook.presto.thrift.node.ThriftTpchServer;
 import com.facebook.swift.codec.ThriftCodecManager;
 import com.facebook.swift.service.ThriftServer;
 import com.facebook.swift.service.ThriftServiceProcessor;
@@ -77,7 +77,7 @@ public final class ThriftQueryRunnerUtils
     {
         List<ThriftServer> servers = new ArrayList<>(nodes);
         for (int i = 0; i < nodes; i++) {
-            ThriftServiceProcessor processor = new ThriftServiceProcessor(new ThriftCodecManager(), ImmutableList.of(), new ThriftServerTpch());
+            ThriftServiceProcessor processor = new ThriftServiceProcessor(new ThriftCodecManager(), ImmutableList.of(), new ThriftTpchServer());
             servers.add(new ThriftServer(processor).start());
         }
         return servers;
