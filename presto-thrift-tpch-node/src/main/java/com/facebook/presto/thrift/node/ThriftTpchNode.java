@@ -32,11 +32,6 @@ public final class ThriftTpchNode
     private final List<Module> modules;
     private final List<Module> extraModules;
 
-    public ThriftTpchNode()
-    {
-        this(ImmutableList.of());
-    }
-
     public ThriftTpchNode(List<Module> extraModules)
     {
         this.extraModules = ImmutableList.copyOf(requireNonNull(extraModules, "extraModules is null"));
@@ -65,6 +60,6 @@ public final class ThriftTpchNode
 
     public static void main(String[] args)
     {
-        new ThriftTpchNode().run();
+        new ThriftTpchNode(ImmutableList.of()).run();
     }
 }

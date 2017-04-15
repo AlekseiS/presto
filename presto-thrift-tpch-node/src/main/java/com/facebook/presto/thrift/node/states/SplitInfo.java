@@ -15,6 +15,7 @@ package com.facebook.presto.thrift.node.states;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
@@ -40,7 +41,7 @@ public final class SplitInfo
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.partNumber = partNumber;
         this.totalParts = totalParts;
-        this.columnNames = requireNonNull(columnNames, "columnNames is null");
+        this.columnNames = ImmutableList.copyOf(requireNonNull(columnNames, "columnNames is null"));
     }
 
     @JsonProperty

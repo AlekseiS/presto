@@ -15,6 +15,8 @@ package com.facebook.presto.thrift.node.states;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 
 import java.util.List;
 import java.util.Set;
@@ -37,8 +39,8 @@ public final class IndexInfo
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
-        this.indexableColumnNames = requireNonNull(indexableColumnNames, "indexableColumnNames is null");
-        this.outputColumnNames = requireNonNull(outputColumnNames, "outputColumnNames is null");
+        this.indexableColumnNames = ImmutableSet.copyOf(requireNonNull(indexableColumnNames, "indexableColumnNames is null"));
+        this.outputColumnNames = ImmutableList.copyOf(requireNonNull(outputColumnNames, "outputColumnNames is null"));
     }
 
     @JsonProperty

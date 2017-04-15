@@ -149,13 +149,13 @@ public class ThriftTpchServer
         TpchTable<?> tpchTable = TpchTable.getTable(schemaTableName.getTableName());
         List<ThriftColumnMetadata> columns = new ArrayList<>();
         for (TpchColumn<? extends TpchEntity> column : tpchTable.getColumns()) {
-            columns.add(new ThriftColumnMetadata(column.getSimplifiedColumnName(), getThriftType(column.getType()), null, false));
+            columns.add(new ThriftColumnMetadata(column.getSimplifiedColumnName(), getTypeString(column.getType()), null, false));
         }
         columns.add(new ThriftColumnMetadata(ROW_NUMBER_COLUMN_NAME, "bigint", null, true));
         return new ThriftNullableTableMetadata(new ThriftTableMetadata(schemaTableName, columns));
     }
 
-    private static String getThriftType(TpchColumnType tpchType)
+    private static String getTypeString(TpchColumnType tpchType)
     {
         return TpchMetadata.getPrestoType(tpchType).getTypeSignature().toString();
     }
@@ -277,18 +277,15 @@ public class ThriftTpchServer
             @Nullable byte[] nextToken)
     {
         IndexInfo indexInfo = deserialize(indexId, IndexInfo.class);
-        Optional<TpchIndexedData.IndexedTable> indexedTableOptional = indexedData.getIndexedTable(
+        TpchIndexedData.IndexedTable indexedTable = indexedData.getIndexedTable(
                 indexInfo.getTableName(),
                 schemaNameToScaleFactor(indexInfo.getSchemaName()),
-                indexInfo.getIndexableColumnNames());
-        checkState(indexedTableOptional.isPresent(), "index is not present");
-        TpchIndexedData.IndexedTable table = indexedTableOptional.get();
-        List<Type> keyTypes = types(indexInfo.getTableName(), table.getKeyColumns());
-        Page keysPage = convertToPage(keys, table.getKeyColumns(), keyTypes);
-        RecordSet keyRecordSet = new PageRecordSet(keyTypes, keysPage);
-        RecordSet allColumnsOutputRecordSet = table.lookupKeys(keyRecordSet);
-        List<Integer> outputRemap = computeRemap(table.getOutputColumns(), indexInfo.getOutputColumnNames());
-        RecordSet outputRecordSet = new MappedRecordSet(allColumnsOutputRecordSet, outputRemap);
+                indexInfo.getIndexableColumnNames())
+                .orElseThrow(() -> new IllegalArgumentException("Index is not present"));
+
+        RecordSet keyRecordSet = batchToRecordSet(keys, indexInfo.getTableName(), indexedTable.getKeyColumns());
+        RecordSet outputRecordSet = lookupIndexKeys(keyRecordSet, indexedTable, indexInfo.getOutputColumnNames());
+
         return new ThriftSplitsOrRows(
                 null,
                 cursorToRowsBatch(
@@ -296,6 +293,26 @@ public class ThriftTpchServer
                         indexInfo.getOutputColumnNames(),
                         estimateRecords(rowsMaxBytes, outputRecordSet.getColumnTypes()),
                         nextToken));
+    }
+
+    /**
+     * Convert a batch of index keys to record set which can be passed to index lookup.
+     */
+    private static RecordSet batchToRecordSet(ThriftRowsBatch keys, String tableName, List<String> keyColumns)
+    {
+        List<Type> keyTypes = types(tableName, keyColumns);
+        Page keysPage = convertToPage(keys, keyColumns, keyTypes);
+        return new PageRecordSet(keyTypes, keysPage);
+    }
+
+    /**
+     * Get lookup result and re-map output columns based on requested order.
+     */
+    private static RecordSet lookupIndexKeys(RecordSet keys, TpchIndexedData.IndexedTable table, List<String> outputColumnNames)
+    {
+        RecordSet allColumnsOutputRecordSet = table.lookupKeys(keys);
+        List<Integer> outputRemap = computeRemap(table.getOutputColumns(), outputColumnNames);
+        return new MappedRecordSet(allColumnsOutputRecordSet, outputRemap);
     }
 
     private static ThriftRowsBatch getRowsInternal(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
@@ -348,24 +365,30 @@ public class ThriftTpchServer
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
         skipRows(cursor, skip);
         int numColumns = columnNames.size();
+
+        // create and initialize writers
         List<ColumnWriter> writers = new ArrayList<>(numColumns);
         for (int i = 0; i < numColumns; i++) {
             writers.add(ColumnWriters.create(columnNames.get(i), cursor.getType(i), min(maxRowCount, MAX_WRITERS_INITIAL_CAPACITY)));
         }
+
+        // iterate over the cursor and append data to writers
         boolean hasNext = cursor.advanceNextPosition();
-        int rowIdx;
-        for (rowIdx = 0; rowIdx < maxRowCount && hasNext; rowIdx++) {
+        int position;
+        for (position = 0; position < maxRowCount && hasNext; position++) {
             for (int columnIdx = 0; columnIdx < numColumns; columnIdx++) {
                 writers.get(columnIdx).append(cursor, columnIdx);
             }
             hasNext = cursor.advanceNextPosition();
         }
+
+        // populate the final thrift result from writers
         List<ThriftColumnData> result = new ArrayList<>(numColumns);
         for (ColumnWriter writer : writers) {
             result.addAll(writer.getResult());
         }
 
-        return new ThriftRowsBatch(result, rowIdx, hasNext ? Longs.toByteArray(skip + rowIdx) : null);
+        return new ThriftRowsBatch(result, position, hasNext ? Longs.toByteArray(skip + position) : null);
     }
 
     private static void skipRows(RecordCursor cursor, long numberOfRows)
@@ -414,8 +437,9 @@ public class ThriftTpchServer
                 return createCursor(TpchTable.REGION, columnNames, splitInfo);
             case "part":
                 return createCursor(TpchTable.PART, columnNames, splitInfo);
+            default:
+                throw new IllegalArgumentException("Table not setup: " + splitInfo.getTableName());
         }
-        throw new IllegalArgumentException("Table not setup: " + splitInfo.getTableName());
     }
 
     private static <T extends TpchEntity> RecordCursor createCursor(TpchTable<T> table, List<String> columnNames, SplitInfo splitInfo)
