@@ -25,7 +25,8 @@ public final class SplitInfo
 {
     private final String schemaName;
     private final String tableName;
-    private final int partNumber;
+    private final int startPartNumber;
+    private final int endPartNumber;
     private final int totalParts;
     private final List<String> columnNames;
 
@@ -33,13 +34,15 @@ public final class SplitInfo
     public SplitInfo(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
-            @JsonProperty("partNumber") int partNumber,
+            @JsonProperty("startPartNumber") int startPartNumber,
+            @JsonProperty("endPartNumber") int endPartNumber,
             @JsonProperty("totalParts") int totalParts,
             @JsonProperty("columnNames") List<String> columnNames)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
-        this.partNumber = partNumber;
+        this.startPartNumber = startPartNumber;
+        this.endPartNumber = endPartNumber;
         this.totalParts = totalParts;
         this.columnNames = ImmutableList.copyOf(requireNonNull(columnNames, "columnNames is null"));
     }
@@ -57,9 +60,15 @@ public final class SplitInfo
     }
 
     @JsonProperty
-    public int getPartNumber()
+    public int getStartPartNumber()
     {
-        return partNumber;
+        return startPartNumber;
+    }
+
+    @JsonProperty
+    public int getEndPartNumber()
+    {
+        return endPartNumber;
     }
 
     @JsonProperty

@@ -45,15 +45,19 @@ import com.facebook.presto.thrift.interfaces.writers.ColumnWriters;
 import com.facebook.presto.thrift.node.states.IndexInfo;
 import com.facebook.presto.thrift.node.states.LayoutInfo;
 import com.facebook.presto.thrift.node.states.SplitInfo;
+import com.facebook.presto.thrift.node.states.SplitsToken;
 import com.facebook.presto.tpch.TpchMetadata;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
+import io.airlift.tpch.CustomerGenerator;
+import io.airlift.tpch.Distributions;
+import io.airlift.tpch.OrderGenerator;
+import io.airlift.tpch.PartGenerator;
 import io.airlift.tpch.TpchColumn;
 import io.airlift.tpch.TpchColumnType;
 import io.airlift.tpch.TpchEntity;
@@ -74,6 +78,7 @@ import static com.facebook.presto.thrift.interfaces.readers.ColumnReaders.conver
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
 import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
 import static io.airlift.concurrent.Threads.threadsNamed;
@@ -89,6 +94,7 @@ public class ThriftTpchServer
     private static final String NUMBER_OF_SPLITS_PARAMETER = "splits";
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private static final int MAX_WRITERS_INITIAL_CAPACITY = 8192;
+    private static final long BYTES_PER_PART = 2L * 1024L * 1024L;
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private final ListeningExecutorService splitsExecutor =
@@ -200,24 +206,42 @@ public class ThriftTpchServer
             @Nullable byte[] nextToken)
     {
         LayoutInfo layoutInfo = deserialize(layout.getLayoutId(), LayoutInfo.class);
-        int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
-        // last sent part
-        int partNumber = nextToken == null ? 0 : Ints.fromByteArray(nextToken);
-        int numberOfSplits = min(maxSplitCount, totalParts - partNumber);
+        int nextPart;
+        final int partsPerSplit;
+        final int totalParts;
+        if (nextToken == null) {
+            int totalSplits = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
+            int recordsPerPart = estimateRecords(BYTES_PER_PART, types(layoutInfo.getTableName(), layoutInfo.getColumnNames()));
+            int totalRecords = totalRecords(layoutInfo.getSchemaName(), layoutInfo.getTableName());
+            partsPerSplit = totalRecords / totalSplits / recordsPerPart + 1;
+            nextPart = 1;
+            totalParts = totalSplits * partsPerSplit;
+        }
+        else {
+            SplitsToken token = deserialize(nextToken, SplitsToken.class);
+            partsPerSplit = token.getPartsPerSplit();
+            nextPart = token.getNextPart();
+            totalParts = token.getTotalParts();
+        }
 
+        int remainingSplits = (totalParts - nextPart + 1) / partsPerSplit;
+        int numberOfSplits = min(maxSplitCount, remainingSplits);
         List<ThriftSplit> splits = new ArrayList<>(numberOfSplits);
         for (int i = 0; i < numberOfSplits; i++) {
             SplitInfo splitInfo = new SplitInfo(
                     layoutInfo.getSchemaName(),
                     layoutInfo.getTableName(),
-                    partNumber + 1,
+                    nextPart,
+                    nextPart + partsPerSplit - 1,
                     totalParts,
                     layoutInfo.getColumnNames());
             byte[] splitId = serialize(splitInfo);
             splits.add(new ThriftSplit(splitId, ImmutableList.of()));
-            partNumber++;
+            nextPart += partsPerSplit;
+            remainingSplits--;
         }
-        byte[] newNextToken = partNumber < totalParts ? Ints.toByteArray(partNumber) : null;
+
+        byte[] newNextToken = remainingSplits > 0 ? serialize(new SplitsToken(nextPart, partsPerSplit, totalParts)) : null;
         return new ThriftSplitBatch(splits, newNextToken);
     }
 
@@ -317,14 +341,47 @@ public class ThriftTpchServer
 
     private static ThriftRowsBatch getRowsInternal(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
     {
+        checkArgument(maxBytes >= BYTES_PER_PART,
+                "Requested max bytes is less than bytes per single part: %s < %s", maxBytes, BYTES_PER_PART);
+
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
         List<String> columnNames = splitInfo.getColumnNames();
-        RecordCursor cursor = createCursor(splitInfo, splitInfo.getColumnNames());
-        return cursorToRowsBatch(
-                cursor,
-                columnNames,
-                estimateRecords(maxBytes, types(splitInfo.getTableName(), splitInfo.getColumnNames())),
-                nextToken);
+        List<Type> columnTypes = types(splitInfo.getTableName(), columnNames);
+        int numColumns = columnNames.size();
+
+        // create and initialize writers
+        List<ColumnWriter> writers = new ArrayList<>(numColumns);
+        for (int i = 0; i < numColumns; i++) {
+            writers.add(ColumnWriters.create(columnNames.get(i), columnTypes.get(i)));
+        }
+
+        // write a necessary number of parts
+        int nextPartToWrite = nextToken != null ? Ints.fromByteArray(nextToken) : splitInfo.getStartPartNumber();
+        int endPart = min(splitInfo.getEndPartNumber(), nextPartToWrite + toIntExact(maxBytes / BYTES_PER_PART) - 1);
+        int recordsWritten = 0;
+        for (int part = nextPartToWrite; part <= endPart; part++) {
+            RecordCursor cursor = createCursor(
+                    splitInfo.getTableName(),
+                    splitInfo.getSchemaName(),
+                    columnNames,
+                    part,
+                    splitInfo.getTotalParts());
+            while (cursor.advanceNextPosition()) {
+                for (int columnIndex = 0; columnIndex < numColumns; columnIndex++) {
+                    writers.get(columnIndex).append(cursor, columnIndex);
+                }
+                recordsWritten++;
+            }
+        }
+
+        // populate the final thrift result from writers
+        List<ThriftColumnData> result = new ArrayList<>(numColumns);
+        for (ColumnWriter writer : writers) {
+            result.addAll(writer.getResult());
+        }
+
+        return new ThriftRowsBatch(result, recordsWritten,
+                endPart < splitInfo.getEndPartNumber() ? Ints.toByteArray(endPart + 1) : null);
     }
 
     private static int estimateRecords(long maxBytes, List<Type> types)
@@ -405,7 +462,7 @@ public class ThriftTpchServer
         ImmutableList.Builder<Integer> builder = ImmutableList.builder();
         for (String columnName : endSchema) {
             int index = startSchema.indexOf(columnName);
-            Preconditions.checkArgument(index != -1, "Column name in end that is not in the start: %s", columnName);
+            checkArgument(index != -1, "Column name in end that is not in the start: %s", columnName);
             builder.add(index);
         }
         return builder.build();
@@ -422,35 +479,73 @@ public class ThriftTpchServer
         return columnNames.stream().map(name -> getPrestoType(table.getColumn(name).getType())).collect(toList());
     }
 
-    private static RecordCursor createCursor(SplitInfo splitInfo, List<String> columnNames)
+    private static <T extends TpchEntity> RecordCursor createCursor(
+            String tableName,
+            String schemaName,
+            List<String> columnNames,
+            int partNumber,
+            int totalParts)
     {
-        switch (splitInfo.getTableName()) {
+        switch (tableName) {
             case "orders":
-                return createCursor(TpchTable.ORDERS, columnNames, splitInfo);
+                return createCursor(TpchTable.ORDERS, schemaName, columnNames, partNumber, totalParts);
             case "customer":
-                return createCursor(TpchTable.CUSTOMER, columnNames, splitInfo);
+                return createCursor(TpchTable.CUSTOMER, schemaName, columnNames, partNumber, totalParts);
             case "lineitem":
-                return createCursor(TpchTable.LINE_ITEM, columnNames, splitInfo);
+                return createCursor(TpchTable.LINE_ITEM, schemaName, columnNames, partNumber, totalParts);
             case "nation":
-                return createCursor(TpchTable.NATION, columnNames, splitInfo);
+                return createCursor(TpchTable.NATION, schemaName, columnNames, partNumber, totalParts);
             case "region":
-                return createCursor(TpchTable.REGION, columnNames, splitInfo);
+                return createCursor(TpchTable.REGION, schemaName, columnNames, partNumber, totalParts);
             case "part":
-                return createCursor(TpchTable.PART, columnNames, splitInfo);
+                return createCursor(TpchTable.PART, schemaName, columnNames, partNumber, totalParts);
             default:
-                throw new IllegalArgumentException("Table not setup: " + splitInfo.getTableName());
+                throw new IllegalArgumentException("Table not setup: " + tableName);
         }
     }
 
-    private static <T extends TpchEntity> RecordCursor createCursor(TpchTable<T> table, List<String> columnNames, SplitInfo splitInfo)
+    private static <T extends TpchEntity> RecordCursor createCursor(
+            TpchTable<T> table,
+            String schemaName,
+            List<String> columnNames,
+            int partNumber,
+            int totalParts)
     {
         List<TpchColumn<T>> columns = columnNames.stream().map(table::getColumn).collect(toList());
         return createTpchRecordSet(
                 table,
                 columns,
-                schemaNameToScaleFactor(splitInfo.getSchemaName()),
-                splitInfo.getPartNumber(),
-                splitInfo.getTotalParts()).cursor();
+                schemaNameToScaleFactor(schemaName),
+                partNumber,
+                totalParts).cursor();
+    }
+
+    private static int totalRecords(String schemaName, String tableName)
+    {
+        double scaleFactor = schemaNameToScaleFactor(schemaName);
+        switch (tableName) {
+            case "orders":
+            case "lineitem":
+                return doubleToIntChecked(scaleFactor * OrderGenerator.SCALE_BASE);
+            case "customer":
+                return doubleToIntChecked(scaleFactor * CustomerGenerator.SCALE_BASE);
+            case "nation":
+                return Distributions.getDefaultDistributions().getNations().size();
+            case "region":
+                return Distributions.getDefaultDistributions().getRegions().size();
+            case "part":
+                return doubleToIntChecked(scaleFactor * PartGenerator.SCALE_BASE);
+            default:
+                throw new IllegalArgumentException("Table not setup for total records: " + tableName);
+        }
+    }
+
+    private static int doubleToIntChecked(double value)
+    {
+        if (value > Integer.MAX_VALUE || value < Integer.MIN_VALUE) {
+            throw new IllegalArgumentException("Double value is not an integer: " + value);
+        }
+        return (int) value;
     }
 
     private static double schemaNameToScaleFactor(String schemaName)
