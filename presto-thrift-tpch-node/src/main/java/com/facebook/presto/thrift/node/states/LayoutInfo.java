@@ -13,11 +13,14 @@
  */
 package com.facebook.presto.thrift.node.states;
 
+import com.facebook.presto.spi.predicate.Domain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
@@ -26,16 +29,19 @@ public final class LayoutInfo
     private final String schemaName;
     private final String tableName;
     private final List<String> columnNames;
+    private final Map<String, Domain> constraint;
 
     @JsonCreator
     public LayoutInfo(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
-            @JsonProperty("columnNames") List<String> columnNames)
+            @JsonProperty("columnNames") List<String> columnNames,
+            @JsonProperty("constraint") Map<String, Domain> constraint)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.columnNames = ImmutableList.copyOf(requireNonNull(columnNames, "columnNames is null"));
+        this.constraint = ImmutableMap.copyOf(requireNonNull(constraint, "constraint is null"));
     }
 
     @JsonProperty
@@ -54,5 +60,11 @@ public final class LayoutInfo
     public List<String> getColumnNames()
     {
         return columnNames;
+    }
+
+    @JsonProperty
+    public Map<String, Domain> getConstraint()
+    {
+        return constraint;
     }
 }

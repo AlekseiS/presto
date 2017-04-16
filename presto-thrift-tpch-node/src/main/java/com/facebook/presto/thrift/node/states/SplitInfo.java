@@ -13,11 +13,14 @@
  */
 package com.facebook.presto.thrift.node.states;
 
+import com.facebook.presto.spi.predicate.Domain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import java.util.List;
+import java.util.Map;
 
 import static java.util.Objects.requireNonNull;
 
@@ -28,6 +31,7 @@ public final class SplitInfo
     private final int partNumber;
     private final int totalParts;
     private final List<String> columnNames;
+    private final Map<String, Domain> constraint;
 
     @JsonCreator
     public SplitInfo(
@@ -35,13 +39,15 @@ public final class SplitInfo
             @JsonProperty("tableName") String tableName,
             @JsonProperty("partNumber") int partNumber,
             @JsonProperty("totalParts") int totalParts,
-            @JsonProperty("columnNames") List<String> columnNames)
+            @JsonProperty("columnNames") List<String> columnNames,
+            @JsonProperty("constraint") Map<String, Domain> constraint)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.partNumber = partNumber;
         this.totalParts = totalParts;
         this.columnNames = ImmutableList.copyOf(requireNonNull(columnNames, "columnNames is null"));
+        this.constraint = ImmutableMap.copyOf(requireNonNull(constraint, "constraint is null"));
     }
 
     @JsonProperty
@@ -72,5 +78,11 @@ public final class SplitInfo
     public List<String> getColumnNames()
     {
         return columnNames;
+    }
+
+    @JsonProperty
+    public Map<String, Domain> getConstraint()
+    {
+        return constraint;
     }
 }

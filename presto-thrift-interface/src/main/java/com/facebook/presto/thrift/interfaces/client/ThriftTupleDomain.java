@@ -16,6 +16,7 @@ package com.facebook.presto.thrift.interfaces.client;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
+import com.google.common.collect.ImmutableMap;
 
 import javax.annotation.Nullable;
 
@@ -42,5 +43,10 @@ public final class ThriftTupleDomain
     public Map<String, ThriftDomain> getDomains()
     {
         return domains;
+    }
+
+    public static ThriftTupleDomain all()
+    {
+        return new ThriftTupleDomain(ImmutableMap.of());
     }
 }

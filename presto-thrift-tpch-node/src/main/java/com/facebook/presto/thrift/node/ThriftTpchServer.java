@@ -17,6 +17,7 @@ import com.facebook.presto.operator.index.PageRecordSet;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.RecordSet;
+import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.split.MappedRecordSet;
 import com.facebook.presto.tests.tpch.TpchIndexedData;
@@ -44,10 +45,12 @@ import com.facebook.presto.thrift.node.states.IndexInfo;
 import com.facebook.presto.thrift.node.states.LayoutInfo;
 import com.facebook.presto.thrift.node.states.SplitInfo;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
+import io.airlift.slice.Slice;
 import io.airlift.tpch.TpchColumn;
 import io.airlift.tpch.TpchEntity;
 import io.airlift.tpch.TpchTable;
@@ -56,12 +59,14 @@ import javax.annotation.Nullable;
 import javax.annotation.PreDestroy;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static com.facebook.presto.tests.AbstractTestIndexedQueries.INDEX_SPEC;
+import static com.facebook.presto.thrift.interfaces.client.ThriftDomain.toDomain;
 import static com.facebook.presto.thrift.interfaces.readers.ColumnReaders.convertToPage;
 import static com.facebook.presto.thrift.node.TpchServerUtils.allColumns;
 import static com.facebook.presto.thrift.node.TpchServerUtils.computeRemap;
@@ -72,6 +77,7 @@ import static com.facebook.presto.thrift.node.TpchServerUtils.types;
 import static com.facebook.presto.thrift.node.states.SerializationUtils.deserialize;
 import static com.facebook.presto.thrift.node.states.SerializationUtils.serialize;
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
+import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
@@ -79,6 +85,7 @@ import static io.airlift.concurrent.Threads.threadsNamed;
 import static java.lang.Math.min;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 public class ThriftTpchServer
         implements ThriftPrestoClient
@@ -160,8 +167,24 @@ public class ThriftTpchServer
             @Nullable Set<String> desiredColumns)
     {
         List<String> columns = desiredColumns != null ? ImmutableList.copyOf(desiredColumns) : allColumns(schemaTableName.getTableName());
-        byte[] layoutId = serialize(new LayoutInfo(schemaTableName.getSchemaName(), schemaTableName.getTableName(), columns));
-        return ImmutableList.of(new ThriftTableLayoutResult(new ThriftTableLayout(layoutId, outputConstraint), outputConstraint));
+        Map<String, Domain> constraint = columnConstraints(outputConstraint, schemaTableName.getTableName());
+        byte[] layoutId = serialize(new LayoutInfo(schemaTableName.getSchemaName(), schemaTableName.getTableName(), columns, constraint));
+        return ImmutableList.of(new ThriftTableLayoutResult(new ThriftTableLayout(layoutId, outputConstraint), ThriftTupleDomain.all()));
+    }
+
+    private static Map<String, Domain> columnConstraints(ThriftTupleDomain outputConstraint, String tableName)
+    {
+        if (outputConstraint.getDomains() == null) {
+            return ImmutableMap.of();
+        }
+        else {
+            TpchTable<?> table = TpchTable.getTable(tableName);
+            return outputConstraint.getDomains().entrySet()
+                    .stream()
+                    .collect(toMap(
+                            Map.Entry::getKey,
+                            kv -> toDomain(kv.getValue(), getPrestoType(table.getColumn(kv.getKey()).getType()))));
+        }
     }
 
     private static int getOrElse(Map<String, ThriftSessionValue> values, String name, int defaultValue)
@@ -204,7 +227,8 @@ public class ThriftTpchServer
                     layoutInfo.getTableName(),
                     partNumber + 1,
                     totalParts,
-                    layoutInfo.getColumnNames());
+                    layoutInfo.getColumnNames(),
+                    layoutInfo.getConstraint());
             byte[] splitId = serialize(splitInfo);
             splits.add(new ThriftSplit(splitId, ImmutableList.of()));
             partNumber++;
@@ -283,6 +307,7 @@ public class ThriftTpchServer
                 cursorToRowsBatch(
                         outputRecordSet.cursor(),
                         indexInfo.getOutputColumnNames(),
+                        Collections.nCopies(indexInfo.getOutputColumnNames().size(), Optional.empty()),
                         estimateRecords(rowsMaxBytes, outputRecordSet.getColumnTypes()),
                         nextToken));
     }
@@ -311,10 +336,16 @@ public class ThriftTpchServer
     {
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
         List<String> columnNames = splitInfo.getColumnNames();
+        Map<String, Domain> constraint = splitInfo.getConstraint();
+        List<Optional<Domain>> columnConstraints = columnNames
+                .stream()
+                .map(columnName -> Optional.ofNullable(constraint.get(columnName)))
+                .collect(toList());
         RecordCursor cursor = createCursor(splitInfo, splitInfo.getColumnNames());
         return cursorToRowsBatch(
                 cursor,
                 columnNames,
+                columnConstraints,
                 estimateRecords(maxBytes, types(splitInfo.getTableName(), splitInfo.getColumnNames())),
                 nextToken);
     }
@@ -322,6 +353,7 @@ public class ThriftTpchServer
     private static ThriftRowsBatch cursorToRowsBatch(
             RecordCursor cursor,
             List<String> columnNames,
+            List<Optional<Domain>> constraints,
             int maxRowCount,
             @Nullable byte[] nextToken)
     {
@@ -340,8 +372,10 @@ public class ThriftTpchServer
         boolean hasNext = cursor.advanceNextPosition();
         int position;
         for (position = 0; position < maxRowCount && hasNext; position++) {
-            for (int columnIdx = 0; columnIdx < numColumns; columnIdx++) {
-                writers.get(columnIdx).append(cursor, columnIdx);
+            for (int columnIndex = 0; columnIndex < numColumns; columnIndex++) {
+                if (passes(cursor, columnIndex, constraints.get(columnIndex))) {
+                    writers.get(columnIndex).append(cursor, columnIndex);
+                }
             }
             hasNext = cursor.advanceNextPosition();
         }
@@ -353,6 +387,30 @@ public class ThriftTpchServer
         }
 
         return new ThriftRowsBatch(result, position, hasNext ? Longs.toByteArray(skip + position) : null);
+    }
+
+    private static boolean passes(RecordCursor cursor, int index, Optional<Domain> domainOptional)
+    {
+        if (!domainOptional.isPresent()) {
+            return true;
+        }
+        Class<?> javaType = cursor.getType(index).getJavaType();
+        Domain domain = domainOptional.get();
+        if (javaType == long.class) {
+            return domain.includesNullableValue(cursor.isNull(index) ? null : cursor.getLong(index));
+        }
+        else if (javaType == double.class) {
+            return domain.includesNullableValue(cursor.isNull(index) ? null : cursor.getDouble(index));
+        }
+        else if (javaType == boolean.class) {
+            return domain.includesNullableValue(cursor.isNull(index) ? null : cursor.getBoolean(index));
+        }
+        else if (javaType == Slice.class) {
+            return domain.includesNullableValue(cursor.isNull(index) ? null : cursor.getSlice(index));
+        }
+        else {
+            throw new IllegalArgumentException("Unsupported type: " + cursor.getType(index));
+        }
     }
 
     private static void skipRows(RecordCursor cursor, long numberOfRows)
