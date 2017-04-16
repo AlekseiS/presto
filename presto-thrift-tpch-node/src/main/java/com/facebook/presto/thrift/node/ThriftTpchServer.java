@@ -17,9 +17,7 @@ import com.facebook.presto.operator.index.PageRecordSet;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.RecordSet;
-import com.facebook.presto.spi.type.FixedWidthType;
 import com.facebook.presto.spi.type.Type;
-import com.facebook.presto.spi.type.VarcharType;
 import com.facebook.presto.split.MappedRecordSet;
 import com.facebook.presto.tests.tpch.TpchIndexedData;
 import com.facebook.presto.thrift.interfaces.client.ThriftColumnData;
@@ -45,24 +43,18 @@ import com.facebook.presto.thrift.interfaces.writers.ColumnWriters;
 import com.facebook.presto.thrift.node.states.IndexInfo;
 import com.facebook.presto.thrift.node.states.LayoutInfo;
 import com.facebook.presto.thrift.node.states.SplitInfo;
-import com.facebook.presto.tpch.TpchMetadata;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import io.airlift.tpch.TpchColumn;
-import io.airlift.tpch.TpchColumnType;
 import io.airlift.tpch.TpchEntity;
 import io.airlift.tpch.TpchTable;
 
 import javax.annotation.Nullable;
 import javax.annotation.PreDestroy;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -71,14 +63,20 @@ import java.util.Set;
 
 import static com.facebook.presto.tests.AbstractTestIndexedQueries.INDEX_SPEC;
 import static com.facebook.presto.thrift.interfaces.readers.ColumnReaders.convertToPage;
+import static com.facebook.presto.thrift.node.TpchServerUtils.allColumns;
+import static com.facebook.presto.thrift.node.TpchServerUtils.computeRemap;
+import static com.facebook.presto.thrift.node.TpchServerUtils.estimateRecords;
+import static com.facebook.presto.thrift.node.TpchServerUtils.getTypeString;
+import static com.facebook.presto.thrift.node.TpchServerUtils.schemaNameToScaleFactor;
+import static com.facebook.presto.thrift.node.TpchServerUtils.types;
+import static com.facebook.presto.thrift.node.states.SerializationUtils.deserialize;
+import static com.facebook.presto.thrift.node.states.SerializationUtils.serialize;
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
-import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
 import static io.airlift.concurrent.Threads.threadsNamed;
 import static java.lang.Math.min;
-import static java.lang.Math.toIntExact;
 import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.stream.Collectors.toList;
 
@@ -90,7 +88,6 @@ public class ThriftTpchServer
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private static final int MAX_WRITERS_INITIAL_CAPACITY = 8192;
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
     private final ListeningExecutorService splitsExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
     private final ListeningExecutorService dataExecutor =
@@ -153,11 +150,6 @@ public class ThriftTpchServer
         }
         columns.add(new ThriftColumnMetadata(ROW_NUMBER_COLUMN_NAME, "bigint", null, true));
         return new ThriftNullableTableMetadata(new ThriftTableMetadata(schemaTableName, columns));
-    }
-
-    private static String getTypeString(TpchColumnType tpchType)
-    {
-        return TpchMetadata.getPrestoType(tpchType).getTypeSignature().toString();
     }
 
     @Override
@@ -327,34 +319,6 @@ public class ThriftTpchServer
                 nextToken);
     }
 
-    private static int estimateRecords(long maxBytes, List<Type> types)
-    {
-        if (types.isEmpty()) {
-            // no data will be returned, only row count
-            return Integer.MAX_VALUE;
-        }
-        int bytesPerRow = 0;
-        for (Type type : types) {
-            if (type instanceof FixedWidthType) {
-                bytesPerRow += ((FixedWidthType) type).getFixedSize();
-            }
-            else if (type instanceof VarcharType) {
-                VarcharType varchar = (VarcharType) type;
-                if (varchar.isUnbounded()) {
-                    // random estimate
-                    bytesPerRow += 32;
-                }
-                else {
-                    bytesPerRow += varchar.getLengthSafe();
-                }
-            }
-            else {
-                throw new IllegalArgumentException("Cannot compute estimates for an unknown type: " + type);
-            }
-        }
-        return toIntExact(maxBytes / bytesPerRow);
-    }
-
     private static ThriftRowsBatch cursorToRowsBatch(
             RecordCursor cursor,
             List<String> columnNames,
@@ -400,28 +364,6 @@ public class ThriftTpchServer
         checkState(hasPreviousData, "Cursor is expected to have previously generated data");
     }
 
-    private static List<Integer> computeRemap(List<String> startSchema, List<String> endSchema)
-    {
-        ImmutableList.Builder<Integer> builder = ImmutableList.builder();
-        for (String columnName : endSchema) {
-            int index = startSchema.indexOf(columnName);
-            Preconditions.checkArgument(index != -1, "Column name in end that is not in the start: %s", columnName);
-            builder.add(index);
-        }
-        return builder.build();
-    }
-
-    private static List<String> allColumns(String tableName)
-    {
-        return TpchTable.getTable(tableName).getColumns().stream().map(TpchColumn::getSimplifiedColumnName).collect(toList());
-    }
-
-    private static List<Type> types(String tableName, List<String> columnNames)
-    {
-        TpchTable<?> table = TpchTable.getTable(tableName);
-        return columnNames.stream().map(name -> getPrestoType(table.getColumn(name).getType())).collect(toList());
-    }
-
     private static RecordCursor createCursor(SplitInfo splitInfo, List<String> columnNames)
     {
         switch (splitInfo.getTableName()) {
@@ -451,36 +393,5 @@ public class ThriftTpchServer
                 schemaNameToScaleFactor(splitInfo.getSchemaName()),
                 splitInfo.getPartNumber(),
                 splitInfo.getTotalParts()).cursor();
-    }
-
-    private static double schemaNameToScaleFactor(String schemaName)
-    {
-        switch (schemaName) {
-            case "tiny":
-                return 0.01;
-            case "sf1":
-                return 1.0;
-        }
-        throw new IllegalArgumentException("Invalid schema name: " + schemaName);
-    }
-
-    private static byte[] serialize(Object value)
-    {
-        try {
-            return OBJECT_MAPPER.writeValueAsBytes(value);
-        }
-        catch (JsonProcessingException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static <T> T deserialize(byte[] value, Class<T> tClass)
-    {
-        try {
-            return OBJECT_MAPPER.readValue(value, tClass);
-        }
-        catch (IOException e) {
-            throw new RuntimeException(e);
-        }
     }
 }
