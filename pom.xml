@@ -117,6 +117,7 @@
         <module>presto-resource-group-managers</module>
         <module>presto-benchto-benchmarks</module>
         <module>presto-thrift-interface</module>
+        <module>presto-thrift-tpch-node</module>
     </modules>
 
     <dependencyManagement>
@@ -371,6 +372,12 @@
             <dependency>
                 <groupId>com.facebook.presto</groupId>
                 <artifactId>presto-thrift-interface</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>com.facebook.presto</groupId>
+                <artifactId>presto-thrift-tpch-node</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
