@@ -24,6 +24,7 @@ import com.facebook.presto.thrift.interfaces.client.ThriftRowsBatch;
 import com.facebook.presto.thrift.interfaces.readers.ColumnReaders;
 import com.facebook.presto.thrift.interfaces.writers.ColumnWriter;
 import com.facebook.presto.thrift.interfaces.writers.ColumnWriters;
+import com.facebook.presto.type.ArrayType;
 import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
@@ -32,6 +33,7 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.BiConsumer;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
@@ -39,6 +41,7 @@ import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.TimestampType.TIMESTAMP;
 import static com.facebook.presto.spi.type.TinyintType.TINYINT;
+import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.spi.type.VarcharType.createUnboundedVarcharType;
 import static com.facebook.presto.spi.type.VarcharType.createVarcharType;
 import static com.google.common.collect.ImmutableList.toImmutableList;
@@ -53,6 +56,8 @@ public class TestColumnReaderWriter
     private static final char[] SYMBOLS;
     private static final long MIN_GENERATED_TIMESTAMP;
     private static final long MAX_GENERATED_TIMESTAMP;
+    private static final int MAX_ARRAY_GENERATED_LENGTH = 64;
+    private static final int MAX_2D_ARRAY_GENERATED_LENGTH = 8;
     private final AtomicLong seedGenerator = new AtomicLong(762103512L);
 
     static {
@@ -90,7 +95,9 @@ public class TestColumnReaderWriter
                 new DoubleColumn("c5"),
                 new VarcharColumn("c6", createUnboundedVarcharType()),
                 new VarcharColumn("c7", createVarcharType(MAX_VARCHAR_GENERATED_LENGTH / 2)),
-                new TimestampColumn("c8")
+                new TimestampColumn("c8"),
+                new LongArrayColumn("c9"),
+                new VarcharTwoDimensionalArrayColumn("c10")
         );
 
         Random random = new Random(seedGenerator.incrementAndGet());
@@ -174,6 +181,36 @@ public class TestColumnReaderWriter
         return MIN_GENERATED_TIMESTAMP + (long) (random.nextDouble() * (MAX_GENERATED_TIMESTAMP - MIN_GENERATED_TIMESTAMP));
     }
 
+    private static void generateArray(Random random, BlockBuilder parentBuilder, int maxElements, BiConsumer<Random, BlockBuilder> generator)
+    {
+        int numberOfElements = random.nextInt(maxElements);
+        BlockBuilder builder = parentBuilder.beginBlockEntry();
+        for (int i = 0; i < numberOfElements; i++) {
+            if (random.nextDouble() < NULL_FRACTION) {
+                builder.appendNull();
+            }
+            else {
+                generator.accept(random, builder);
+            }
+        }
+        parentBuilder.closeEntry();
+    }
+
+    private static void generateLongArray(Random random, BlockBuilder builder)
+    {
+        generateArray(random, builder, MAX_ARRAY_GENERATED_LENGTH, (randomParam, builderParam) -> builderParam.writeLong(randomParam.nextLong()));
+    }
+
+    private static void generateVarcharArray(Random random, BlockBuilder builder)
+    {
+        generateArray(random, builder, MAX_2D_ARRAY_GENERATED_LENGTH, (randomParam, builderParam) -> VARCHAR.writeString(builderParam, nextString(randomParam)));
+    }
+
+    private static void generateTwoDimensionVarcharArray(Random random, BlockBuilder builder)
+    {
+        generateArray(random, builder, MAX_2D_ARRAY_GENERATED_LENGTH, TestColumnReaderWriter::generateVarcharArray);
+    }
+
     private abstract static class ColumnDefinition
     {
         private final String name;
@@ -182,7 +219,7 @@ public class TestColumnReaderWriter
         public ColumnDefinition(String name, Type type)
         {
             this.name = requireNonNull(name, "name is null");
-            this.type = requireNonNull(type, "type is null");
+            this.type = requireNonNull(type, "arrayType is null");
         }
 
         public String getName()
@@ -347,6 +384,64 @@ public class TestColumnReaderWriter
         void writeNextRandomValue(Random random, BlockBuilder builder)
         {
             varcharType.writeString(builder, nextString(random));
+        }
+    }
+
+    private static final class LongArrayColumn
+            extends ColumnDefinition
+    {
+        private final ArrayType arrayType;
+
+        public LongArrayColumn(String name)
+        {
+            this(name, new ArrayType(BIGINT));
+        }
+
+        private LongArrayColumn(String name, ArrayType arrayType)
+        {
+            super(name, arrayType);
+            this.arrayType = requireNonNull(arrayType, "arrayType is null");
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return arrayType.getObjectValue(null, block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            generateLongArray(random, builder);
+        }
+    }
+
+    private static final class VarcharTwoDimensionalArrayColumn
+            extends ColumnDefinition
+    {
+        private final ArrayType arrayType;
+
+        public VarcharTwoDimensionalArrayColumn(String name)
+        {
+            this(name, new ArrayType(new ArrayType(createUnboundedVarcharType())));
+        }
+
+        private VarcharTwoDimensionalArrayColumn(String name, ArrayType arrayType)
+        {
+            super(name, arrayType);
+            this.arrayType = requireNonNull(arrayType, "arrayType is null");
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return arrayType.getObjectValue(null, block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            generateTwoDimensionVarcharArray(random, builder);
         }
     }
 }

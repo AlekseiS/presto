@@ -15,6 +15,7 @@ package com.facebook.presto.thrift.interfaces.writers;
 
 import com.facebook.presto.spi.type.Type;
 
+import static com.facebook.presto.spi.type.StandardTypes.ARRAY;
 import static com.facebook.presto.spi.type.StandardTypes.BIGINT;
 import static com.facebook.presto.spi.type.StandardTypes.BOOLEAN;
 import static com.facebook.presto.spi.type.StandardTypes.CHAR;
@@ -28,6 +29,7 @@ import static com.facebook.presto.spi.type.StandardTypes.TIMESTAMP;
 import static com.facebook.presto.spi.type.StandardTypes.TINYINT;
 import static com.facebook.presto.spi.type.StandardTypes.VARBINARY;
 import static com.facebook.presto.spi.type.StandardTypes.VARCHAR;
+import static com.google.common.collect.Iterables.getOnlyElement;
 
 public final class ColumnWriters
 {
@@ -59,6 +61,8 @@ public final class ColumnWriters
             case HYPER_LOG_LOG:
             case P4_HYPER_LOG_LOG:
                 return new SliceColumnWriter(columnName, initialCapacity);
+            case ARRAY:
+                return new ArrayColumnWriter(columnName, initialCapacity, getOnlyElement(columnType.getTypeParameters()));
             default:
                 throw new IllegalArgumentException("Unsupported writer type: " + columnType);
         }

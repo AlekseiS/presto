@@ -67,7 +67,7 @@ public class IntColumnWriter
         }
     }
 
-    private void appendNull()
+    void appendNull()
     {
         if (index >= nulls.length) {
             nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
@@ -77,7 +77,7 @@ public class IntColumnWriter
         index++;
     }
 
-    private void appendValue(int value)
+    void appendValue(int value)
     {
         if (index >= ints.length) {
             ints = Arrays.copyOf(ints, doubleCapacityChecked(index));
