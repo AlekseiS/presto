@@ -31,6 +31,7 @@ import static com.facebook.presto.spi.type.StandardTypes.DATE;
 import static com.facebook.presto.spi.type.StandardTypes.DOUBLE;
 import static com.facebook.presto.spi.type.StandardTypes.HYPER_LOG_LOG;
 import static com.facebook.presto.spi.type.StandardTypes.INTEGER;
+import static com.facebook.presto.spi.type.StandardTypes.JSON;
 import static com.facebook.presto.spi.type.StandardTypes.P4_HYPER_LOG_LOG;
 import static com.facebook.presto.spi.type.StandardTypes.TIME;
 import static com.facebook.presto.spi.type.StandardTypes.TIMESTAMP;
@@ -86,6 +87,7 @@ public final class ColumnReaders
             case CHAR:
             case HYPER_LOG_LOG:
             case P4_HYPER_LOG_LOG:
+            case JSON:
                 return SliceColumnReader.readBlock(columnsData, columnName, totalRecords);
             case ARRAY:
                 return ArrayColumnReader.readBlock(columnsData, columnName, columnType, totalRecords);

@@ -23,6 +23,7 @@ import static com.facebook.presto.spi.type.StandardTypes.DATE;
 import static com.facebook.presto.spi.type.StandardTypes.DOUBLE;
 import static com.facebook.presto.spi.type.StandardTypes.HYPER_LOG_LOG;
 import static com.facebook.presto.spi.type.StandardTypes.INTEGER;
+import static com.facebook.presto.spi.type.StandardTypes.JSON;
 import static com.facebook.presto.spi.type.StandardTypes.P4_HYPER_LOG_LOG;
 import static com.facebook.presto.spi.type.StandardTypes.TIME;
 import static com.facebook.presto.spi.type.StandardTypes.TIMESTAMP;
@@ -60,6 +61,7 @@ public final class ColumnWriters
             case CHAR:
             case HYPER_LOG_LOG:
             case P4_HYPER_LOG_LOG:
+            case JSON:
                 return new SliceColumnWriter(columnName, initialCapacity);
             case ARRAY:
                 return new ArrayColumnWriter(columnName, initialCapacity, getOnlyElement(columnType.getTypeParameters()));

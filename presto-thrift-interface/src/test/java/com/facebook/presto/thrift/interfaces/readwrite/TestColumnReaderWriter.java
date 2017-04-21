@@ -44,6 +44,7 @@ import static com.facebook.presto.spi.type.TinyintType.TINYINT;
 import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.spi.type.VarcharType.createUnboundedVarcharType;
 import static com.facebook.presto.spi.type.VarcharType.createVarcharType;
+import static com.facebook.presto.type.JsonType.JSON;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 import static org.testng.Assert.assertEquals;
@@ -58,6 +59,7 @@ public class TestColumnReaderWriter
     private static final long MAX_GENERATED_TIMESTAMP;
     private static final int MAX_ARRAY_GENERATED_LENGTH = 64;
     private static final int MAX_2D_ARRAY_GENERATED_LENGTH = 8;
+    private static final int MAX_GENERATED_JSON_KEY_LENGTH = 8;
     private final AtomicLong seedGenerator = new AtomicLong(762103512L);
 
     static {
@@ -97,7 +99,8 @@ public class TestColumnReaderWriter
                 new VarcharColumn("c7", createVarcharType(MAX_VARCHAR_GENERATED_LENGTH / 2)),
                 new TimestampColumn("c8"),
                 new LongArrayColumn("c9"),
-                new VarcharTwoDimensionalArrayColumn("c10")
+                new VarcharTwoDimensionalArrayColumn("c10"),
+                new JsonColumn("c11")
         );
 
         Random random = new Random(seedGenerator.incrementAndGet());
@@ -168,7 +171,12 @@ public class TestColumnReaderWriter
 
     private static String nextString(Random random)
     {
-        int size = random.nextInt(MAX_VARCHAR_GENERATED_LENGTH);
+        return nextString(random, MAX_VARCHAR_GENERATED_LENGTH);
+    }
+
+    private static String nextString(Random random, int maxLength)
+    {
+        int size = random.nextInt(maxLength);
         char[] result = new char[size];
         for (int i = 0; i < size; i++) {
             result[i] = SYMBOLS[random.nextInt(SYMBOLS.length)];
@@ -442,6 +450,32 @@ public class TestColumnReaderWriter
         void writeNextRandomValue(Random random, BlockBuilder builder)
         {
             generateTwoDimensionVarcharArray(random, builder);
+        }
+    }
+
+    private static final class JsonColumn
+            extends ColumnDefinition
+    {
+        public JsonColumn(String name)
+        {
+            super(name, JSON);
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return JSON.getSlice(block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            String json = String.format("{\"%s\": %d, \"%s\": \"%s\"}",
+                    nextString(random, MAX_GENERATED_JSON_KEY_LENGTH),
+                    random.nextInt(),
+                    nextString(random, MAX_GENERATED_JSON_KEY_LENGTH),
+                    random.nextInt());
+            JSON.writeString(builder, json);
         }
     }
 }
