@@ -13,6 +13,9 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
+import com.facebook.presto.spi.Page;
+import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
@@ -37,6 +40,7 @@ public final class PrestoThriftRowsBatch
     {
         this.columnsData = requireNonNull(columnsData, "columnsData is null");
         checkArgument(rowCount >= 0, "rowCount is negative");
+        checkAllColumnsAreOfExpectedSize(columnsData, rowCount);
         this.rowCount = rowCount;
         this.nextToken = nextToken;
     }
@@ -60,12 +64,30 @@ public final class PrestoThriftRowsBatch
         return nextToken;
     }
 
-    public long getDataSize()
+    @Nullable
+    public Page toPage(List<Type> columnTypes)
     {
-        long total = 0L;
-        for (PrestoThriftColumnData columnData : columnsData) {
-            total += columnData.getDataSize();
+        checkArgument(columnsData.size() == columnTypes.size(), "columns and types have different sizes");
+        if (rowCount == 0) {
+            return null;
         }
-        return total;
+        int numberOfColumns = columnsData.size();
+        if (numberOfColumns == 0) {
+            // request/response with no columns, used for queries like select count star
+            return new Page(rowCount);
+        }
+        Block[] blocks = new Block[numberOfColumns];
+        for (int i = 0; i < numberOfColumns; i++) {
+            blocks[i] = columnsData.get(i).toBlock(columnTypes.get(i));
+        }
+        return new Page(blocks);
+    }
+
+    private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftColumnData> columnsData, int rowCount)
+    {
+        for (int i = 0; i < columnsData.size(); i++) {
+            checkArgument(columnsData.get(i).numberOfRecords() == rowCount,
+                    "Incorrect number of records for column with index %s: expected %s, got %s", i, rowCount, columnsData.get(i).numberOfRecords());
+        }
     }
 }

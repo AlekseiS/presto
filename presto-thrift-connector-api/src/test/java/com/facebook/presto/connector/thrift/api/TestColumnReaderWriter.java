@@ -11,20 +11,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.readwrite;
+package com.facebook.presto.connector.thrift.api;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
-import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
-import com.facebook.presto.connector.thrift.readers.ColumnReaders;
-import com.facebook.presto.connector.thrift.writers.ColumnWriter;
-import com.facebook.presto.connector.thrift.writers.ColumnWriters;
+import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
 import com.facebook.presto.spi.block.BlockBuilderStatus;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
-import com.facebook.presto.type.ArrayType;
 import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
@@ -33,14 +28,12 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.BiConsumer;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.TimestampType.TIMESTAMP;
-import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static com.facebook.presto.spi.type.VarcharType.createUnboundedVarcharType;
 import static com.facebook.presto.spi.type.VarcharType.createVarcharType;
 import static com.facebook.presto.type.JsonType.JSON;
@@ -52,12 +45,11 @@ import static org.testng.Assert.assertNotNull;
 public class TestColumnReaderWriter
 {
     private static final double NULL_FRACTION = 0.1;
-    private static final int MAX_VARCHAR_GENERATED_LENGTH = 32;
+    private static final int BUILDER_INITIAL_CAPACITY = 1024;
+    private static final int MAX_VARCHAR_GENERATED_LENGTH = 64;
     private static final char[] SYMBOLS;
     private static final long MIN_GENERATED_TIMESTAMP;
     private static final long MAX_GENERATED_TIMESTAMP;
-    private static final int MAX_ARRAY_GENERATED_LENGTH = 64;
-    private static final int MAX_2D_ARRAY_GENERATED_LENGTH = 8;
     private static final int MAX_GENERATED_JSON_KEY_LENGTH = 8;
     private final AtomicLong seedGenerator = new AtomicLong(762103512L);
 
@@ -89,16 +81,14 @@ public class TestColumnReaderWriter
             throws Exception
     {
         List<ColumnDefinition> columns = ImmutableList.of(
-                new BigintColumn("c1"),
-                new IntegerColumn("c2"),
-                new BooleanColumn("c3"),
-                new DoubleColumn("c4"),
-                new VarcharColumn("c5", createUnboundedVarcharType()),
-                new VarcharColumn("c6", createVarcharType(MAX_VARCHAR_GENERATED_LENGTH / 2)),
-                new TimestampColumn("c7"),
-                new LongArrayColumn("c8"),
-                new VarcharTwoDimensionalArrayColumn("c9"),
-                new JsonColumn("c10")
+                new BigintColumn(),
+                new IntegerColumn(),
+                new BooleanColumn(),
+                new DoubleColumn(),
+                new VarcharColumn(createUnboundedVarcharType()),
+                new VarcharColumn(createVarcharType(MAX_VARCHAR_GENERATED_LENGTH / 2)),
+                new TimestampColumn(),
+                new JsonColumn()
         );
 
         Random random = new Random(seedGenerator.incrementAndGet());
@@ -113,15 +103,12 @@ public class TestColumnReaderWriter
         // convert column data to thrift ("write step")
         List<PrestoThriftColumnData> columnsData = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
-            columnsData.addAll(writeColumnAsThrift(columns.get(i), inputBlocks.get(i)));
+            columnsData.add(writeColumnAsThrift(columns.get(i), inputBlocks.get(i)));
         }
         PrestoThriftRowsBatch batch = new PrestoThriftRowsBatch(columnsData, records, null);
 
         // convert thrift data to page/blocks ("read step")
-        Page page = ColumnReaders.convertToPage(
-                batch,
-                columns.stream().map(ColumnDefinition::getName).collect(toImmutableList()),
-                columns.stream().map(ColumnDefinition::getType).collect(toImmutableList()));
+        Page page = batch.toPage(columns.stream().map(ColumnDefinition::getType).collect(toImmutableList()));
 
         // compare the result with original input
         assertNotNull(page);
@@ -133,13 +120,13 @@ public class TestColumnReaderWriter
         }
     }
 
-    private static List<PrestoThriftColumnData> writeColumnAsThrift(ColumnDefinition column, Block block)
+    private static PrestoThriftColumnData writeColumnAsThrift(ColumnDefinition column, Block block)
     {
-        ColumnWriter bigintWriter = ColumnWriters.create(column.getName(), column.getType());
+        ColumnBuilder builder = PrestoThriftColumnData.builder(column.getType(), BUILDER_INITIAL_CAPACITY);
         for (int i = 0; i < block.getPositionCount(); i++) {
-            bigintWriter.append(block, i, column.getType());
+            builder.append(block, i, column.getType());
         }
-        return bigintWriter.getResult();
+        return builder.build();
     }
 
     private static Block generateColumn(ColumnDefinition column, Random random, int records)
@@ -187,50 +174,13 @@ public class TestColumnReaderWriter
         return MIN_GENERATED_TIMESTAMP + (long) (random.nextDouble() * (MAX_GENERATED_TIMESTAMP - MIN_GENERATED_TIMESTAMP));
     }
 
-    private static void generateArray(Random random, BlockBuilder parentBuilder, int maxElements, BiConsumer<Random, BlockBuilder> generator)
-    {
-        int numberOfElements = random.nextInt(maxElements);
-        BlockBuilder builder = parentBuilder.beginBlockEntry();
-        for (int i = 0; i < numberOfElements; i++) {
-            if (random.nextDouble() < NULL_FRACTION) {
-                builder.appendNull();
-            }
-            else {
-                generator.accept(random, builder);
-            }
-        }
-        parentBuilder.closeEntry();
-    }
-
-    private static void generateLongArray(Random random, BlockBuilder builder)
-    {
-        generateArray(random, builder, MAX_ARRAY_GENERATED_LENGTH, (randomParam, builderParam) -> builderParam.writeLong(randomParam.nextLong()));
-    }
-
-    private static void generateVarcharArray(Random random, BlockBuilder builder)
-    {
-        generateArray(random, builder, MAX_2D_ARRAY_GENERATED_LENGTH, (randomParam, builderParam) -> VARCHAR.writeString(builderParam, nextString(randomParam)));
-    }
-
-    private static void generateTwoDimensionVarcharArray(Random random, BlockBuilder builder)
-    {
-        generateArray(random, builder, MAX_2D_ARRAY_GENERATED_LENGTH, TestColumnReaderWriter::generateVarcharArray);
-    }
-
     private abstract static class ColumnDefinition
     {
-        private final String name;
         private final Type type;
 
-        public ColumnDefinition(String name, Type type)
+        public ColumnDefinition(Type type)
         {
-            this.name = requireNonNull(name, "name is null");
             this.type = requireNonNull(type, "type is null");
-        }
-
-        public String getName()
-        {
-            return name;
         }
 
         public Type getType()
@@ -246,9 +196,9 @@ public class TestColumnReaderWriter
     private static final class BigintColumn
             extends ColumnDefinition
     {
-        public BigintColumn(String name)
+        public BigintColumn()
         {
-            super(name, BIGINT);
+            super(BIGINT);
         }
 
         @Override
@@ -267,9 +217,9 @@ public class TestColumnReaderWriter
     private static final class TimestampColumn
             extends ColumnDefinition
     {
-        public TimestampColumn(String name)
+        public TimestampColumn()
         {
-            super(name, TIMESTAMP);
+            super(TIMESTAMP);
         }
 
         @Override
@@ -288,9 +238,9 @@ public class TestColumnReaderWriter
     private static final class IntegerColumn
             extends ColumnDefinition
     {
-        public IntegerColumn(String name)
+        public IntegerColumn()
         {
-            super(name, INTEGER);
+            super(INTEGER);
         }
 
         @Override
@@ -309,9 +259,9 @@ public class TestColumnReaderWriter
     private static final class BooleanColumn
             extends ColumnDefinition
     {
-        public BooleanColumn(String name)
+        public BooleanColumn()
         {
-            super(name, BOOLEAN);
+            super(BOOLEAN);
         }
 
         @Override
@@ -330,9 +280,9 @@ public class TestColumnReaderWriter
     private static final class DoubleColumn
             extends ColumnDefinition
     {
-        public DoubleColumn(String name)
+        public DoubleColumn()
         {
-            super(name, DOUBLE);
+            super(DOUBLE);
         }
 
         @Override
@@ -353,9 +303,9 @@ public class TestColumnReaderWriter
     {
         private final VarcharType varcharType;
 
-        public VarcharColumn(String name, VarcharType varcharType)
+        public VarcharColumn(VarcharType varcharType)
         {
-            super(name, varcharType);
+            super(varcharType);
             this.varcharType = requireNonNull(varcharType, "varcharType is null");
         }
 
@@ -372,70 +322,12 @@ public class TestColumnReaderWriter
         }
     }
 
-    private static final class LongArrayColumn
-            extends ColumnDefinition
-    {
-        private final ArrayType arrayType;
-
-        public LongArrayColumn(String name)
-        {
-            this(name, new ArrayType(BIGINT));
-        }
-
-        private LongArrayColumn(String name, ArrayType arrayType)
-        {
-            super(name, arrayType);
-            this.arrayType = requireNonNull(arrayType, "arrayType is null");
-        }
-
-        @Override
-        Object extractValue(Block block, int position)
-        {
-            return arrayType.getObjectValue(null, block, position);
-        }
-
-        @Override
-        void writeNextRandomValue(Random random, BlockBuilder builder)
-        {
-            generateLongArray(random, builder);
-        }
-    }
-
-    private static final class VarcharTwoDimensionalArrayColumn
-            extends ColumnDefinition
-    {
-        private final ArrayType arrayType;
-
-        public VarcharTwoDimensionalArrayColumn(String name)
-        {
-            this(name, new ArrayType(new ArrayType(createUnboundedVarcharType())));
-        }
-
-        private VarcharTwoDimensionalArrayColumn(String name, ArrayType arrayType)
-        {
-            super(name, arrayType);
-            this.arrayType = requireNonNull(arrayType, "arrayType is null");
-        }
-
-        @Override
-        Object extractValue(Block block, int position)
-        {
-            return arrayType.getObjectValue(null, block, position);
-        }
-
-        @Override
-        void writeNextRandomValue(Random random, BlockBuilder builder)
-        {
-            generateTwoDimensionVarcharArray(random, builder);
-        }
-    }
-
     private static final class JsonColumn
             extends ColumnDefinition
     {
-        public JsonColumn(String name)
+        public JsonColumn()
         {
-            super(name, JSON);
+            super(JSON);
         }
 
         @Override

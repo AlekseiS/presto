@@ -11,36 +11,35 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.writers;
+package com.facebook.presto.connector.thrift.api.builders;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBoolean;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
-import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
-import java.util.List;
 
+import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.booleanData;
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.doubleCapacityChecked;
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.trim;
 import static com.google.common.base.Preconditions.checkArgument;
-import static java.util.Objects.requireNonNull;
 
-public class DoubleColumnWriter
-        implements ColumnWriter
+public class BooleanColumnBuilder
+        implements ColumnBuilder
 {
-    private final String columnName;
     private boolean[] nulls;
-    private double[] doubles;
+    private boolean[] booleans;
     private int index;
     private boolean hasNulls;
     private boolean hasData;
 
-    public DoubleColumnWriter(String columnName, int initialCapacity)
+    public BooleanColumnBuilder(int initialCapacity)
     {
-        this.columnName = requireNonNull(columnName, "columnName is null");
-        checkArgument(initialCapacity > 0, "initialCapacity is negative or zero");
+        checkArgument(initialCapacity >= 0, "initialCapacity is negative");
         this.nulls = new boolean[initialCapacity];
-        this.doubles = new double[initialCapacity];
+        this.booleans = new boolean[initialCapacity];
     }
 
     @Override
@@ -50,7 +49,7 @@ public class DoubleColumnWriter
             appendNull();
         }
         else {
-            appendValue(cursor.getDouble(field));
+            appendValue(cursor.getBoolean(field));
         }
     }
 
@@ -61,39 +60,33 @@ public class DoubleColumnWriter
             appendNull();
         }
         else {
-            appendValue(type.getDouble(block, position));
+            appendValue(type.getBoolean(block, position));
         }
     }
 
     private void appendNull()
     {
         if (index >= nulls.length) {
-            nulls = Arrays.copyOf(nulls, WriterUtils.doubleCapacityChecked(index));
+            nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
         }
         nulls[index] = true;
         hasNulls = true;
         index++;
     }
 
-    private void appendValue(double value)
+    private void appendValue(boolean value)
     {
-        if (index >= doubles.length) {
-            doubles = Arrays.copyOf(doubles, WriterUtils.doubleCapacityChecked(index));
+        if (index >= booleans.length) {
+            booleans = Arrays.copyOf(booleans, doubleCapacityChecked(index));
         }
-        doubles[index] = value;
+        booleans[index] = value;
         hasData = true;
         index++;
     }
 
     @Override
-    public List<PrestoThriftColumnData> getResult()
+    public PrestoThriftColumnData build()
     {
-        return ImmutableList.of(new PrestoThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, index),
-                null,
-                null,
-                null,
-                WriterUtils.trim(doubles, hasData, index),
-                columnName));
+        return booleanData(new PrestoThriftBoolean(trim(nulls, hasNulls, index), trim(booleans, hasData, index)));
     }
 }

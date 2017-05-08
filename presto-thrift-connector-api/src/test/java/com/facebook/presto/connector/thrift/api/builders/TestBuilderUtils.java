@@ -11,17 +11,17 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.writers;
+package com.facebook.presto.connector.thrift.api.builders;
 
 import org.testng.annotations.Test;
 
-import static com.facebook.presto.connector.thrift.writers.WriterUtils.doubleCapacityChecked;
-import static com.facebook.presto.connector.thrift.writers.WriterUtils.trim;
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.doubleCapacityChecked;
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.trim;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNull;
 import static org.testng.Assert.assertSame;
 
-public class WriterUtilsTest
+public class TestBuilderUtils
 {
     @Test
     public void testTrimBooleans()

@@ -25,9 +25,8 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
+import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.connector.thrift.server.states.SplitInfo;
-import com.facebook.presto.connector.thrift.writers.ColumnWriter;
-import com.facebook.presto.connector.thrift.writers.ColumnWriters;
 import com.facebook.presto.spi.RecordCursor;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
@@ -197,26 +196,26 @@ public class ThriftTpchService
         skipRows(cursor, skip);
         int numColumns = columnNames.size();
 
-        // create and initialize writers
-        List<ColumnWriter> writers = new ArrayList<>(numColumns);
+        // create and initialize builders
+        List<ColumnBuilder> builders = new ArrayList<>(numColumns);
         for (int i = 0; i < numColumns; i++) {
-            writers.add(ColumnWriters.create(columnNames.get(i), cursor.getType(i), min(maxRowCount, MAX_WRITERS_INITIAL_CAPACITY)));
+            builders.add(PrestoThriftColumnData.builder(cursor.getType(i), min(maxRowCount, MAX_WRITERS_INITIAL_CAPACITY)));
         }
 
-        // iterate over the cursor and append data to writers
+        // iterate over the cursor and append data to builders
         boolean hasNext = cursor.advanceNextPosition();
         int position;
         for (position = 0; position < maxRowCount && hasNext; position++) {
             for (int columnIdx = 0; columnIdx < numColumns; columnIdx++) {
-                writers.get(columnIdx).append(cursor, columnIdx);
+                builders.get(columnIdx).append(cursor, columnIdx);
             }
             hasNext = cursor.advanceNextPosition();
         }
 
-        // populate the final thrift result from writers
+        // populate the final thrift result from builders
         List<PrestoThriftColumnData> result = new ArrayList<>(numColumns);
-        for (ColumnWriter writer : writers) {
-            result.addAll(writer.getResult());
+        for (ColumnBuilder builder : builders) {
+            result.add(builder.build());
         }
 
         return new PrestoThriftRowsBatch(result, position, hasNext ? Longs.toByteArray(skip + position) : null);

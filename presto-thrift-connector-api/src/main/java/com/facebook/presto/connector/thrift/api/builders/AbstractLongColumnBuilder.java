@@ -11,37 +11,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.writers;
+package com.facebook.presto.connector.thrift.api.builders;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
-import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
-import java.util.List;
 
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.doubleCapacityChecked;
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.trim;
 import static com.google.common.base.Preconditions.checkArgument;
-import static java.util.Objects.requireNonNull;
 
-public class BooleanColumnWriter
-        implements ColumnWriter
+public abstract class AbstractLongColumnBuilder
+        implements ColumnBuilder
 {
-    private final String columnName;
     private boolean[] nulls;
-    private byte[] bytes;
+    private long[] longs;
     private int index;
     private boolean hasNulls;
     private boolean hasData;
 
-    public BooleanColumnWriter(String columnName, int initialCapacity)
+    public AbstractLongColumnBuilder(int initialCapacity)
     {
-        this.columnName = requireNonNull(columnName, "columnName is null");
-        checkArgument(initialCapacity > 0, "initialCapacity is negative or zero");
+        checkArgument(initialCapacity >= 0, "initialCapacity is negative");
         this.nulls = new boolean[initialCapacity];
-        this.bytes = new byte[initialCapacity];
+        this.longs = new long[initialCapacity];
     }
+
+    protected abstract PrestoThriftColumnData buildInternal(boolean[] trimmedNulls, long[] trimmedLongs);
 
     @Override
     public final void append(RecordCursor cursor, int field)
@@ -50,50 +49,44 @@ public class BooleanColumnWriter
             appendNull();
         }
         else {
-            appendValue(cursor.getBoolean(field) ? (byte) 1 : (byte) 0);
+            appendValue(cursor.getLong(field));
         }
     }
 
     @Override
-    public void append(Block block, int position, Type type)
+    public final void append(Block block, int position, Type type)
     {
         if (block.isNull(position)) {
             appendNull();
         }
         else {
-            appendValue(type.getBoolean(block, position) ? (byte) 1 : (byte) 0);
+            appendValue(type.getLong(block, position));
         }
     }
 
     private void appendNull()
     {
         if (index >= nulls.length) {
-            nulls = Arrays.copyOf(nulls, WriterUtils.doubleCapacityChecked(index));
+            nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
         }
         nulls[index] = true;
         hasNulls = true;
         index++;
     }
 
-    private void appendValue(byte value)
+    private void appendValue(long value)
     {
-        if (index >= bytes.length) {
-            bytes = Arrays.copyOf(bytes, WriterUtils.doubleCapacityChecked(index));
+        if (index >= longs.length) {
+            longs = Arrays.copyOf(longs, doubleCapacityChecked(index));
         }
-        bytes[index] = value;
+        longs[index] = value;
         hasData = true;
         index++;
     }
 
     @Override
-    public final List<PrestoThriftColumnData> getResult()
+    public final PrestoThriftColumnData build()
     {
-        return ImmutableList.of(new PrestoThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, index),
-                null,
-                null,
-                WriterUtils.trim(bytes, hasData, index),
-                null,
-                columnName));
+        return buildInternal(trim(nulls, hasNulls, index), trim(longs, hasData, index));
     }
 }

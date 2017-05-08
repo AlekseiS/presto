@@ -13,9 +13,6 @@
  */
 package com.facebook.presto.connector.thrift;
 
-import com.facebook.presto.connector.thrift.ThriftColumnHandle;
-import com.facebook.presto.connector.thrift.ThriftConnectorConfig;
-import com.facebook.presto.connector.thrift.ThriftConnectorSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
@@ -31,7 +28,6 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.facebook.presto.connector.thrift.readers.ColumnReaders.convertToPage;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static io.airlift.concurrent.MoreFutures.getFutureValue;
 import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
@@ -167,8 +163,11 @@ public class ThriftPageSource
     {
         firstCall = false;
         nextToken = rowsBatch.getNextToken();
-        completedBytes += rowsBatch.getDataSize();
-        return convertToPage(rowsBatch, columnNames, columnTypes);
+        Page page = rowsBatch.toPage(columnTypes);
+        if (page != null) {
+            completedBytes += page.getSizeInBytes();
+        }
+        return page;
     }
 
     @Override

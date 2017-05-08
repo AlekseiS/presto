@@ -13,9 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
-import com.facebook.presto.connector.thrift.readers.ColumnReaders;
-import com.facebook.presto.connector.thrift.writers.ColumnWriter;
-import com.facebook.presto.connector.thrift.writers.ColumnWriters;
+import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.type.Type;
@@ -25,9 +23,9 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
-import java.util.List;
 import java.util.Optional;
 
+import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.ThriftRange.Bound.toMarkerBound;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
@@ -35,20 +33,19 @@ import static java.util.Objects.requireNonNull;
 @ThriftStruct
 public final class PrestoThriftSingleValue
 {
-    public static final String VALUE_COLUMN_NAME = "value";
-    private final List<PrestoThriftColumnData> columnsData;
+    private final PrestoThriftColumnData columnData;
 
     @ThriftConstructor
-    public PrestoThriftSingleValue(List<PrestoThriftColumnData> columnsData)
+    public PrestoThriftSingleValue(PrestoThriftColumnData columnData)
     {
-        this.columnsData = requireNonNull(columnsData, "columnsData is null");
-        checkArgument(!columnsData.isEmpty(), "Columns data is empty");
+        this.columnData = requireNonNull(columnData, "columnData is null");
+        checkArgument(columnData.numberOfRecords() == 1, "data must contain exactly one record");
     }
 
     @ThriftField(1)
-    public List<PrestoThriftColumnData> getColumnsData()
+    public PrestoThriftColumnData getColumnData()
     {
-        return columnsData;
+        return columnData;
     }
 
     @Nullable
@@ -57,12 +54,12 @@ public final class PrestoThriftSingleValue
         if (!marker.getValueBlock().isPresent()) {
             return null;
         }
-        ColumnWriter writer = ColumnWriters.create(VALUE_COLUMN_NAME, marker.getType(), 1);
+        ColumnBuilder writer = PrestoThriftColumnData.builder(marker.getType(), 1);
         Block valueBlock = marker.getValueBlock().get();
         checkState(valueBlock.getPositionCount() == 1,
                 "Block in Marker has more than one position: %s", valueBlock.getPositionCount());
         writer.append(valueBlock, 0, marker.getType());
-        return new PrestoThriftSingleValue(writer.getResult());
+        return new PrestoThriftSingleValue(writer.build());
     }
 
     public static Marker toMarker(@Nullable PrestoThriftSingleValue value, Type type, PrestoThriftRangeValueSet.ThriftRange.Bound bound)
@@ -80,8 +77,7 @@ public final class PrestoThriftSingleValue
             }
         }
         else {
-            Block block = ColumnReaders.readBlock(value.getColumnsData(), VALUE_COLUMN_NAME, type, 1);
-            return new Marker(type, Optional.of(block), PrestoThriftRangeValueSet.ThriftRange.Bound.toMarkerBound(bound));
+            return new Marker(type, Optional.of(value.getColumnData().toBlock(type)), toMarkerBound(bound));
         }
     }
 }

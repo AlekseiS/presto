@@ -11,37 +11,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.writers;
+package com.facebook.presto.connector.thrift.api.builders;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
-import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
-import java.util.List;
 
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.doubleCapacityChecked;
+import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.trim;
 import static com.google.common.base.Preconditions.checkArgument;
-import static java.util.Objects.requireNonNull;
 
-public class LongColumnWriter
-        implements ColumnWriter
+public abstract class AbstractIntColumnBuilder
+        implements ColumnBuilder
 {
-    private final String columnName;
     private boolean[] nulls;
-    private long[] longs;
+    private int[] ints;
     private int index;
     private boolean hasNulls;
     private boolean hasData;
 
-    public LongColumnWriter(String columnName, int initialCapacity)
+    public AbstractIntColumnBuilder(int initialCapacity)
     {
-        this.columnName = requireNonNull(columnName, "columnName is null");
-        checkArgument(initialCapacity > 0, "initialCapacity is negative or zero");
+        checkArgument(initialCapacity >= 0, "initialCapacity is negative");
         this.nulls = new boolean[initialCapacity];
-        this.longs = new long[initialCapacity];
+        this.ints = new int[initialCapacity];
     }
+
+    protected abstract PrestoThriftColumnData buildInternal(boolean[] trimmedNulls, int[] trimmedInts);
 
     @Override
     public void append(RecordCursor cursor, int field)
@@ -50,7 +49,7 @@ public class LongColumnWriter
             appendNull();
         }
         else {
-            appendValue(cursor.getLong(field));
+            appendValue((int) cursor.getLong(field));
         }
     }
 
@@ -61,39 +60,33 @@ public class LongColumnWriter
             appendNull();
         }
         else {
-            appendValue(type.getLong(block, position));
+            appendValue((int) type.getLong(block, position));
         }
     }
 
     private void appendNull()
     {
         if (index >= nulls.length) {
-            nulls = Arrays.copyOf(nulls, WriterUtils.doubleCapacityChecked(index));
+            nulls = Arrays.copyOf(nulls, doubleCapacityChecked(index));
         }
         nulls[index] = true;
         hasNulls = true;
         index++;
     }
 
-    private void appendValue(long value)
+    private void appendValue(int value)
     {
-        if (index >= longs.length) {
-            longs = Arrays.copyOf(longs, WriterUtils.doubleCapacityChecked(index));
+        if (index >= ints.length) {
+            ints = Arrays.copyOf(ints, doubleCapacityChecked(index));
         }
-        longs[index] = value;
+        ints[index] = value;
         hasData = true;
         index++;
     }
 
     @Override
-    public List<PrestoThriftColumnData> getResult()
+    public PrestoThriftColumnData build()
     {
-        return ImmutableList.of(new PrestoThriftColumnData(
-                WriterUtils.trim(nulls, hasNulls, index),
-                WriterUtils.trim(longs, hasData, index),
-                null,
-                null,
-                null,
-                columnName));
+        return buildInternal(trim(nulls, hasNulls, index), trim(ints, hasData, index));
     }
 }

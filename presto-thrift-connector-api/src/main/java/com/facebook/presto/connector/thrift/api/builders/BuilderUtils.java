@@ -11,17 +11,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.writers;
+package com.facebook.presto.connector.thrift.api.builders;
 
 import java.util.Arrays;
 
 import static com.google.common.base.Preconditions.checkArgument;
+import static java.lang.Math.max;
 
-public final class WriterUtils
+final class BuilderUtils
 {
     private static final int MAX_ARRAY_SIZE = Integer.MAX_VALUE - 8;
 
-    private WriterUtils()
+    private BuilderUtils()
     {
     }
 
@@ -91,7 +92,7 @@ public final class WriterUtils
             throw new IllegalStateException("Cannot allocate an array larger than " + MAX_ARRAY_SIZE + " bytes");
         }
         else {
-            return position >= MAX_ARRAY_SIZE / 2 ? MAX_ARRAY_SIZE : 2 * position;
+            return position >= MAX_ARRAY_SIZE / 2 ? MAX_ARRAY_SIZE : 2 * max(position, 1);
         }
     }
 }
