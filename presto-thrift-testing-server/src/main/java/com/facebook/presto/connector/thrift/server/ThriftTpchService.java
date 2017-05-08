@@ -24,16 +24,14 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftPropertyMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
+import com.facebook.presto.connector.thrift.api.PrestoThriftServiceException;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSessionValue;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitsOrRows;
-import com.facebook.presto.connector.thrift.api.PrestoThriftTableLayout;
-import com.facebook.presto.connector.thrift.api.PrestoThriftTableLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
 import com.facebook.presto.connector.thrift.server.states.IndexInfo;
-import com.facebook.presto.connector.thrift.server.states.LayoutInfo;
 import com.facebook.presto.connector.thrift.server.states.SplitInfo;
 import com.facebook.presto.connector.thrift.writers.ColumnWriter;
 import com.facebook.presto.connector.thrift.writers.ColumnWriters;
@@ -63,7 +61,6 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.facebook.presto.connector.thrift.readers.ColumnReaders.convertToPage;
-import static com.facebook.presto.connector.thrift.server.TpchServerUtils.allColumns;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.computeRemap;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.estimateRecords;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.getTypeString;
@@ -153,18 +150,6 @@ public class ThriftTpchService
         return new PrestoThriftNullableTableMetadata(new PrestoThriftTableMetadata(schemaTableName, columns, null));
     }
 
-    @Override
-    public List<PrestoThriftTableLayoutResult> getTableLayouts(
-            PrestoThriftConnectorSession session,
-            PrestoThriftSchemaTableName schemaTableName,
-            PrestoThriftTupleDomain outputConstraint,
-            @Nullable Set<String> desiredColumns)
-    {
-        List<String> columns = desiredColumns != null ? ImmutableList.copyOf(desiredColumns) : allColumns(schemaTableName.getTableName());
-        byte[] layoutId = serialize(new LayoutInfo(schemaTableName.getSchemaName(), schemaTableName.getTableName(), columns));
-        return ImmutableList.of(new PrestoThriftTableLayoutResult(new PrestoThriftTableLayout(layoutId, outputConstraint), outputConstraint));
-    }
-
     private static int getOrElse(Map<String, PrestoThriftSessionValue> values, String name, int defaultValue)
     {
         PrestoThriftSessionValue parameterValue = values.get(name);
@@ -179,20 +164,22 @@ public class ThriftTpchService
     @Override
     public ListenableFuture<PrestoThriftSplitBatch> getSplits(
             PrestoThriftConnectorSession session,
-            PrestoThriftTableLayout layout,
+            PrestoThriftSchemaTableName schemaTableName,
+            @Nullable Set<String> desiredColumns,
+            PrestoThriftTupleDomain outputConstraint,
             int maxSplitCount,
             @Nullable byte[] nextToken)
+            throws PrestoThriftServiceException
     {
-        return splitsExecutor.submit(() -> getSplitsInternal(session, layout, maxSplitCount, nextToken));
+        return splitsExecutor.submit(() -> getSplitsInternal(session, schemaTableName, maxSplitCount, nextToken));
     }
 
     private static PrestoThriftSplitBatch getSplitsInternal(
             PrestoThriftConnectorSession session,
-            PrestoThriftTableLayout layout,
+            PrestoThriftSchemaTableName schemaTableName,
             int maxSplitCount,
             @Nullable byte[] nextToken)
     {
-        LayoutInfo layoutInfo = deserialize(layout.getLayoutId(), LayoutInfo.class);
         int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
         // last sent part
         int partNumber = nextToken == null ? 0 : Ints.fromByteArray(nextToken);
@@ -201,11 +188,10 @@ public class ThriftTpchService
         List<PrestoThriftSplit> splits = new ArrayList<>(numberOfSplits);
         for (int i = 0; i < numberOfSplits; i++) {
             SplitInfo splitInfo = new SplitInfo(
-                    layoutInfo.getSchemaName(),
-                    layoutInfo.getTableName(),
+                    schemaTableName.getSchemaName(),
+                    schemaTableName.getTableName(),
                     partNumber + 1,
-                    totalParts,
-                    layoutInfo.getColumnNames());
+                    totalParts);
             byte[] splitId = serialize(splitInfo);
             splits.add(new PrestoThriftSplit(splitId, ImmutableList.of()));
             partNumber++;
@@ -215,9 +201,13 @@ public class ThriftTpchService
     }
 
     @Override
-    public ListenableFuture<PrestoThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
+    public ListenableFuture<PrestoThriftRowsBatch> getRows(
+            byte[] splitId,
+            List<String> columns,
+            long maxBytes,
+            @Nullable byte[] nextToken)
     {
-        return dataExecutor.submit(() -> getRowsInternal(splitId, maxBytes, nextToken));
+        return dataExecutor.submit(() -> getRowsInternal(splitId, columns, maxBytes, nextToken));
     }
 
     @Override
@@ -308,15 +298,14 @@ public class ThriftTpchService
         return new MappedRecordSet(allColumnsOutputRecordSet, outputRemap);
     }
 
-    private static PrestoThriftRowsBatch getRowsInternal(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
+    private static PrestoThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columns, long maxBytes, @Nullable byte[] nextToken)
     {
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
-        List<String> columnNames = splitInfo.getColumnNames();
-        RecordCursor cursor = createCursor(splitInfo, splitInfo.getColumnNames());
+        RecordCursor cursor = createCursor(splitInfo, columns);
         return cursorToRowsBatch(
                 cursor,
-                columnNames,
-                estimateRecords(maxBytes, types(splitInfo.getTableName(), splitInfo.getColumnNames())),
+                columns,
+                estimateRecords(maxBytes, types(splitInfo.getTableName(), columns)),
                 nextToken);
     }
 

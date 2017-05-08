@@ -14,10 +14,11 @@
 package com.facebook.presto.connector.thrift;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftConnectorSession;
+import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitBatch;
-import com.facebook.presto.connector.thrift.api.PrestoThriftTableLayout;
+import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
@@ -32,11 +33,14 @@ import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.facebook.presto.connector.thrift.ThriftClientSessionProperties.toThriftSession;
 import static com.facebook.presto.connector.thrift.ThriftColumnHandle.tupleDomainToThriftTupleDomain;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftHostAddress.toHostAddressList;
 import static com.google.common.base.Preconditions.checkState;
@@ -63,8 +67,10 @@ public class ThriftSplitManager
         ThriftTableLayoutHandle layoutHandle = (ThriftTableLayoutHandle) layout;
         return new ThriftSplitSource(
                 clientProvider.anyHostClient(),
-                ThriftClientSessionProperties.toThriftSession(session, clientSessionProperties),
-                new PrestoThriftTableLayout(layoutHandle.getLayoutId(), tupleDomainToThriftTupleDomain(layoutHandle.getPredicate())));
+                toThriftSession(session, clientSessionProperties),
+                new PrestoThriftSchemaTableName(layoutHandle.getSchemaName(), layoutHandle.getTableName()),
+                layoutHandle.getColumns().map(ThriftColumnHandle::columnNames),
+                tupleDomainToThriftTupleDomain(layoutHandle.getConstraint()));
     }
 
     @NotThreadSafe
@@ -73,22 +79,28 @@ public class ThriftSplitManager
     {
         private final PrestoThriftService client;
         private final PrestoThriftConnectorSession session;
-        private final PrestoThriftTableLayout layout;
 
         // the code assumes getNextBatch is called by a single thread
 
         private final AtomicBoolean hasMoreData;
         private final AtomicReference<byte[]> nextToken;
         private final AtomicReference<Future<?>> future;
+        private final PrestoThriftSchemaTableName schemaTableName;
+        private final Optional<Set<String>> columnNames;
+        private final PrestoThriftTupleDomain constraint;
 
         public ThriftSplitSource(
                 PrestoThriftService client,
                 PrestoThriftConnectorSession session,
-                PrestoThriftTableLayout layout)
+                PrestoThriftSchemaTableName schemaTableName,
+                Optional<Set<String>> columnNames,
+                PrestoThriftTupleDomain constraint)
         {
             this.client = requireNonNull(client, "client is null");
             this.session = requireNonNull(session, "session is null");
-            this.layout = requireNonNull(layout, "layout is null");
+            this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
+            this.columnNames = requireNonNull(columnNames, "columnNames is null");
+            this.constraint = requireNonNull(constraint, "constraint is null");
             this.nextToken = new AtomicReference<>(null);
             this.hasMoreData = new AtomicBoolean(true);
             this.future = new AtomicReference<>(null);
@@ -105,7 +117,8 @@ public class ThriftSplitManager
             checkState(future.get() == null || future.get().isDone(), "previous batch not completed");
             checkState(hasMoreData.get(), "this method cannot be invoked when there's no more data");
             byte[] currentToken = nextToken.get();
-            ListenableFuture<PrestoThriftSplitBatch> splitsFuture = client.getSplits(session, layout, maxSize, currentToken);
+            ListenableFuture<PrestoThriftSplitBatch> splitsFuture =
+                    client.getSplits(session, schemaTableName, columnNames.orElse(null), constraint, maxSize, currentToken);
             ListenableFuture<List<ConnectorSplit>> resultFuture = Futures.transform(
                     splitsFuture,
                     batch -> {

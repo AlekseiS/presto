@@ -19,38 +19,67 @@ import com.facebook.presto.spi.predicate.TupleDomain;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import java.util.Arrays;
 import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
 
-import static com.facebook.presto.connector.thrift.util.ByteUtils.summarize;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 public class ThriftTableLayoutHandle
         implements ConnectorTableLayoutHandle
 {
-    private final byte[] layoutId;
-    private final TupleDomain<ColumnHandle> predicate;
+    private final String schemaName;
+    private final String tableName;
+    private final Optional<Set<ColumnHandle>> columns;
+    private final TupleDomain<ColumnHandle> constraint;
 
     @JsonCreator
     public ThriftTableLayoutHandle(
-            @JsonProperty("layoutId") byte[] layoutId,
-            @JsonProperty("predicate") TupleDomain<ColumnHandle> predicate)
+            @JsonProperty("schemaName") String schemaName,
+            @JsonProperty("tableName") String tableName,
+            @JsonProperty("columns") Optional<Set<ColumnHandle>> columns,
+            @JsonProperty("constraint") TupleDomain<ColumnHandle> constraint)
     {
-        this.layoutId = requireNonNull(layoutId, "layoutId is null");
-        this.predicate = requireNonNull(predicate, "predicate is null");
+        this.schemaName = requireNonNull(schemaName, "schemaName is null");
+        this.tableName = requireNonNull(tableName, "tableName is null");
+        this.columns = requireNonNull(columns, "columns is null");
+        this.constraint = requireNonNull(constraint, "constraint is null");
     }
 
     @JsonProperty
-    public byte[] getLayoutId()
+    public String getSchemaName()
     {
-        return layoutId;
+        return schemaName;
     }
 
     @JsonProperty
-    public TupleDomain<ColumnHandle> getPredicate()
+    public String getTableName()
     {
-        return predicate;
+        return tableName;
+    }
+
+    @JsonProperty
+    public Optional<Set<ColumnHandle>> getColumns()
+    {
+        return columns;
+    }
+
+    @JsonProperty
+    public TupleDomain<ColumnHandle> getConstraint()
+    {
+        return constraint;
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("schemaName", schemaName)
+                .add("tableName", tableName)
+                .add("columns", columns)
+                .add("constraint", constraint)
+                .toString();
     }
 
     @Override
@@ -62,24 +91,16 @@ public class ThriftTableLayoutHandle
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-
         ThriftTableLayoutHandle other = (ThriftTableLayoutHandle) o;
-        return Arrays.equals(layoutId, other.layoutId)
-                && Objects.equals(predicate, other.predicate);
+        return schemaName.equals(other.schemaName)
+                && tableName.equals(other.tableName)
+                && columns.equals(other.columns)
+                && constraint.equals(other.constraint);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(layoutId, predicate);
-    }
-
-    @Override
-    public String toString()
-    {
-        return toStringHelper(this)
-                .add("layoutId", summarize(layoutId))
-                .add("predicate", predicate)
-                .toString();
+        return Objects.hash(schemaName, tableName, columns, constraint);
     }
 }

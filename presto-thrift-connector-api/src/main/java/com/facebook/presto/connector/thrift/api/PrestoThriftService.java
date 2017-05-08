@@ -69,27 +69,12 @@ public interface PrestoThriftService
             throws PrestoThriftServiceException;
 
     /**
-     * Returns supported table layouts for a given table, desired columns and query constraint.
-     *
-     * @param session session properties
-     * @param schemaTableName schema and table name
-     * @param outputConstraint query constraint
-     * @param desiredColumns a superset of columns used by the query. {@literal null} value means "all columns" while empty set means "no columns"
-     * @return supported table layouts
-     */
-    @ThriftMethod("prestoGetTableLayouts")
-    List<PrestoThriftTableLayoutResult> getTableLayouts(
-            PrestoThriftConnectorSession session,
-            PrestoThriftSchemaTableName schemaTableName,
-            PrestoThriftTupleDomain outputConstraint,
-            @Nullable Set<String> desiredColumns)
-            throws PrestoThriftServiceException;
-
-    /**
      * Returns a batch of splits.
      *
      * @param session session properties
-     * @param layout table layout chosen by the engine
+     * @param schemaTableName schema and table name
+     * @param desiredColumns a superset of columns to return; empty set means "no columns", {@literal null} set means "all columns"
+     * @param outputConstraint constraint on the returned data
      * @param maxSplitCount maximum number of splits to return
      * @param nextToken token from a previous split batch or {@literal null} if it is the first call
      * @return a batch of splits
@@ -97,7 +82,9 @@ public interface PrestoThriftService
     @ThriftMethod("prestoGetSplits")
     ListenableFuture<PrestoThriftSplitBatch> getSplits(
             PrestoThriftConnectorSession session,
-            PrestoThriftTableLayout layout,
+            PrestoThriftSchemaTableName schemaTableName,
+            @Nullable Set<String> desiredColumns,
+            PrestoThriftTupleDomain outputConstraint,
             int maxSplitCount,
             @Nullable byte[] nextToken)
             throws PrestoThriftServiceException;
@@ -106,12 +93,17 @@ public interface PrestoThriftService
      * Returns a batch of rows for the given split.
      *
      * @param splitId split id as returned in split batch
+     * @param columns a list of column names to return
      * @param maxBytes maximum size of returned data in bytes
      * @param nextToken token from a previous batch or {@literal null} if it is the first call
      * @return a batch of table data
      */
     @ThriftMethod("prestoGetRows")
-    ListenableFuture<PrestoThriftRowsBatch> getRows(byte[] splitId, long maxBytes, @Nullable byte[] nextToken)
+    ListenableFuture<PrestoThriftRowsBatch> getRows(
+            byte[] splitId,
+            List<String> columns,
+            long maxBytes,
+            @Nullable byte[] nextToken)
             throws PrestoThriftServiceException;
 
     /**

@@ -64,9 +64,9 @@ public class ThriftIndexPageSource
     }
 
     @Override
-    public ListenableFuture<PrestoThriftRowsBatch> sendDataRequest(byte[] nextToken, long maxBytes)
+    public ListenableFuture<PrestoThriftRowsBatch> sendDataRequest(byte[] nextToken)
     {
-        return state.get().sendRequestForData(nextToken, maxBytes);
+        return state.get().sendRequestForData(nextToken);
     }
 
     @Override
@@ -83,7 +83,7 @@ public class ThriftIndexPageSource
 
     private interface State
     {
-        ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken, long maxBytes);
+        ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken);
 
         boolean canGetMoreData(byte[] nextToken);
     }
@@ -92,12 +92,12 @@ public class ThriftIndexPageSource
             implements State
     {
         @Override
-        public ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken, long maxBytes)
+        public ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken)
         {
             checkState(nextToken == null, "first call must pass null for nextToken");
             return transformAsync(
-                    client.get().getRowsOrSplitsForIndex(indexId, keys, 0, maxBytes, nextToken),
-                    splitsOrRows -> getSplitsOrRows(splitsOrRows, maxBytes));
+                    client.get().getRowsOrSplitsForIndex(indexId, keys, 0, getMaxBytesPerResponse(), nextToken),
+                    this::getSplitsOrRows);
         }
 
         @Override
@@ -106,12 +106,12 @@ public class ThriftIndexPageSource
             return true;
         }
 
-        private ListenableFuture<PrestoThriftRowsBatch> getSplitsOrRows(PrestoThriftSplitsOrRows splitsOrRows, long maxBytes)
+        private ListenableFuture<PrestoThriftRowsBatch> getSplitsOrRows(PrestoThriftSplitsOrRows splitsOrRows)
         {
             if (splitsOrRows.getSplits() != null) {
                 State newState = new SplitBasedState(splitsOrRows.getSplits());
                 state.set(newState);
-                return newState.sendRequestForData(null, maxBytes);
+                return newState.sendRequestForData(null);
             }
             else if (splitsOrRows.getRows() != null) {
                 state.set(new RowBasedState());
@@ -127,9 +127,9 @@ public class ThriftIndexPageSource
             implements State
     {
         @Override
-        public ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken, long maxBytes)
+        public ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken)
         {
-            return transform(client.get().getRowsOrSplitsForIndex(indexId, keys, 0, maxBytes, nextToken), this::getRows);
+            return transform(client.get().getRowsOrSplitsForIndex(indexId, keys, 0, getMaxBytesPerResponse(), nextToken), this::getRows);
         }
 
         @Override
@@ -159,15 +159,15 @@ public class ThriftIndexPageSource
         }
 
         @Override
-        public ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken, long maxBytes)
+        public ListenableFuture<PrestoThriftRowsBatch> sendRequestForData(byte[] nextToken)
         {
             if (nextToken != null) {
                 // current split still has data
-                return client.get().getRows(currentSplit.get().getSplitId(), maxBytes, nextToken);
+                return client.get().getRows(currentSplit.get().getSplitId(), getColumnNames(), getMaxBytesPerResponse(), nextToken);
             }
             else if (splitIterator.get().hasNext()) {
                 // current split is finished, get a new one
-                return startNextSplit(maxBytes);
+                return startNextSplit();
             }
             else {
                 // current split batch is empty
@@ -175,7 +175,7 @@ public class ThriftIndexPageSource
                     // send request for a new split batch
                     return transformAsync(
                             client.get().getRowsOrSplitsForIndex(indexId, keys, maxSplitsPerBatch, 0, splitsNextToken.get()),
-                            splitsOrRows -> processSplitBatch(splitsOrRows, maxBytes));
+                            this::processSplitBatch);
                 }
                 else {
                     // all splits were processed
@@ -185,7 +185,7 @@ public class ThriftIndexPageSource
             }
         }
 
-        private ListenableFuture<PrestoThriftRowsBatch> processSplitBatch(PrestoThriftSplitsOrRows splitsOrRows, long maxBytes)
+        private ListenableFuture<PrestoThriftRowsBatch> processSplitBatch(PrestoThriftSplitsOrRows splitsOrRows)
         {
             checkState(splitsOrRows.getSplits() != null, "splits must be present");
             PrestoThriftSplitBatch splitBatch = splitsOrRows.getSplits();
@@ -195,11 +195,11 @@ public class ThriftIndexPageSource
                 return immediateFuture(emptyBatch());
             }
             else {
-                return startNextSplit(maxBytes);
+                return startNextSplit();
             }
         }
 
-        private ListenableFuture<PrestoThriftRowsBatch> startNextSplit(long maxBytes)
+        private ListenableFuture<PrestoThriftRowsBatch> startNextSplit()
         {
             PrestoThriftSplit split = splitIterator.get().next();
             currentSplit.set(split);
@@ -208,7 +208,7 @@ public class ThriftIndexPageSource
                 client.get().close();
                 client.set(clientProvider.selectedHostClient(toHostAddressList(split.getHosts())));
             }
-            return client.get().getRows(split.getSplitId(), maxBytes, null);
+            return client.get().getRows(split.getSplitId(), getColumnNames(), getMaxBytesPerResponse(), null);
         }
 
         @Override

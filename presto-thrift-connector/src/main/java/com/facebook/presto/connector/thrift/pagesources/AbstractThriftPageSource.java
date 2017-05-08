@@ -32,6 +32,7 @@ import static com.facebook.presto.connector.thrift.readers.ColumnReaders.convert
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static io.airlift.concurrent.MoreFutures.getFutureValue;
 import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
+import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
 public abstract class AbstractThriftPageSource
@@ -49,23 +50,35 @@ public abstract class AbstractThriftPageSource
     public AbstractThriftPageSource(List<ColumnHandle> columns, ThriftConnectorConfig config)
     {
         requireNonNull(columns, "columns is null");
-        this.columnNames = new ArrayList<>(columns.size());
-        this.columnTypes = new ArrayList<>(columns.size());
+        List<String> columnNames = new ArrayList<>(columns.size());
+        List<Type> columnTypes = new ArrayList<>(columns.size());
         for (ColumnHandle columnHandle : columns) {
             ThriftColumnHandle thriftColumnHandle = (ThriftColumnHandle) columnHandle;
             columnNames.add(thriftColumnHandle.getColumnName());
             columnTypes.add(thriftColumnHandle.getColumnType());
         }
+        this.columnNames = unmodifiableList(columnNames);
+        this.columnTypes = unmodifiableList(columnTypes);
         this.maxBytesPerResponse = requireNonNull(config, "config is null").getMaxResponseSize().toBytes();
     }
 
-    public abstract ListenableFuture<PrestoThriftRowsBatch> sendDataRequest(byte[] nextToken, long maxBytes);
+    public abstract ListenableFuture<PrestoThriftRowsBatch> sendDataRequest(byte[] nextToken);
 
     public abstract void closeInternal();
 
     public boolean canGetMoreData(byte[] nextToken)
     {
         return nextToken != null;
+    }
+
+    protected final List<String> getColumnNames()
+    {
+        return columnNames;
+    }
+
+    protected final long getMaxBytesPerResponse()
+    {
+        return maxBytesPerResponse;
     }
 
     @Override
@@ -127,7 +140,7 @@ public abstract class AbstractThriftPageSource
     private CompletableFuture<PrestoThriftRowsBatch> sendDataRequestInternal()
     {
         final long start = System.nanoTime();
-        ListenableFuture<PrestoThriftRowsBatch> rowsBatchFuture = sendDataRequest(nextToken, maxBytesPerResponse);
+        ListenableFuture<PrestoThriftRowsBatch> rowsBatchFuture = sendDataRequest(nextToken);
         rowsBatchFuture.addListener(() -> readTimeNanos.addAndGet(System.nanoTime() - start), directExecutor());
         return toCompletableFuture(rowsBatchFuture);
     }

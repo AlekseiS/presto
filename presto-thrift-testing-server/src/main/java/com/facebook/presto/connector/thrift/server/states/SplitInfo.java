@@ -15,9 +15,6 @@ package com.facebook.presto.connector.thrift.server.states;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.google.common.collect.ImmutableList;
-
-import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -27,21 +24,18 @@ public final class SplitInfo
     private final String tableName;
     private final int partNumber;
     private final int totalParts;
-    private final List<String> columnNames;
 
     @JsonCreator
     public SplitInfo(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
             @JsonProperty("partNumber") int partNumber,
-            @JsonProperty("totalParts") int totalParts,
-            @JsonProperty("columnNames") List<String> columnNames)
+            @JsonProperty("totalParts") int totalParts)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.partNumber = partNumber;
         this.totalParts = totalParts;
-        this.columnNames = ImmutableList.copyOf(requireNonNull(columnNames, "columnNames is null"));
     }
 
     @JsonProperty
@@ -66,11 +60,5 @@ public final class SplitInfo
     public int getTotalParts()
     {
         return totalParts;
-    }
-
-    @JsonProperty
-    public List<String> getColumnNames()
-    {
-        return columnNames;
     }
 }

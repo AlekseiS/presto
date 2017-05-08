@@ -20,8 +20,6 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
-import com.facebook.presto.connector.thrift.api.PrestoThriftTableLayout;
-import com.facebook.presto.connector.thrift.api.PrestoThriftTableLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
 import com.facebook.presto.spi.ColumnHandle;
@@ -140,32 +138,18 @@ public class ThriftMetadata
             Optional<Set<ColumnHandle>> desiredColumns)
     {
         ThriftTableHandle tableHandle = (ThriftTableHandle) table;
-        Optional<Set<String>> desiredColumnNames = desiredColumns.map(ThriftColumnHandle::columnNames);
-        List<PrestoThriftTableLayoutResult> thriftLayoutResults = clientProvider.runOnAnyHost(
-                client -> client.getTableLayouts(
-                        ThriftClientSessionProperties.toThriftSession(session, clientSessionProperties),
-                        new PrestoThriftSchemaTableName(tableHandle.getSchemaName(), tableHandle.getTableName()),
-                        tupleDomainToThriftTupleDomain(constraint.getSummary()),
-                        desiredColumnNames.orElse(null)));
-        Map<String, ColumnHandle> allColumns = getColumnHandles(session, table);
-
-        return thriftLayoutResults.stream()
-                .map(result -> toTableLayoutResult(result, allColumns))
-                .collect(toImmutableList());
+        ThriftTableLayoutHandle layoutHandle = new ThriftTableLayoutHandle(
+                tableHandle.getSchemaName(),
+                tableHandle.getTableName(),
+                desiredColumns,
+                constraint.getSummary());
+        return ImmutableList.of(new ConnectorTableLayoutResult(new ConnectorTableLayout(layoutHandle), constraint.getSummary()));
     }
 
     @Override
     public ConnectorTableLayout getTableLayout(ConnectorSession session, ConnectorTableLayoutHandle handle)
     {
-        ThriftTableLayoutHandle thriftHandle = (ThriftTableLayoutHandle) handle;
-        return new ConnectorTableLayout(
-                thriftHandle,
-                Optional.empty(),
-                thriftHandle.getPredicate(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                ImmutableList.of());
+        return new ConnectorTableLayout(handle);
     }
 
     @Override
@@ -250,27 +234,6 @@ public class ThriftMetadata
                     new ThriftIndexHandle(result.getIndexLayoutResult().getIndexId()),
                     toTupleDomain(result.getIndexLayoutResult().getUnenforcedPredicate(), getColumnHandles(session, tableHandle))));
         }
-    }
-
-    private static ConnectorTableLayout toConnectorTableLayout(PrestoThriftTableLayout thriftLayout, Map<String, ColumnHandle> allColumns)
-    {
-        TupleDomain<ColumnHandle> predicate = toTupleDomain(thriftLayout.getPredicate(), allColumns);
-        return new ConnectorTableLayout(
-                new ThriftTableLayoutHandle(thriftLayout.getLayoutId(), predicate),
-                Optional.empty(),
-                predicate,
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty(),
-                ImmutableList.of()
-        );
-    }
-
-    private static ConnectorTableLayoutResult toTableLayoutResult(PrestoThriftTableLayoutResult result, Map<String, ColumnHandle> allColumns)
-    {
-        return new ConnectorTableLayoutResult(
-                toConnectorTableLayout(result.getLayout(), allColumns),
-                toTupleDomain(result.getUnenforcedPredicate(), allColumns));
     }
 
     private static TupleDomain<ColumnHandle> toTupleDomain(

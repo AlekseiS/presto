@@ -50,9 +50,9 @@ public class ThriftPageSource
     }
 
     @Override
-    public ListenableFuture<PrestoThriftRowsBatch> sendDataRequest(byte[] nextToken, long maxBytes)
+    public ListenableFuture<PrestoThriftRowsBatch> sendDataRequest(byte[] nextToken)
     {
-        return client.getRows(splitId, maxBytes, nextToken);
+        return client.getRows(splitId, getColumnNames(), getMaxBytesPerResponse(), nextToken);
     }
 
     @Override
