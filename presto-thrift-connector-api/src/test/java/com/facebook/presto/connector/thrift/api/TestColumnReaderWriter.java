@@ -21,6 +21,8 @@ import com.facebook.presto.spi.block.BlockBuilderStatus;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
 import com.google.common.collect.ImmutableList;
+import io.airlift.slice.Slice;
+import io.airlift.stats.cardinality.HyperLogLog;
 import org.testng.annotations.Test;
 
 import java.util.ArrayList;
@@ -32,6 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
+import static com.facebook.presto.spi.type.HyperLogLogType.HYPER_LOG_LOG;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.presto.spi.type.TimestampType.TIMESTAMP;
 import static com.facebook.presto.spi.type.VarcharType.createUnboundedVarcharType;
@@ -51,6 +54,8 @@ public class TestColumnReaderWriter
     private static final long MIN_GENERATED_TIMESTAMP;
     private static final long MAX_GENERATED_TIMESTAMP;
     private static final int MAX_GENERATED_JSON_KEY_LENGTH = 8;
+    private static final int HYPER_LOG_LOG_BUCKETS = 128;
+    private static final int MAX_HYPER_LOG_LOG_ELEMENTS = 32;
     private final AtomicLong seedGenerator = new AtomicLong(762103512L);
 
     static {
@@ -88,7 +93,8 @@ public class TestColumnReaderWriter
                 new VarcharColumn(createUnboundedVarcharType()),
                 new VarcharColumn(createVarcharType(MAX_VARCHAR_GENERATED_LENGTH / 2)),
                 new TimestampColumn(),
-                new JsonColumn()
+                new JsonColumn(),
+                new HyperLogLogColumn()
         );
 
         Random random = new Random(seedGenerator.incrementAndGet());
@@ -172,6 +178,16 @@ public class TestColumnReaderWriter
     private static long nextTimestamp(Random random)
     {
         return MIN_GENERATED_TIMESTAMP + (long) (random.nextDouble() * (MAX_GENERATED_TIMESTAMP - MIN_GENERATED_TIMESTAMP));
+    }
+
+    private static Slice nextHyperLogLog(Random random)
+    {
+        HyperLogLog hll = HyperLogLog.newInstance(HYPER_LOG_LOG_BUCKETS);
+        int size = random.nextInt(MAX_HYPER_LOG_LOG_ELEMENTS);
+        for (int i = 0; i < size; i++) {
+            hll.add(random.nextLong());
+        }
+        return hll.serialize();
     }
 
     private abstract static class ColumnDefinition
@@ -345,6 +361,27 @@ public class TestColumnReaderWriter
                     nextString(random, MAX_GENERATED_JSON_KEY_LENGTH),
                     random.nextInt());
             JSON.writeString(builder, json);
+        }
+    }
+
+    private static final class HyperLogLogColumn
+            extends ColumnDefinition
+    {
+        public HyperLogLogColumn()
+        {
+            super(HYPER_LOG_LOG);
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return HYPER_LOG_LOG.getSlice(block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            HYPER_LOG_LOG.writeSlice(builder, nextHyperLogLog(random));
         }
     }
 }
