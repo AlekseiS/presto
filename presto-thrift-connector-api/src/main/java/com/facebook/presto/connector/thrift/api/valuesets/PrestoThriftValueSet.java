@@ -11,7 +11,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.api;
+package com.facebook.presto.connector.thrift.api.valuesets;
 
 import com.facebook.presto.spi.predicate.AllOrNoneValueSet;
 import com.facebook.presto.spi.predicate.EquatableValueSet;
@@ -25,9 +25,9 @@ import javax.annotation.Nullable;
 
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftAllOrNoneValueSet.fromAllOrNoneValueSet;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftEquatableValueSet.fromEquatableValueSet;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.fromSortedRangeSet;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftAllOrNoneValueSet.fromAllOrNoneValueSet;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftEquatableValueSet.fromEquatableValueSet;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.fromSortedRangeSet;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;

@@ -11,21 +11,22 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.api;
+package com.facebook.presto.connector.thrift.api.valuesets;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftMarker;
-import com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftRange;
+import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigint;
+import com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftMarker;
+import com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftRange;
 import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.ValueSet;
 import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.bigintData;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftBound.ABOVE;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftBound.BELOW;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftBound.EXACTLY;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftValueSet.fromValueSet;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.ABOVE;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.BELOW;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.EXACTLY;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftValueSet.fromValueSet;
 import static com.facebook.presto.spi.predicate.Range.range;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static org.testng.Assert.assertEquals;

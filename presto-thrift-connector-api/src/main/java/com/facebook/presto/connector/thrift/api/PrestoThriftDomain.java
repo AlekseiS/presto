@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
+import com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftValueSet;
 import com.facebook.presto.spi.predicate.Domain;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
@@ -20,7 +21,7 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftValueSet.fromValueSet;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftValueSet.fromValueSet;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 

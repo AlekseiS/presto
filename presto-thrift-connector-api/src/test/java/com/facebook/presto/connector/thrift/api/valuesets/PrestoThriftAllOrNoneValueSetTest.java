@@ -11,12 +11,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.api;
+package com.facebook.presto.connector.thrift.api.valuesets;
 
 import com.facebook.presto.spi.predicate.ValueSet;
 import org.testng.annotations.Test;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftValueSet.fromValueSet;
+import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftValueSet.fromValueSet;
 import static com.facebook.presto.spi.type.HyperLogLogType.HYPER_LOG_LOG;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertNotNull;
