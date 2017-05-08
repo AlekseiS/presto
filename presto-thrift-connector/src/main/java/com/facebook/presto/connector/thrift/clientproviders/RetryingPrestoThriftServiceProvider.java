@@ -14,11 +14,9 @@
 package com.facebook.presto.connector.thrift.clientproviders;
 
 import com.facebook.presto.connector.thrift.annotations.NonRetrying;
-import com.facebook.presto.connector.thrift.api.PrestoThriftConnectorSession;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableIndexLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
-import com.facebook.presto.connector.thrift.api.PrestoThriftPropertyMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
@@ -102,12 +100,6 @@ public class RetryingPrestoThriftServiceProvider
         }
 
         @Override
-        public List<PrestoThriftPropertyMetadata> listSessionProperties()
-        {
-            return retry.run("listSessionProperties", () -> getClient().listSessionProperties());
-        }
-
-        @Override
         public List<String> listSchemaNames()
         {
             return retry.run("listSchemaNames", () -> getClient().listSchemaNames());
@@ -127,7 +119,6 @@ public class RetryingPrestoThriftServiceProvider
 
         @Override
         public ListenableFuture<PrestoThriftSplitBatch> getSplits(
-                PrestoThriftConnectorSession session,
                 PrestoThriftSchemaTableName schemaTableName,
                 @Nullable Set<String> desiredColumns,
                 PrestoThriftTupleDomain outputConstraint,
@@ -135,7 +126,7 @@ public class RetryingPrestoThriftServiceProvider
                 @Nullable byte[] nextToken)
                 throws PrestoThriftServiceException
         {
-            return retry.run("getSplits", () -> getClient().getSplits(session, schemaTableName, desiredColumns, outputConstraint, maxSplitCount, nextToken));
+            return retry.run("getSplits", () -> getClient().getSplits(schemaTableName, desiredColumns, outputConstraint, maxSplitCount, nextToken));
         }
 
         @Override
@@ -146,13 +137,12 @@ public class RetryingPrestoThriftServiceProvider
 
         @Override
         public PrestoThriftNullableIndexLayoutResult resolveIndex(
-                PrestoThriftConnectorSession session,
                 PrestoThriftSchemaTableName schemaTableName,
                 Set<String> indexableColumnNames,
                 Set<String> outputColumnNames,
                 PrestoThriftTupleDomain outputConstraint)
         {
-            return retry.run("resolveIndex", () -> getClient().resolveIndex(session, schemaTableName, indexableColumnNames, outputColumnNames, outputConstraint));
+            return retry.run("resolveIndex", () -> getClient().resolveIndex(schemaTableName, indexableColumnNames, outputColumnNames, outputConstraint));
         }
 
         @Override

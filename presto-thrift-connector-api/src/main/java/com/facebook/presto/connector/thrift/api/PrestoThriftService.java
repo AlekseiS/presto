@@ -32,15 +32,6 @@ public interface PrestoThriftService
         extends Closeable
 {
     /**
-     * Returns definitions for session properties supported by Thrift Node.
-     * Session properties which are different from their default values will be passed to Thrift Node in selected method calls.
-     * This method is called once on Thrift Connector start up.
-     */
-    @ThriftMethod("prestoListSessionProperties")
-    List<PrestoThriftPropertyMetadata> listSessionProperties()
-            throws PrestoThriftServiceException;
-
-    /**
      * Returns available schema names.
      */
     @ThriftMethod("prestoListSchemaNames")
@@ -71,7 +62,6 @@ public interface PrestoThriftService
     /**
      * Returns a batch of splits.
      *
-     * @param session session properties
      * @param schemaTableName schema and table name
      * @param desiredColumns a superset of columns to return; empty set means "no columns", {@literal null} set means "all columns"
      * @param outputConstraint constraint on the returned data
@@ -81,7 +71,6 @@ public interface PrestoThriftService
      */
     @ThriftMethod("prestoGetSplits")
     ListenableFuture<PrestoThriftSplitBatch> getSplits(
-            PrestoThriftConnectorSession session,
             PrestoThriftSchemaTableName schemaTableName,
             @Nullable Set<String> desiredColumns,
             PrestoThriftTupleDomain outputConstraint,
@@ -110,7 +99,6 @@ public interface PrestoThriftService
      * Returns index layout if a table can be used for index lookups with the given constraints.
      * The engine will make this call if there is an opportunity to use an index join.
      *
-     * @param session session properties
      * @param schemaTableName schema and table name
      * @param indexableColumnNames column names used as a lookup key
      * @param outputColumnNames columns that need to be returned as a result of a lookup
@@ -119,7 +107,6 @@ public interface PrestoThriftService
      */
     @ThriftMethod("prestoResolveIndex")
     PrestoThriftNullableIndexLayoutResult resolveIndex(
-            PrestoThriftConnectorSession session,
             PrestoThriftSchemaTableName schemaTableName,
             Set<String> indexableColumnNames,
             Set<String> outputColumnNames,

@@ -15,17 +15,14 @@ package com.facebook.presto.connector.thrift.server;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnMetadata;
-import com.facebook.presto.connector.thrift.api.PrestoThriftConnectorSession;
 import com.facebook.presto.connector.thrift.api.PrestoThriftIndexLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableIndexLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
-import com.facebook.presto.connector.thrift.api.PrestoThriftPropertyMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.api.PrestoThriftServiceException;
-import com.facebook.presto.connector.thrift.api.PrestoThriftSessionValue;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitsOrRows;
@@ -56,7 +53,6 @@ import javax.annotation.PreDestroy;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -82,7 +78,6 @@ public class ThriftTpchService
         implements PrestoThriftService
 {
     private static final int DEFAULT_NUMBER_OF_SPLITS = 3;
-    private static final String NUMBER_OF_SPLITS_PARAMETER = "splits";
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private static final int MAX_WRITERS_INITIAL_CAPACITY = 8192;
 
@@ -93,14 +88,6 @@ public class ThriftTpchService
     private final ListeningExecutorService indexDataExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("index-data-generator-%s")));
     private final TpchIndexedData indexedData = new TpchIndexedData("tpchindexed", INDEX_SPEC);
-
-    @Override
-    public List<PrestoThriftPropertyMetadata> listSessionProperties()
-    {
-        return ImmutableList.of(new PrestoThriftPropertyMetadata(NUMBER_OF_SPLITS_PARAMETER, "integer", "Number of splits",
-                new PrestoThriftSessionValue(false, null, 3, null, null, null),
-                false));
-    }
 
     @Override
     public List<String> listSchemaNames()
@@ -150,20 +137,8 @@ public class ThriftTpchService
         return new PrestoThriftNullableTableMetadata(new PrestoThriftTableMetadata(schemaTableName, columns, null));
     }
 
-    private static int getOrElse(Map<String, PrestoThriftSessionValue> values, String name, int defaultValue)
-    {
-        PrestoThriftSessionValue parameterValue = values.get(name);
-        if (parameterValue != null && !parameterValue.isNullValue()) {
-            return parameterValue.getIntValue();
-        }
-        else {
-            return defaultValue;
-        }
-    }
-
     @Override
     public ListenableFuture<PrestoThriftSplitBatch> getSplits(
-            PrestoThriftConnectorSession session,
             PrestoThriftSchemaTableName schemaTableName,
             @Nullable Set<String> desiredColumns,
             PrestoThriftTupleDomain outputConstraint,
@@ -171,16 +146,15 @@ public class ThriftTpchService
             @Nullable byte[] nextToken)
             throws PrestoThriftServiceException
     {
-        return splitsExecutor.submit(() -> getSplitsInternal(session, schemaTableName, maxSplitCount, nextToken));
+        return splitsExecutor.submit(() -> getSplitsInternal(schemaTableName, maxSplitCount, nextToken));
     }
 
     private static PrestoThriftSplitBatch getSplitsInternal(
-            PrestoThriftConnectorSession session,
             PrestoThriftSchemaTableName schemaTableName,
             int maxSplitCount,
             @Nullable byte[] nextToken)
     {
-        int totalParts = getOrElse(session.getProperties(), NUMBER_OF_SPLITS_PARAMETER, DEFAULT_NUMBER_OF_SPLITS);
+        int totalParts = DEFAULT_NUMBER_OF_SPLITS;
         // last sent part
         int partNumber = nextToken == null ? 0 : Ints.fromByteArray(nextToken);
         int numberOfSplits = min(maxSplitCount, totalParts - partNumber);
@@ -212,7 +186,6 @@ public class ThriftTpchService
 
     @Override
     public PrestoThriftNullableIndexLayoutResult resolveIndex(
-            PrestoThriftConnectorSession session,
             PrestoThriftSchemaTableName schemaTableName,
             Set<String> indexableColumnNames,
             Set<String> outputColumnNames,

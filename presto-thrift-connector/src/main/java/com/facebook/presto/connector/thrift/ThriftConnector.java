@@ -21,7 +21,6 @@ import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
 import com.facebook.presto.spi.session.PropertyMetadata;
 import com.facebook.presto.spi.transaction.IsolationLevel;
-import com.google.common.collect.ImmutableList;
 import io.airlift.bootstrap.LifeCycleManager;
 import io.airlift.log.Logger;
 
@@ -40,8 +39,7 @@ public class ThriftConnector
     private final ThriftMetadata metadata;
     private final ThriftSplitManager splitManager;
     private final ThriftPageSourceProvider pageSourceProvider;
-    private final ThriftInternalSessionProperties internalSessionProperties;
-    private final ThriftClientSessionProperties clientSessionProperties;
+    private final ThriftSessionProperties sessionProperties;
     private final ThriftIndexProvider indexProvider;
 
     @Inject
@@ -50,16 +48,14 @@ public class ThriftConnector
             ThriftMetadata metadata,
             ThriftSplitManager splitManager,
             ThriftPageSourceProvider pageSourceProvider,
-            ThriftInternalSessionProperties internalSessionProperties,
-            ThriftClientSessionProperties clientSessionProperties,
+            ThriftSessionProperties sessionProperties,
             ThriftIndexProvider indexProvider)
     {
         this.lifeCycleManager = requireNonNull(lifeCycleManager, "lifeCycleManager is null");
         this.metadata = requireNonNull(metadata, "metadata is null");
         this.splitManager = requireNonNull(splitManager, "splitManager is null");
         this.pageSourceProvider = requireNonNull(pageSourceProvider, "pageSourceProvider is null");
-        this.internalSessionProperties = requireNonNull(internalSessionProperties, "internalSessionProperties is null");
-        this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
+        this.sessionProperties = requireNonNull(sessionProperties, "sessionProperties is null");
         this.indexProvider = requireNonNull(indexProvider, "indexProvider is null");
     }
 
@@ -87,17 +83,10 @@ public class ThriftConnector
         return pageSourceProvider;
     }
 
-    /**
-     * Session properties in Thrift Connector are of two types: internal and client.
-     * See documentation for {@code ThriftInternalSessionProperties} and {@code ThriftClientSessionProperties} for more details.
-     */
     @Override
     public List<PropertyMetadata<?>> getSessionProperties()
     {
-        return ImmutableList.<PropertyMetadata<?>>builder()
-                .addAll(internalSessionProperties.getSessionProperties())
-                .addAll(clientSessionProperties.getSessionProperties())
-                .build();
+        return sessionProperties.getSessionProperties();
     }
 
     @Override

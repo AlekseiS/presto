@@ -73,19 +73,16 @@ public class ThriftMetadata
     private static final Duration REFRESH_AFTER_WRITE = new Duration(2, MINUTES);
 
     private final PrestoThriftServiceProvider clientProvider;
-    private final ThriftClientSessionProperties clientSessionProperties;
     private final LoadingCache<SchemaTableName, Optional<ConnectorTableMetadata>> tableCache;
 
     @Inject
     public ThriftMetadata(
             PrestoThriftServiceProvider clientProvider,
             TypeManager typeManager,
-            ThriftClientSessionProperties clientSessionProperties,
             @ForMetadataRefresh Executor metadataRefreshExecutor)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
         requireNonNull(typeManager, "typeManager is null");
-        this.clientSessionProperties = requireNonNull(clientSessionProperties, "clientSessionProperties is null");
         this.tableCache = CacheBuilder.newBuilder()
                 .expireAfterWrite(EXPIRE_AFTER_WRITE.toMillis(), MILLISECONDS)
                 .refreshAfterWrite(REFRESH_AFTER_WRITE.toMillis(), MILLISECONDS)
@@ -221,7 +218,7 @@ public class ThriftMetadata
     {
         ThriftTableHandle thriftTableHandle = (ThriftTableHandle) tableHandle;
         PrestoThriftNullableIndexLayoutResult result = clientProvider.runOnAnyHost(
-                client -> client.resolveIndex(ThriftClientSessionProperties.toThriftSession(session, clientSessionProperties),
+                client -> client.resolveIndex(
                         new PrestoThriftSchemaTableName(thriftTableHandle.getSchemaName(), thriftTableHandle.getTableName()),
                         ThriftColumnHandle.columnNames(indexableColumns),
                         ThriftColumnHandle.columnNames(outputColumns),

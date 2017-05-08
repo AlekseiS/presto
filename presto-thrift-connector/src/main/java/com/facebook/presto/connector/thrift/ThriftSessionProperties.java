@@ -24,12 +24,12 @@ import java.util.List;
  * Internal session properties are those defined by the connector itself.
  * These properties control certain aspects of connector's work.
  */
-public final class ThriftInternalSessionProperties
+public final class ThriftSessionProperties
 {
     private final List<PropertyMetadata<?>> sessionProperties;
 
     @Inject
-    public ThriftInternalSessionProperties(ThriftConnectorConfig config)
+    public ThriftSessionProperties(ThriftConnectorConfig config)
     {
         sessionProperties = ImmutableList.of();
     }
