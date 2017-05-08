@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
+import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.service.ThriftMethod;
 import com.facebook.swift.service.ThriftService;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -46,7 +47,8 @@ public interface PrestoThriftService
      * a list of tables for all schemas. Returns an empty list if a schema does not exist
      */
     @ThriftMethod("prestoListTables")
-    List<PrestoThriftSchemaTableName> listTables(PrestoThriftNullableSchemaName schemaNameOrNull)
+    List<PrestoThriftSchemaTableName> listTables(
+            @ThriftField(name = "schemaNameOrNull") PrestoThriftNullableSchemaName schemaNameOrNull)
             throws PrestoThriftServiceException;
 
     /**
@@ -56,7 +58,8 @@ public interface PrestoThriftService
      * @return metadata for a given table, or a {@literal null} value inside if it does not exist
      */
     @ThriftMethod("prestoGetTableMetadata")
-    PrestoThriftNullableTableMetadata getTableMetadata(PrestoThriftSchemaTableName schemaTableName)
+    PrestoThriftNullableTableMetadata getTableMetadata(
+            @ThriftField(name = "schemaTableName") PrestoThriftSchemaTableName schemaTableName)
             throws PrestoThriftServiceException;
 
     /**
@@ -71,11 +74,11 @@ public interface PrestoThriftService
      */
     @ThriftMethod("prestoGetSplits")
     ListenableFuture<PrestoThriftSplitBatch> getSplits(
-            PrestoThriftSchemaTableName schemaTableName,
-            @Nullable Set<String> desiredColumns,
-            PrestoThriftTupleDomain outputConstraint,
-            int maxSplitCount,
-            PrestoThriftNullableToken nextToken)
+            @ThriftField(name = "schemaTableName") PrestoThriftSchemaTableName schemaTableName,
+            @ThriftField(name = "desiredColumns") @Nullable Set<String> desiredColumns,
+            @ThriftField(name = "outputConstraint") PrestoThriftTupleDomain outputConstraint,
+            @ThriftField(name = "maxSplitCount") int maxSplitCount,
+            @ThriftField(name = "nextToken") PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException;
 
     /**
@@ -89,10 +92,10 @@ public interface PrestoThriftService
      */
     @ThriftMethod("prestoGetRows")
     ListenableFuture<PrestoThriftPage> getRows(
-            byte[] splitId,
-            List<String> columns,
-            long maxBytes,
-            PrestoThriftNullableToken nextToken)
+            @ThriftField(name = "splitId") byte[] splitId,
+            @ThriftField(name = "columns") List<String> columns,
+            @ThriftField(name = "maxBytes") long maxBytes,
+            @ThriftField(name = "nextToken") PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException;
 
     @Override
