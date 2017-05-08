@@ -27,8 +27,10 @@ import javax.annotation.Nullable;
 import java.util.Objects;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.hyperLogLogData;
+import static com.facebook.presto.spi.type.HyperLogLogType.HYPER_LOG_LOG;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
 public final class PrestoThriftHyperLogLog
@@ -66,6 +68,7 @@ public final class PrestoThriftHyperLogLog
     @Override
     public Block toBlock(Type desiredType)
     {
+        checkArgument(HYPER_LOG_LOG.equals(desiredType), "type doesn't match: %s", desiredType);
         return sliceType.toBlock(desiredType);
     }
 

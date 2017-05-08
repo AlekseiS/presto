@@ -64,6 +64,7 @@ final class SliceType
     @Override
     public Block toBlock(Type desiredType)
     {
+        checkArgument(desiredType.getJavaType() == Slice.class, "type doesn't match: %s", desiredType);
         Slice values = bytes == null ? Slices.EMPTY_SLICE : Slices.wrappedBuffer(bytes);
         int numberOfRecords = numberOfRecords();
         return new VariableWidthBlock(

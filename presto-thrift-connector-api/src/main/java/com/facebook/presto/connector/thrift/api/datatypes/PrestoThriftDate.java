@@ -29,6 +29,7 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.dateData;
+import static com.facebook.presto.spi.type.DateType.DATE;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -65,6 +66,7 @@ public final class PrestoThriftDate
     @Override
     public Block toBlock(Type desiredType)
     {
+        checkArgument(DATE.equals(desiredType), "type doesn't match: %s", desiredType);
         int numberOfRecords = numberOfRecords();
         return new IntArrayBlock(
                 numberOfRecords,

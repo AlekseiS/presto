@@ -14,7 +14,6 @@
 package com.facebook.presto.connector.thrift.api.datatypes;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
-import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigint;
 import com.facebook.presto.spi.block.Block;
 import org.testng.annotations.Test;
 
@@ -22,7 +21,9 @@ import java.util.Arrays;
 import java.util.List;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.bigintData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.integerData;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
+import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static java.util.Collections.unmodifiableList;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertTrue;
@@ -85,6 +86,22 @@ public class TestPrestoThriftBigint
         );
         Block actual = columnsData.toBlock(BIGINT);
         assertBlockEquals(actual, list(2L, 7L, 1L, 3L, 8L, 4L, 5L));
+    }
+
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void testReadBlockWrongActualType()
+            throws Exception
+    {
+        PrestoThriftColumnData columnsData = integerData(new PrestoThriftInteger(null, null));
+        columnsData.toBlock(BIGINT);
+    }
+
+    @Test(expectedExceptions = IllegalArgumentException.class)
+    public void testReadBlockWrongDesiredType()
+            throws Exception
+    {
+        PrestoThriftColumnData columnsData = longColumn(null, null);
+        columnsData.toBlock(INTEGER);
     }
 
     private void assertBlockEquals(Block block, List<Long> expected)

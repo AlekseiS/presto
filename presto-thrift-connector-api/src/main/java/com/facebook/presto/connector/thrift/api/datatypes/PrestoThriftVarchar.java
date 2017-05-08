@@ -18,6 +18,7 @@ import com.facebook.presto.connector.thrift.api.builders.AbstractSliceColumnBuil
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.spi.type.VarcharType;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
@@ -29,6 +30,7 @@ import java.util.Objects;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.varcharData;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
 public final class PrestoThriftVarchar
@@ -66,6 +68,7 @@ public final class PrestoThriftVarchar
     @Override
     public Block toBlock(Type desiredType)
     {
+        checkArgument(desiredType.getClass() == VarcharType.class, "type doesn't match: %s", desiredType);
         return sliceType.toBlock(desiredType);
     }
 
