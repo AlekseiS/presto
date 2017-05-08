@@ -63,9 +63,9 @@ public final class PrestoThriftSchemaTableName
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        final PrestoThriftSchemaTableName other = (PrestoThriftSchemaTableName) obj;
-        return Objects.equals(this.schemaName, other.schemaName)
-                && Objects.equals(this.tableName, other.tableName);
+        PrestoThriftSchemaTableName other = (PrestoThriftSchemaTableName) obj;
+        return Objects.equals(this.schemaName, other.schemaName) &&
+                Objects.equals(this.tableName, other.tableName);
     }
 
     @Override

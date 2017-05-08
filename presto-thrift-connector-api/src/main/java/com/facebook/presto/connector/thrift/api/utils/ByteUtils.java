@@ -11,14 +11,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.util;
+package com.facebook.presto.connector.thrift.api.utils;
 
 import com.google.common.io.BaseEncoding;
 
 public final class ByteUtils
 {
     private static final int PREFIX_SUFFIX_BYTES = 8;
-    private static final String FILLER = "...";
+    private static final String FILLER = "..";
     private static final int MAX_DISPLAY_CHARACTERS = PREFIX_SUFFIX_BYTES * 4 + FILLER.length();
 
     private ByteUtils() {}

@@ -57,7 +57,7 @@ public final class PrestoThriftNullableSchemaName
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        final PrestoThriftNullableSchemaName other = (PrestoThriftNullableSchemaName) obj;
+        PrestoThriftNullableSchemaName other = (PrestoThriftNullableSchemaName) obj;
         return Objects.equals(this.schemaName, other.schemaName);
     }
 

@@ -21,7 +21,7 @@ import com.google.common.collect.ImmutableList;
 
 import java.util.List;
 
-import static com.facebook.presto.connector.thrift.util.ByteUtils.summarize;
+import static com.facebook.presto.connector.thrift.api.utils.ByteUtils.summarize;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 

@@ -16,12 +16,15 @@ package com.facebook.presto.connector.thrift.api;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
+import com.google.common.collect.ImmutableSet;
 
 import javax.annotation.Nullable;
 
 import java.util.Map;
+import java.util.Objects;
 
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 
 @ThriftStruct
 public final class PrestoThriftTupleDomain
@@ -42,5 +45,32 @@ public final class PrestoThriftTupleDomain
     public Map<String, PrestoThriftDomain> getDomains()
     {
         return domains;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(domains);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftTupleDomain other = (PrestoThriftTupleDomain) obj;
+        return Objects.equals(this.domains, other.domains);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("columnsWithConstraints", domains != null ? domains.keySet() : ImmutableSet.of())
+                .toString();
     }
 }

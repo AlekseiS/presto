@@ -23,10 +23,13 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
+import java.util.Objects;
+
 import static com.facebook.presto.connector.thrift.api.PrestoThriftAllOrNoneValueSet.fromAllOrNoneValueSet;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftEquatableValueSet.fromEquatableValueSet;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.fromSortedRangeSet;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
@@ -69,6 +72,35 @@ public final class PrestoThriftValueSet
         return rangeValueSet;
     }
 
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(allOrNoneValueSet, equatableValueSet, rangeValueSet);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftValueSet other = (PrestoThriftValueSet) obj;
+        return Objects.equals(this.allOrNoneValueSet, other.allOrNoneValueSet) &&
+                Objects.equals(this.equatableValueSet, other.equatableValueSet) &&
+                Objects.equals(this.rangeValueSet, other.rangeValueSet);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("valueSet", firstNonNull(allOrNoneValueSet, equatableValueSet, rangeValueSet))
+                .toString();
+    }
+
     public static PrestoThriftValueSet fromValueSet(ValueSet valueSet)
     {
         if (valueSet.getClass() == AllOrNoneValueSet.class) {
@@ -99,5 +131,19 @@ public final class PrestoThriftValueSet
         return a != null && b == null && c == null ||
                 a == null && b != null && c == null ||
                 a == null && b == null && c != null;
+    }
+
+    private static Object firstNonNull(Object a, Object b, Object c)
+    {
+        if (a != null) {
+            return a;
+        }
+        if (b != null) {
+            return b;
+        }
+        if (c != null) {
+            return c;
+        }
+        throw new IllegalArgumentException("All arguments are null");
     }
 }

@@ -24,9 +24,11 @@ import com.google.common.collect.ImmutableMap;
 import javax.annotation.Nullable;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
@@ -70,17 +72,47 @@ public final class PrestoThriftTableMetadata
     public ConnectorTableMetadata toConnectorTableMetadata(TypeManager typeManager)
     {
         return new ConnectorTableMetadata(
-                getSchemaTableName().toSchemaTableName(),
+                schemaTableName.toSchemaTableName(),
                 columnMetadata(typeManager),
                 ImmutableMap.of(),
-                Optional.ofNullable(getComment()));
+                Optional.ofNullable(comment));
     }
 
     private List<ColumnMetadata> columnMetadata(TypeManager typeManager)
     {
-        return getColumns()
-                .stream()
+        return columns.stream()
                 .map(column -> column.toColumnMetadata(typeManager))
                 .collect(toImmutableList());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(schemaTableName, columns, comment);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftTableMetadata other = (PrestoThriftTableMetadata) obj;
+        return Objects.equals(this.schemaTableName, other.schemaTableName) &&
+                Objects.equals(this.columns, other.columns) &&
+                Objects.equals(this.comment, other.comment);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("schemaTableName", schemaTableName)
+                .add("numberOfColumns", columns.size())
+                .add("comment", comment)
+                .toString();
     }
 }

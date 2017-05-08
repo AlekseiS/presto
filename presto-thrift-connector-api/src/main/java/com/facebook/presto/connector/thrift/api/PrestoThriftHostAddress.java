@@ -19,7 +19,9 @@ import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
 import java.util.List;
+import java.util.Objects;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
@@ -53,6 +55,35 @@ public final class PrestoThriftHostAddress
     public HostAddress toHostAddress()
     {
         return HostAddress.fromParts(getHost(), getPort());
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(host, port);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftHostAddress other = (PrestoThriftHostAddress) obj;
+        return Objects.equals(this.host, other.host) &&
+                this.port == other.port;
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("host", host)
+                .add("port", port)
+                .toString();
     }
 
     public static List<HostAddress> toHostAddressList(List<PrestoThriftHostAddress> hosts)

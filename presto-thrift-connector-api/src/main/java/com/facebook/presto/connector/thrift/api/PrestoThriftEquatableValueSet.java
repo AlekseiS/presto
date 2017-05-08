@@ -21,8 +21,10 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
+import java.util.Objects;
 import java.util.Set;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkState;
 import static java.util.Objects.requireNonNull;
 
@@ -49,6 +51,35 @@ public final class PrestoThriftEquatableValueSet
     public PrestoThriftColumnData getValues()
     {
         return values;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(whiteList, values);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftEquatableValueSet other = (PrestoThriftEquatableValueSet) obj;
+        return this.whiteList == other.whiteList &&
+                Objects.equals(this.values, other.values);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("whiteList", whiteList)
+                .add("valuesClass", values.getClass())
+                .toString();
     }
 
     public static PrestoThriftEquatableValueSet fromEquatableValueSet(EquatableValueSet valueSet)

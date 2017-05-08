@@ -27,10 +27,12 @@ import com.facebook.swift.codec.ThriftStruct;
 import javax.annotation.Nullable;
 
 import java.util.List;
+import java.util.Objects;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftBound.fromBound;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftMarker.fromMarker;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
@@ -43,13 +45,40 @@ public final class PrestoThriftRangeValueSet
     @ThriftConstructor
     public PrestoThriftRangeValueSet(@ThriftField(name = "ranges") List<PrestoThriftRange> ranges)
     {
-        this.ranges = ranges;
+        this.ranges = requireNonNull(ranges, "ranges is null");
     }
 
     @ThriftField(1)
     public List<PrestoThriftRange> getRanges()
     {
         return ranges;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(ranges);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftRangeValueSet other = (PrestoThriftRangeValueSet) obj;
+        return Objects.equals(this.ranges, other.ranges);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("numberOfRanges", ranges.size())
+                .toString();
     }
 
     public static PrestoThriftRangeValueSet fromSortedRangeSet(SortedRangeSet valueSet)
@@ -109,7 +138,7 @@ public final class PrestoThriftRangeValueSet
         @ThriftConstructor
         public PrestoThriftMarker(@Nullable PrestoThriftColumnData value, PrestoThriftBound bound)
         {
-            checkArgument(value == null || value.numberOfRecords() == 1, "value must contain exactly one value when present");
+            checkArgument(value == null || value.numberOfRecords() == 1, "value must contain exactly one record when present");
             this.value = value;
             this.bound = requireNonNull(bound, "bound is null");
         }
@@ -125,6 +154,35 @@ public final class PrestoThriftRangeValueSet
         public PrestoThriftBound getBound()
         {
             return bound;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(value, bound);
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            PrestoThriftMarker other = (PrestoThriftMarker) obj;
+            return Objects.equals(this.value, other.value) &&
+                    Objects.equals(this.bound, other.bound);
+        }
+
+        @Override
+        public String toString()
+        {
+            return toStringHelper(this)
+                    .add("value", value)
+                    .add("bound", bound)
+                    .toString();
         }
 
         public static PrestoThriftMarker fromMarker(Marker marker)
@@ -165,6 +223,35 @@ public final class PrestoThriftRangeValueSet
         public PrestoThriftMarker getHigh()
         {
             return high;
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(low, high);
+        }
+
+        @Override
+        public boolean equals(Object obj)
+        {
+            if (this == obj) {
+                return true;
+            }
+            if (obj == null || getClass() != obj.getClass()) {
+                return false;
+            }
+            PrestoThriftRange other = (PrestoThriftRange) obj;
+            return Objects.equals(this.low, other.low) &&
+                    Objects.equals(this.high, other.high);
+        }
+
+        @Override
+        public String toString()
+        {
+            return toStringHelper(this)
+                    .add("low", low)
+                    .add("high", high)
+                    .toString();
         }
 
         public static PrestoThriftRange fromRange(Range range)

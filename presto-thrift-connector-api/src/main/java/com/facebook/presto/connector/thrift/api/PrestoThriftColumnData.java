@@ -32,6 +32,8 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
+import java.util.Objects;
+
 import static com.facebook.presto.spi.type.StandardTypes.BIGINT;
 import static com.facebook.presto.spi.type.StandardTypes.BOOLEAN;
 import static com.facebook.presto.spi.type.StandardTypes.DATE;
@@ -42,6 +44,7 @@ import static com.facebook.presto.spi.type.StandardTypes.JSON;
 import static com.facebook.presto.spi.type.StandardTypes.TIMESTAMP;
 import static com.facebook.presto.spi.type.StandardTypes.VARCHAR;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkState;
 
 @ThriftStruct
@@ -147,6 +150,45 @@ public final class PrestoThriftColumnData
         return dateData;
     }
 
+    public Block toBlock(Type desiredType)
+    {
+        return dataReference.toBlock(desiredType);
+    }
+
+    public int numberOfRecords()
+    {
+        return dataReference.numberOfRecords();
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(bigintData, timestampData, integerData, booleanData, doubleData, varcharData, hyperLogLogData, jsonData, dateData);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftColumnData other = (PrestoThriftColumnData) obj;
+        // remaining fields are guaranteed to be null by the constructor
+        return Objects.equals(this.dataReference, other.dataReference);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("dataClass", dataReference.getClass())
+                .add("numberOrRecords", dataReference.numberOfRecords())
+                .toString();
+    }
+
     public static PrestoThriftColumnData bigintData(PrestoThriftBigint bigintData)
     {
         return new PrestoThriftColumnData(bigintData, null, null, null, null, null, null, null, null);
@@ -190,16 +232,6 @@ public final class PrestoThriftColumnData
     public static PrestoThriftColumnData dateData(PrestoThriftDate dateData)
     {
         return new PrestoThriftColumnData(null, null, null, null, null, null, null, null, dateData);
-    }
-
-    public Block toBlock(Type desiredType)
-    {
-        return dataReference.toBlock(desiredType);
-    }
-
-    public int numberOfRecords()
-    {
-        return dataReference.numberOfRecords();
     }
 
     public static ColumnBuilder builder(Type columnType, int initialCapacity)

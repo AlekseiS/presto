@@ -11,11 +11,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.util;
+package com.facebook.presto.connector.thrift.api.utils;
 
 import org.testng.annotations.Test;
 
-import static com.facebook.presto.connector.thrift.util.ByteUtils.summarize;
+import static com.facebook.presto.connector.thrift.api.utils.ByteUtils.summarize;
 import static org.testng.Assert.assertEquals;
 
 public class TestByteUtils
@@ -31,7 +31,7 @@ public class TestByteUtils
         assertEquals(summarize(bytes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 249, 250, 251, 252, 253, 254, 255)),
                 "00010203040506070809F9FAFBFCFDFEFF");
         assertEquals(summarize(bytes(0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 247, 248, 249, 250, 251, 252, 253, 254, 255)),
-                "0001020304050607...F8F9FAFBFCFDFEFF");
+                "0001020304050607..F8F9FAFBFCFDFEFF");
     }
 
     private static byte[] bytes(int... values)

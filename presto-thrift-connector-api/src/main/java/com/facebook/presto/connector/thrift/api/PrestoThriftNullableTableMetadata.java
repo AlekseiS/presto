@@ -19,7 +19,10 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
+import java.util.Objects;
+
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 
 @ThriftStruct
 public final class PrestoThriftNullableTableMetadata
@@ -37,5 +40,32 @@ public final class PrestoThriftNullableTableMetadata
     public PrestoThriftTableMetadata getTableMetadata()
     {
         return tableMetadata;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(tableMetadata);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftNullableTableMetadata other = (PrestoThriftNullableTableMetadata) obj;
+        return Objects.equals(this.tableMetadata, other.tableMetadata);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("tableMetadata", tableMetadata)
+                .toString();
     }
 }

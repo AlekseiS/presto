@@ -21,8 +21,11 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
+import java.util.Objects;
+
 import static com.facebook.presto.spi.type.TypeSignature.parseTypeSignature;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
@@ -74,5 +77,38 @@ public final class PrestoThriftColumnMetadata
                 typeManager.getType(parseTypeSignature(type)),
                 comment,
                 hidden);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(name, type, comment, hidden);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftColumnMetadata other = (PrestoThriftColumnMetadata) obj;
+        return Objects.equals(this.name, other.name) &&
+                Objects.equals(this.type, other.type) &&
+                Objects.equals(this.comment, other.comment) &&
+                this.hidden == other.hidden;
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("name", name)
+                .add("type", type)
+                .add("comment", comment)
+                .add("hidden", hidden)
+                .toString();
     }
 }

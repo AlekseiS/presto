@@ -18,6 +18,8 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
+import static com.google.common.base.MoreObjects.toStringHelper;
+
 @ThriftStruct
 public final class PrestoThriftAllOrNoneValueSet
 {
@@ -33,6 +35,33 @@ public final class PrestoThriftAllOrNoneValueSet
     public boolean isAll()
     {
         return all;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Boolean.hashCode(all);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftAllOrNoneValueSet other = (PrestoThriftAllOrNoneValueSet) obj;
+        return this.all == other.all;
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("all", all)
+                .toString();
     }
 
     public static PrestoThriftAllOrNoneValueSet fromAllOrNoneValueSet(AllOrNoneValueSet valueSet)

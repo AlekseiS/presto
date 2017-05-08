@@ -18,7 +18,10 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
+import java.util.Objects;
+
 import static com.facebook.presto.connector.thrift.api.PrestoThriftValueSet.fromValueSet;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
@@ -44,6 +47,35 @@ public final class PrestoThriftDomain
     public boolean isNullAllowed()
     {
         return nullAllowed;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(valueSet, nullAllowed);
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftDomain other = (PrestoThriftDomain) obj;
+        return Objects.equals(this.valueSet, other.valueSet) &&
+                this.nullAllowed == other.nullAllowed;
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("valueSet", valueSet)
+                .add("nullAllowed", nullAllowed)
+                .toString();
     }
 
     public static PrestoThriftDomain fromDomain(Domain domain)

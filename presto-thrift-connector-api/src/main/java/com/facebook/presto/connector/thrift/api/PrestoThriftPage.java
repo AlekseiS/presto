@@ -22,9 +22,13 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
+import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
+import static com.facebook.presto.connector.thrift.api.utils.ByteUtils.summarize;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
@@ -81,6 +85,37 @@ public final class PrestoThriftPage
             blocks[i] = columnsData.get(i).toBlock(columnTypes.get(i));
         }
         return new Page(blocks);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columnsData, rowCount, Arrays.hashCode(nextToken));
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftPage other = (PrestoThriftPage) obj;
+        return Objects.equals(this.columnsData, other.columnsData) &&
+                this.rowCount == other.rowCount &&
+                Arrays.equals(this.nextToken, other.nextToken);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("columnsData", columnsData)
+                .add("rowCount", rowCount)
+                .add("nextToken", summarize(nextToken))
+                .toString();
     }
 
     private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftColumnData> columnsData, int rowCount)
