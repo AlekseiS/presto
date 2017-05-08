@@ -29,14 +29,14 @@ import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
-public final class PrestoThriftRowsBatch
+public final class PrestoThriftPage
 {
     private final List<PrestoThriftColumnData> columnsData;
     private final int rowCount;
     private final byte[] nextToken;
 
     @ThriftConstructor
-    public PrestoThriftRowsBatch(List<PrestoThriftColumnData> columnsData, int rowCount, byte[] nextToken)
+    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, int rowCount, @Nullable byte[] nextToken)
     {
         this.columnsData = requireNonNull(columnsData, "columnsData is null");
         checkArgument(rowCount >= 0, "rowCount is negative");

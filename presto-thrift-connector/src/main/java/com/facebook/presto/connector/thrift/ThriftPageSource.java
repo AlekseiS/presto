@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
+import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
 import com.facebook.presto.spi.ColumnHandle;
@@ -46,7 +46,7 @@ public class ThriftPageSource
 
     private byte[] nextToken;
     private boolean firstCall = true;
-    private CompletableFuture<PrestoThriftRowsBatch> future;
+    private CompletableFuture<PrestoThriftPage> future;
     private long completedBytes;
 
     public ThriftPageSource(
@@ -124,7 +124,7 @@ public class ThriftPageSource
             }
             else {
                 // response for data request is ready
-                PrestoThriftRowsBatch rowsBatch = getFutureValue(future);
+                PrestoThriftPage rowsBatch = getFutureValue(future);
                 Page result = processBatch(rowsBatch);
                 // immediately try sending a new request
                 if (canGetMoreData(nextToken)) {
@@ -151,15 +151,15 @@ public class ThriftPageSource
         return nextToken != null;
     }
 
-    private CompletableFuture<PrestoThriftRowsBatch> sendDataRequestInternal()
+    private CompletableFuture<PrestoThriftPage> sendDataRequestInternal()
     {
         final long start = System.nanoTime();
-        ListenableFuture<PrestoThriftRowsBatch> rowsBatchFuture = client.getRows(splitId, columnNames, maxBytesPerResponse, nextToken);
+        ListenableFuture<PrestoThriftPage> rowsBatchFuture = client.getRows(splitId, columnNames, maxBytesPerResponse, nextToken);
         rowsBatchFuture.addListener(() -> readTimeNanos.addAndGet(System.nanoTime() - start), directExecutor());
         return toCompletableFuture(rowsBatchFuture);
     }
 
-    private Page processBatch(PrestoThriftRowsBatch rowsBatch)
+    private Page processBatch(PrestoThriftPage rowsBatch)
     {
         firstCall = false;
         nextToken = rowsBatch.getNextToken();

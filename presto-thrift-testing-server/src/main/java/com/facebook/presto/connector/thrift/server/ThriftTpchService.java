@@ -17,7 +17,7 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
-import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
+import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.api.PrestoThriftServiceException;
@@ -157,7 +157,7 @@ public class ThriftTpchService
     }
 
     @Override
-    public ListenableFuture<PrestoThriftRowsBatch> getRows(
+    public ListenableFuture<PrestoThriftPage> getRows(
             byte[] splitId,
             List<String> columns,
             long maxBytes,
@@ -174,7 +174,7 @@ public class ThriftTpchService
         dataExecutor.shutdownNow();
     }
 
-    private static PrestoThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columns, long maxBytes, @Nullable byte[] nextToken)
+    private static PrestoThriftPage getRowsInternal(byte[] splitId, List<String> columns, long maxBytes, @Nullable byte[] nextToken)
     {
         SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
         RecordCursor cursor = createCursor(splitInfo, columns);
@@ -185,7 +185,7 @@ public class ThriftTpchService
                 nextToken);
     }
 
-    private static PrestoThriftRowsBatch cursorToRowsBatch(
+    private static PrestoThriftPage cursorToRowsBatch(
             RecordCursor cursor,
             List<String> columnNames,
             int maxRowCount,
@@ -218,7 +218,7 @@ public class ThriftTpchService
             result.add(builder.build());
         }
 
-        return new PrestoThriftRowsBatch(result, position, hasNext ? Longs.toByteArray(skip + position) : null);
+        return new PrestoThriftPage(result, position, hasNext ? Longs.toByteArray(skip + position) : null);
     }
 
     private static void skipRows(RecordCursor cursor, long numberOfRows)

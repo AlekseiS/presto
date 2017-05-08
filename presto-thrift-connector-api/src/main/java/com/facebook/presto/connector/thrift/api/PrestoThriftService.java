@@ -88,7 +88,7 @@ public interface PrestoThriftService
      * @return a batch of table data
      */
     @ThriftMethod("prestoGetRows")
-    ListenableFuture<PrestoThriftRowsBatch> getRows(
+    ListenableFuture<PrestoThriftPage> getRows(
             byte[] splitId,
             List<String> columns,
             long maxBytes,
