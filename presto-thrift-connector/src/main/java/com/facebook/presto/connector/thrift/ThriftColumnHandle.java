@@ -13,26 +13,16 @@
  */
 package com.facebook.presto.connector.thrift;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftDomain;
-import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
 import com.facebook.presto.spi.ColumnHandle;
-import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.Type;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 import javax.annotation.Nullable;
 
-import java.util.List;
-import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftDomain.fromDomain;
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static com.google.common.collect.ImmutableList.toImmutableList;
-import static com.google.common.collect.ImmutableMap.toImmutableMap;
-import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static java.util.Objects.requireNonNull;
 
 public final class ThriftColumnHandle
@@ -112,35 +102,5 @@ public final class ThriftColumnHandle
                 .add("comment", comment)
                 .add("hidden", hidden)
                 .toString();
-    }
-
-    public static Set<String> columnNames(Set<ColumnHandle> columns)
-    {
-        return columns.stream()
-                .map(ThriftColumnHandle.class::cast)
-                .map(ThriftColumnHandle::getColumnName)
-                .collect(toImmutableSet());
-    }
-
-    public static List<String> columnNames(List<ColumnHandle> columns)
-    {
-        return columns.stream()
-                .map(ThriftColumnHandle.class::cast)
-                .map(ThriftColumnHandle::getColumnName)
-                .collect(toImmutableList());
-    }
-
-    public static PrestoThriftTupleDomain tupleDomainToThriftTupleDomain(TupleDomain<ColumnHandle> tupleDomain)
-    {
-        if (!tupleDomain.getDomains().isPresent()) {
-            return new PrestoThriftTupleDomain(null);
-        }
-        Map<String, PrestoThriftDomain> thriftDomains = tupleDomain.getDomains().get()
-                .entrySet()
-                .stream()
-                .collect(toImmutableMap(
-                        kv -> ((ThriftColumnHandle) kv.getKey()).getColumnName(),
-                        kv -> fromDomain(kv.getValue())));
-        return new PrestoThriftTupleDomain(thriftDomains);
     }
 }
