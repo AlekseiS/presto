@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.connector.thrift;
 
+import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
 import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
@@ -154,7 +155,8 @@ public class ThriftPageSource
     private CompletableFuture<PrestoThriftPage> sendDataRequestInternal()
     {
         final long start = System.nanoTime();
-        ListenableFuture<PrestoThriftPage> rowsBatchFuture = client.getRows(splitId, columnNames, maxBytesPerResponse, nextToken);
+        ListenableFuture<PrestoThriftPage> rowsBatchFuture =
+                client.getRows(splitId, columnNames, maxBytesPerResponse, new PrestoThriftNullableToken(nextToken));
         rowsBatchFuture.addListener(() -> readTimeNanos.addAndGet(System.nanoTime() - start), directExecutor());
         return toCompletableFuture(rowsBatchFuture);
     }

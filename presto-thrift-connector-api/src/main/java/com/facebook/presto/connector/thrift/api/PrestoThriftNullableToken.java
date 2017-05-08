@@ -22,20 +22,20 @@ import javax.annotation.Nullable;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 
 @ThriftStruct
-public final class PrestoThriftNullableTableMetadata
+public final class PrestoThriftNullableToken
 {
-    private final PrestoThriftTableMetadata tableMetadata;
+    private final byte[] token;
 
     @ThriftConstructor
-    public PrestoThriftNullableTableMetadata(@Nullable PrestoThriftTableMetadata tableMetadata)
+    public PrestoThriftNullableToken(@Nullable byte[] token)
     {
-        this.tableMetadata = tableMetadata;
+        this.token = token;
     }
 
     @Nullable
     @ThriftField(value = 1, requiredness = OPTIONAL)
-    public PrestoThriftTableMetadata getTableMetadata()
+    public byte[] getToken()
     {
-        return tableMetadata;
+        return token;
     }
 }

@@ -75,7 +75,7 @@ public interface PrestoThriftService
             @Nullable Set<String> desiredColumns,
             PrestoThriftTupleDomain outputConstraint,
             int maxSplitCount,
-            @Nullable byte[] nextToken)
+            PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException;
 
     /**
@@ -92,7 +92,7 @@ public interface PrestoThriftService
             byte[] splitId,
             List<String> columns,
             long maxBytes,
-            @Nullable byte[] nextToken)
+            PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException;
 
     @Override

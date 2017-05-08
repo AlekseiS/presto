@@ -17,6 +17,7 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
+import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
 import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
@@ -125,10 +126,10 @@ public class ThriftTpchService
             @Nullable Set<String> desiredColumns,
             PrestoThriftTupleDomain outputConstraint,
             int maxSplitCount,
-            @Nullable byte[] nextToken)
+            PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException
     {
-        return splitsExecutor.submit(() -> getSplitsInternal(schemaTableName, maxSplitCount, nextToken));
+        return splitsExecutor.submit(() -> getSplitsInternal(schemaTableName, maxSplitCount, nextToken.getToken()));
     }
 
     private static PrestoThriftSplitBatch getSplitsInternal(
@@ -161,9 +162,9 @@ public class ThriftTpchService
             byte[] splitId,
             List<String> columns,
             long maxBytes,
-            @Nullable byte[] nextToken)
+            PrestoThriftNullableToken nextToken)
     {
-        return dataExecutor.submit(() -> getRowsInternal(splitId, columns, maxBytes, nextToken));
+        return dataExecutor.submit(() -> getRowsInternal(splitId, columns, maxBytes, nextToken.getToken()));
     }
 
     @PreDestroy

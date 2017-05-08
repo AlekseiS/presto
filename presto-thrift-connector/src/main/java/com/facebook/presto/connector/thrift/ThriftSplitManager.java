@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.connector.thrift;
 
+import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplit;
@@ -110,7 +111,7 @@ public class ThriftSplitManager
             checkState(hasMoreData.get(), "this method cannot be invoked when there's no more data");
             byte[] currentToken = nextToken.get();
             ListenableFuture<PrestoThriftSplitBatch> splitsFuture =
-                    client.getSplits(schemaTableName, columnNames.orElse(null), constraint, maxSize, currentToken);
+                    client.getSplits(schemaTableName, columnNames.orElse(null), constraint, maxSize, new PrestoThriftNullableToken(currentToken));
             ListenableFuture<List<ConnectorSplit>> resultFuture = Futures.transform(
                     splitsFuture,
                     batch -> {

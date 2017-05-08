@@ -86,11 +86,11 @@ public class ThriftMetadata
                         requireNonNull(schemaTableName, "schemaTableName is null");
                         return clientProvider.runOnAnyHost(client -> {
                             PrestoThriftNullableTableMetadata thriftTableMetadata = client.getTableMetadata(fromSchemaTableName(schemaTableName));
-                            if (thriftTableMetadata.getThriftTableMetadata() == null) {
+                            if (thriftTableMetadata.getTableMetadata() == null) {
                                 return Optional.empty();
                             }
                             else {
-                                ConnectorTableMetadata tableMetadata = thriftTableMetadata.getThriftTableMetadata().toConnectorTableMetadata(typeManager);
+                                ConnectorTableMetadata tableMetadata = thriftTableMetadata.getTableMetadata().toConnectorTableMetadata(typeManager);
                                 checkState(Objects.equals(schemaTableName, tableMetadata.getTable()), "requested and actual table names are different");
                                 return Optional.of(tableMetadata);
                             }
