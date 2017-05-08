@@ -34,6 +34,10 @@ import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
+/**
+ * Elements of {@code nulls} array determine if a value for a corresponding row is null.
+ * Elements of {@code dates} array are date values for each row represented as the number of days passed since 1970-01-01.
+ */
 @ThriftStruct
 public final class PrestoThriftDate
         implements PrestoThriftColumnType

@@ -32,6 +32,13 @@ import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
+/**
+ * Elements of {@code nulls} array determine if a value for a corresponding row is null.
+ * Each elements of {@code sizes} array contains the length in bytes for the corresponding element.
+ * {@code bytes} array contains uft8 encoded byte values.
+ * Values for all rows are written to {@code bytes} array one after another.
+ * The total number of bytes must be equal to the sum of all sizes.
+ */
 @ThriftStruct
 public final class PrestoThriftVarchar
         implements PrestoThriftColumnType

@@ -34,6 +34,10 @@ import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
+/**
+ * Elements of {@code nulls} array determine if a value for a corresponding row is null.
+ * Elements of {@code timestamps} array are values for each row represented as the number of milliseconds passed since 1970-01-01T00:00:00 UTC.
+ */
 @ThriftStruct
 public final class PrestoThriftTimestamp
         implements PrestoThriftColumnType

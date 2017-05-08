@@ -34,6 +34,10 @@ import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
+/**
+ * Elements of {@code nulls} array determine if a value for a corresponding row is null.
+ * Elements of {@code ints} array are values for each row.
+ */
 @ThriftStruct
 public final class PrestoThriftInteger
         implements PrestoThriftColumnType

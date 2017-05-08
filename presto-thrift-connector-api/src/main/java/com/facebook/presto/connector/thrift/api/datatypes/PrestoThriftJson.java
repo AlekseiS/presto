@@ -30,6 +30,13 @@ import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.js
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 
+/**
+ * Elements of {@code nulls} array determine if a value for a corresponding row is null.
+ * Each elements of {@code sizes} array contains the length in bytes for the corresponding element.
+ * {@code bytes} array contains uft8 encoded byte values for string representation of json.
+ * Values for all rows are written to {@code bytes} array one after another.
+ * The total number of bytes must be equal to the sum of all sizes.
+ */
 @ThriftStruct
 public final class PrestoThriftJson
         implements PrestoThriftColumnType
