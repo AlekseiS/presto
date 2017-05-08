@@ -14,6 +14,7 @@
 package com.facebook.presto.connector.thrift.clientproviders;
 
 import com.facebook.presto.connector.thrift.annotations.NonRetrying;
+import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
@@ -29,12 +30,10 @@ import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
-import javax.annotation.Nullable;
 import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -119,7 +118,7 @@ public class RetryingPrestoThriftServiceProvider
         @Override
         public ListenableFuture<PrestoThriftSplitBatch> getSplits(
                 PrestoThriftSchemaTableName schemaTableName,
-                @Nullable Set<String> desiredColumns,
+                PrestoThriftNullableColumnSet desiredColumns,
                 PrestoThriftTupleDomain outputConstraint,
                 int maxSplitCount,
                 PrestoThriftNullableToken nextToken)

@@ -15,6 +15,7 @@ package com.facebook.presto.connector.thrift.server;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnMetadata;
+import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
@@ -43,7 +44,6 @@ import javax.annotation.PreDestroy;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Set;
 
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.estimateRecords;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.getTypeString;
@@ -123,7 +123,7 @@ public class ThriftTpchService
     @Override
     public ListenableFuture<PrestoThriftSplitBatch> getSplits(
             PrestoThriftSchemaTableName schemaTableName,
-            @Nullable Set<String> desiredColumns,
+            PrestoThriftNullableColumnSet desiredColumns,
             PrestoThriftTupleDomain outputConstraint,
             int maxSplitCount,
             PrestoThriftNullableToken nextToken)

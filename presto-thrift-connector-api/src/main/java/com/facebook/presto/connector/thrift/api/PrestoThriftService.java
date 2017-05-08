@@ -18,11 +18,8 @@ import com.facebook.swift.service.ThriftMethod;
 import com.facebook.swift.service.ThriftService;
 import com.google.common.util.concurrent.ListenableFuture;
 
-import javax.annotation.Nullable;
-
 import java.io.Closeable;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Presto Thrift service definition.
@@ -75,7 +72,7 @@ public interface PrestoThriftService
     @ThriftMethod("prestoGetSplits")
     ListenableFuture<PrestoThriftSplitBatch> getSplits(
             @ThriftField(name = "schemaTableName") PrestoThriftSchemaTableName schemaTableName,
-            @ThriftField(name = "desiredColumns") @Nullable Set<String> desiredColumns,
+            @ThriftField(name = "desiredColumns") PrestoThriftNullableColumnSet desiredColumns,
             @ThriftField(name = "outputConstraint") PrestoThriftTupleDomain outputConstraint,
             @ThriftField(name = "maxSplitCount") int maxSplitCount,
             @ThriftField(name = "nextToken") PrestoThriftNullableToken nextToken)
