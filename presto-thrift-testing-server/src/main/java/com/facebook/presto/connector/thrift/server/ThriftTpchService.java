@@ -219,7 +219,10 @@ public class ThriftTpchService
             result.add(builder.build());
         }
 
-        return new PrestoThriftPage(result, position, hasNext ? Longs.toByteArray(skip + position) : null);
+        return new PrestoThriftPage(
+                result,
+                numColumns == 0 ? position : null,
+                hasNext ? Longs.toByteArray(skip + position) : null);
     }
 
     private static void skipRows(RecordCursor cursor, long numberOfRows)

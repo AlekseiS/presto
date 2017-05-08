@@ -105,7 +105,7 @@ public class TestColumnReaderWriter
         for (int i = 0; i < columns.size(); i++) {
             columnsData.add(writeColumnAsThrift(columns.get(i), inputBlocks.get(i)));
         }
-        PrestoThriftPage batch = new PrestoThriftPage(columnsData, records, null);
+        PrestoThriftPage batch = new PrestoThriftPage(columnsData, null, null);
 
         // convert thrift data to page/blocks ("read step")
         Page page = batch.toPage(columns.stream().map(ColumnDefinition::getType).collect(toImmutableList()));

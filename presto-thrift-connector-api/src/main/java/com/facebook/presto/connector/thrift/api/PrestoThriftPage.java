@@ -36,27 +36,35 @@ import static java.util.Objects.requireNonNull;
 public final class PrestoThriftPage
 {
     private final List<PrestoThriftColumnData> columnsData;
-    private final int rowCount;
+    private final Integer rowCount;
     private final byte[] nextToken;
 
     @ThriftConstructor
-    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, int rowCount, @Nullable byte[] nextToken)
+    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, @Nullable Integer rowCount, @Nullable byte[] nextToken)
     {
         this.columnsData = requireNonNull(columnsData, "columnsData is null");
-        checkArgument(rowCount >= 0, "rowCount is negative");
-        checkAllColumnsAreOfExpectedSize(columnsData, rowCount);
+        checkConsistency(columnsData, rowCount);
         this.rowCount = rowCount;
         this.nextToken = nextToken;
     }
 
+    /**
+     * Returns data in a columnar format.
+     * Columns in this list must be in the order they were requested by the engine.
+     */
     @ThriftField(1)
     public List<PrestoThriftColumnData> getColumnsData()
     {
         return columnsData;
     }
 
-    @ThriftField(2)
-    public int getRowCount()
+    /**
+     * Number of rows is optional when at least one column is present.
+     * However, it is required when a list of columns is empty, such as when sending data for "count star" queries.
+     */
+    @Nullable
+    @ThriftField(value = 2, requiredness = OPTIONAL)
+    public Integer getRowCount()
     {
         return rowCount;
     }
@@ -72,19 +80,28 @@ public final class PrestoThriftPage
     public Page toPage(List<Type> columnTypes)
     {
         checkArgument(columnsData.size() == columnTypes.size(), "columns and types have different sizes");
-        if (rowCount == 0) {
+        int numberOfRows = numberOfRows();
+        if (numberOfRows == 0) {
             return null;
         }
         int numberOfColumns = columnsData.size();
         if (numberOfColumns == 0) {
-            // request/response with no columns, used for queries like select count star
-            return new Page(rowCount);
+            // request/response with no columns, used for queries like "select count star"
+            return new Page(numberOfRows);
         }
         Block[] blocks = new Block[numberOfColumns];
         for (int i = 0; i < numberOfColumns; i++) {
             blocks[i] = columnsData.get(i).toBlock(columnTypes.get(i));
         }
         return new Page(blocks);
+    }
+
+    private int numberOfRows()
+    {
+        if (rowCount != null) {
+            return rowCount;
+        }
+        return columnsData.get(0).numberOfRecords();
     }
 
     @Override
@@ -104,7 +121,7 @@ public final class PrestoThriftPage
         }
         PrestoThriftPage other = (PrestoThriftPage) obj;
         return Objects.equals(this.columnsData, other.columnsData) &&
-                this.rowCount == other.rowCount &&
+                Objects.equals(this.rowCount, other.rowCount) &&
                 Arrays.equals(this.nextToken, other.nextToken);
     }
 
@@ -118,11 +135,24 @@ public final class PrestoThriftPage
                 .toString();
     }
 
-    private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftColumnData> columnsData, int rowCount)
+    private static void checkConsistency(List<PrestoThriftColumnData> columnsData, Integer rowCount)
+    {
+        if (rowCount != null) {
+            checkArgument(rowCount >= 0, "rowCount must be non-negative when present");
+            checkAllColumnsAreOfExpectedSize(columnsData, rowCount);
+        }
+        else {
+            checkArgument(!columnsData.isEmpty(), "rowCount must be present when list of columns is empty");
+            checkAllColumnsAreOfExpectedSize(columnsData, columnsData.get(0).numberOfRecords());
+        }
+    }
+
+    private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftColumnData> columnsData, int expectedNumberOfRows)
     {
         for (int i = 0; i < columnsData.size(); i++) {
-            checkArgument(columnsData.get(i).numberOfRecords() == rowCount,
-                    "Incorrect number of records for column with index %s: expected %s, got %s", i, rowCount, columnsData.get(i).numberOfRecords());
+            checkArgument(columnsData.get(i).numberOfRecords() == expectedNumberOfRows,
+                    "Incorrect number of records for column with index %s: expected %s, got %s",
+                    i, expectedNumberOfRows, columnsData.get(i).numberOfRecords());
         }
     }
 }
