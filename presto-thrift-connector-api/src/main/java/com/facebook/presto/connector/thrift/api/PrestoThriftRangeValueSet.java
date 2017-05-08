@@ -13,7 +13,9 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
+import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.predicate.Marker;
+import com.facebook.presto.spi.predicate.Marker.Bound;
 import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.SortedRangeSet;
 import com.facebook.presto.spi.type.Type;
@@ -27,26 +29,28 @@ import javax.annotation.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.ThriftRange.Bound.fromMarkerBound;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftSingleValue.fromMarker;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftSingleValue.toMarker;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftBound.fromBound;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftMarker.fromMarker;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
 public final class PrestoThriftRangeValueSet
 {
-    private final List<ThriftRange> ranges;
+    private final List<PrestoThriftRange> ranges;
 
     @ThriftConstructor
-    public PrestoThriftRangeValueSet(@ThriftField(name = "ranges") List<ThriftRange> ranges)
+    public PrestoThriftRangeValueSet(@ThriftField(name = "ranges") List<PrestoThriftRange> ranges)
     {
         this.ranges = ranges;
     }
 
     @ThriftField(1)
-    public List<ThriftRange> getRanges()
+    public List<PrestoThriftRange> getRanges()
     {
         return ranges;
     }
@@ -54,7 +58,7 @@ public final class PrestoThriftRangeValueSet
     public SortedRangeSet toRangeValueSet(Type type)
     {
         List<Range> result = new ArrayList<>(ranges.size());
-        for (ThriftRange thriftRange : ranges) {
+        for (PrestoThriftRange thriftRange : ranges) {
             result.add(thriftRange.toRange(type));
         }
         return SortedRangeSet.copyOf(type, result);
@@ -62,123 +66,160 @@ public final class PrestoThriftRangeValueSet
 
     public static PrestoThriftRangeValueSet fromSortedRangeSet(SortedRangeSet valueSet)
     {
-        List<ThriftRange> ranges = valueSet.getOrderedRanges()
+        List<PrestoThriftRange> ranges = valueSet.getOrderedRanges()
                 .stream()
-                .map(ThriftRange::fromRange)
+                .map(PrestoThriftRange::fromRange)
                 .collect(toImmutableList());
         return new PrestoThriftRangeValueSet(ranges);
     }
 
-    @ThriftStruct
-    public static final class ThriftRange
+    @ThriftEnum
+    public enum PrestoThriftBound
     {
-        @ThriftEnum
-        public enum Bound
+        BELOW(1),   // lower than the value, but infinitesimally close to the value
+        EXACTLY(2), // exactly the value
+        ABOVE(3);   // higher than the value, but infinitesimally close to the value
+
+        private final int value;
+
+        PrestoThriftBound(int value)
         {
-            BELOW(1),   // lower than the value, but infinitesimally close to the value
-            EXACTLY(2), // exactly the value
-            ABOVE(3);   // higher than the value, but infinitesimally close to the value
+            this.value = value;
+        }
 
-            private final int value;
+        @ThriftEnumValue
+        public int getValue()
+        {
+            return value;
+        }
 
-            Bound(int value)
-            {
-                this.value = value;
-            }
-
-            @ThriftEnumValue
-            public int getValue()
-            {
-                return value;
-            }
-
-            public static Bound fromMarkerBound(Marker.Bound bound)
-            {
-                switch (bound) {
-                    case BELOW:
-                        return BELOW;
-                    case EXACTLY:
-                        return EXACTLY;
-                    case ABOVE:
-                        return ABOVE;
-                    default:
-                        throw new IllegalArgumentException("Unknown bound: " + bound);
-                }
-            }
-
-            public static Marker.Bound toMarkerBound(Bound thriftBound)
-            {
-                switch (thriftBound) {
-                    case BELOW:
-                        return Marker.Bound.BELOW;
-                    case EXACTLY:
-                        return Marker.Bound.EXACTLY;
-                    case ABOVE:
-                        return Marker.Bound.ABOVE;
-                    default:
-                        throw new IllegalArgumentException("Unknown thrift bound: " + thriftBound);
-                }
+        public Bound toMarkerBound()
+        {
+            switch (this) {
+                case BELOW:
+                    return Bound.BELOW;
+                case EXACTLY:
+                    return Bound.EXACTLY;
+                case ABOVE:
+                    return Bound.ABOVE;
+                default:
+                    throw new IllegalArgumentException("Unknown thrift bound: " + this);
             }
         }
 
-        private final PrestoThriftSingleValue low;
-        private final Bound lowerBound;
-        private final PrestoThriftSingleValue high;
-        private final Bound upperBound;
+        public static PrestoThriftBound fromBound(Bound bound)
+        {
+            switch (bound) {
+                case BELOW:
+                    return BELOW;
+                case EXACTLY:
+                    return EXACTLY;
+                case ABOVE:
+                    return ABOVE;
+                default:
+                    throw new IllegalArgumentException("Unknown bound: " + bound);
+            }
+        }
+    }
+
+    /**
+     * LOWER UNBOUNDED is specified with an empty value and a ABOVE bound
+     * UPPER UNBOUNDED is specified with an empty value and a BELOW bound
+     */
+    @ThriftStruct
+    public static final class PrestoThriftMarker
+    {
+        private final PrestoThriftColumnData value;
+        private final PrestoThriftBound bound;
 
         @ThriftConstructor
-        public ThriftRange(
-                @Nullable PrestoThriftSingleValue low,
-                Bound lowerBound,
-                @Nullable PrestoThriftSingleValue high,
-                Bound upperBound)
+        public PrestoThriftMarker(@Nullable PrestoThriftColumnData value, PrestoThriftBound bound)
         {
-            this.low = low;
-            this.lowerBound = lowerBound;
-            this.high = high;
-            this.upperBound = upperBound;
+            checkArgument(value == null || value.numberOfRecords() == 1, "value must contain exactly one value when present");
+            this.value = value;
+            this.bound = requireNonNull(bound, "bound is null");
         }
 
         @Nullable
         @ThriftField(value = 1, requiredness = OPTIONAL)
-        public PrestoThriftSingleValue getLow()
+        public PrestoThriftColumnData getValue()
+        {
+            return value;
+        }
+
+        @ThriftField(2)
+        public PrestoThriftBound getBound()
+        {
+            return bound;
+        }
+
+        public Marker toMarker(Type type)
+        {
+            if (value == null) {
+                switch (bound) {
+                    case ABOVE:
+                        return Marker.lowerUnbounded(type);
+                    case BELOW:
+                        return Marker.upperUnbounded(type);
+                    case EXACTLY:
+                        throw new IllegalArgumentException("Value cannot be null for 'EXACTLY' bound");
+                    default:
+                        throw new IllegalArgumentException("Unknown bound type: " + bound);
+                }
+            }
+            else {
+                return new Marker(type, Optional.of(value.toBlock(type)), bound.toMarkerBound());
+            }
+        }
+
+        public static PrestoThriftMarker fromMarker(Marker marker)
+        {
+            PrestoThriftColumnData value;
+            if (!marker.getValueBlock().isPresent()) {
+                value = null;
+            }
+            else {
+                ColumnBuilder builder = PrestoThriftColumnData.builder(marker.getType(), 1);
+                builder.append(marker.getValueBlock().get(), 0, marker.getType());
+                value = builder.build();
+            }
+            return new PrestoThriftMarker(value, fromBound(marker.getBound()));
+        }
+    }
+
+    @ThriftStruct
+    public static final class PrestoThriftRange
+    {
+        private final PrestoThriftMarker low;
+        private final PrestoThriftMarker high;
+
+        @ThriftConstructor
+        public PrestoThriftRange(PrestoThriftMarker low, PrestoThriftMarker high)
+        {
+            this.low = requireNonNull(low, "low is null");
+            this.high = requireNonNull(high, "high is null");
+        }
+
+        @ThriftField(1)
+        public PrestoThriftMarker getLow()
         {
             return low;
         }
 
         @ThriftField(2)
-        public Bound getLowerBound()
-        {
-            return lowerBound;
-        }
-
-        @Nullable
-        @ThriftField(value = 3, requiredness = OPTIONAL)
-        public PrestoThriftSingleValue getHigh()
+        public PrestoThriftMarker getHigh()
         {
             return high;
         }
 
-        @ThriftField(4)
-        public Bound getUpperBound()
-        {
-            return upperBound;
-        }
-
         public Range toRange(Type type)
         {
-            return new Range(
-                    toMarker(low, type, lowerBound),
-                    toMarker(high, type, upperBound));
+            return new Range(low.toMarker(type), high.toMarker(type));
         }
 
-        public static ThriftRange fromRange(Range range)
+        public static PrestoThriftRange fromRange(Range range)
         {
-            return new ThriftRange(
-                    fromMarker(range.getLow()),
-                    fromMarkerBound(range.getLow().getBound()),
-                    fromMarker(range.getHigh()),
-                    fromMarkerBound(range.getHigh().getBound()));
+            return new PrestoThriftRange(fromMarker(range.getLow()), fromMarker(range.getHigh()));
         }
     }
 }
