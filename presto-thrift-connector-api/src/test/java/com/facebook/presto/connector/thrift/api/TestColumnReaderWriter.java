@@ -33,6 +33,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
+import static com.facebook.presto.spi.type.DateType.DATE;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.presto.spi.type.HyperLogLogType.HYPER_LOG_LOG;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
@@ -41,7 +42,9 @@ import static com.facebook.presto.spi.type.VarcharType.createUnboundedVarcharTyp
 import static com.facebook.presto.spi.type.VarcharType.createVarcharType;
 import static com.facebook.presto.type.JsonType.JSON;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static java.lang.Math.toIntExact;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 
@@ -53,6 +56,8 @@ public class TestColumnReaderWriter
     private static final char[] SYMBOLS;
     private static final long MIN_GENERATED_TIMESTAMP;
     private static final long MAX_GENERATED_TIMESTAMP;
+    private static final int MIN_GENERATED_DATE;
+    private static final int MAX_GENERATED_DATE;
     private static final int MAX_GENERATED_JSON_KEY_LENGTH = 8;
     private static final int HYPER_LOG_LOG_BUCKETS = 128;
     private static final int MAX_HYPER_LOG_LOG_ELEMENTS = 32;
@@ -76,9 +81,11 @@ public class TestColumnReaderWriter
 
         calendar.set(2000, Calendar.JANUARY, 1);
         MIN_GENERATED_TIMESTAMP = calendar.getTimeInMillis();
+        MIN_GENERATED_DATE = toIntExact(MILLISECONDS.toDays(MIN_GENERATED_TIMESTAMP));
 
         calendar.set(2020, Calendar.DECEMBER, 31);
         MAX_GENERATED_TIMESTAMP = calendar.getTimeInMillis();
+        MAX_GENERATED_DATE = toIntExact(MILLISECONDS.toDays(MAX_GENERATED_TIMESTAMP));
     }
 
     @Test(invocationCount = 10)
@@ -93,6 +100,7 @@ public class TestColumnReaderWriter
                 new VarcharColumn(createUnboundedVarcharType()),
                 new VarcharColumn(createVarcharType(MAX_VARCHAR_GENERATED_LENGTH / 2)),
                 new TimestampColumn(),
+                new DateColumn(),
                 new JsonColumn(),
                 new HyperLogLogColumn()
         );
@@ -180,6 +188,11 @@ public class TestColumnReaderWriter
         return MIN_GENERATED_TIMESTAMP + (long) (random.nextDouble() * (MAX_GENERATED_TIMESTAMP - MIN_GENERATED_TIMESTAMP));
     }
 
+    private static int nextDate(Random random)
+    {
+        return MIN_GENERATED_DATE + random.nextInt(MAX_GENERATED_DATE - MIN_GENERATED_DATE);
+    }
+
     private static Slice nextHyperLogLog(Random random)
     {
         HyperLogLog hll = HyperLogLog.newInstance(HYPER_LOG_LOG_BUCKETS);
@@ -248,6 +261,27 @@ public class TestColumnReaderWriter
         void writeNextRandomValue(Random random, BlockBuilder builder)
         {
             TIMESTAMP.writeLong(builder, nextTimestamp(random));
+        }
+    }
+
+    private static final class DateColumn
+            extends ColumnDefinition
+    {
+        public DateColumn()
+        {
+            super(DATE);
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return DATE.getLong(block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            DATE.writeLong(builder, nextDate(random));
         }
     }
 
