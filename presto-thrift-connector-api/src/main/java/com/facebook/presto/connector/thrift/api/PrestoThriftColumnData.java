@@ -184,8 +184,7 @@ public final class PrestoThriftColumnData
     public String toString()
     {
         return toStringHelper(this)
-                .add("dataClass", dataReference.getClass())
-                .add("numberOrRecords", dataReference.numberOfRecords())
+                .add("data", dataReference)
                 .toString();
     }
 

@@ -21,6 +21,10 @@ import io.airlift.slice.Slices;
 
 import javax.annotation.Nullable;
 
+import java.util.Arrays;
+import java.util.Objects;
+
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
 final class SliceType
@@ -73,6 +77,35 @@ final class SliceType
     public int numberOfRecords()
     {
         return nulls != null ? nulls.length : (sizes != null ? sizes.length : 0);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(sizes), Arrays.hashCode(bytes));
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        SliceType other = (SliceType) obj;
+        return Arrays.equals(this.nulls, other.nulls) &&
+                Arrays.equals(this.sizes, other.sizes) &&
+                Arrays.equals(this.bytes, other.bytes);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("numberOfRecords", numberOfRecords())
+                .toString();
     }
 
     private static boolean sameSizeIfPresent(boolean[] nulls, int[] sizes)

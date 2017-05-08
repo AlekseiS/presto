@@ -25,8 +25,12 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.bigintData;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
@@ -84,6 +88,34 @@ public final class PrestoThriftBigint
                 return bigintData(new PrestoThriftBigint(trimmedNulls, trimmedLongs));
             }
         };
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(longs));
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftBigint other = (PrestoThriftBigint) obj;
+        return Arrays.equals(this.nulls, other.nulls) &&
+                Arrays.equals(this.longs, other.longs);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("numberOfRecords", numberOfRecords())
+                .toString();
     }
 
     private static boolean sameSizeIfPresent(boolean[] nulls, long[] longs)

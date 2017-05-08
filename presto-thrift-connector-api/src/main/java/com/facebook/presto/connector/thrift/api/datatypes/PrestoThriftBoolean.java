@@ -24,7 +24,11 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
+import java.util.Arrays;
+import java.util.Objects;
+
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
@@ -70,6 +74,34 @@ public final class PrestoThriftBoolean
     public int numberOfRecords()
     {
         return nulls != null ? nulls.length : (booleans != null ? booleans.length : 0);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(booleans));
+    }
+
+    @Override
+    public boolean equals(Object obj)
+    {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        PrestoThriftBoolean other = (PrestoThriftBoolean) obj;
+        return Arrays.equals(this.nulls, other.nulls) &&
+                Arrays.equals(this.booleans, other.booleans);
+    }
+
+    @Override
+    public String toString()
+    {
+        return toStringHelper(this)
+                .add("numberOfRecords", numberOfRecords())
+                .toString();
     }
 
     public static ColumnBuilder builder(int initialCapacity)
