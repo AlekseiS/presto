@@ -15,7 +15,6 @@ package com.facebook.presto.connector.thrift;
 
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorHandleResolver;
-import com.facebook.presto.spi.ConnectorIndexHandle;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
@@ -52,11 +51,5 @@ public class ThriftHandleResolver
     public Class<? extends ConnectorTransactionHandle> getTransactionHandleClass()
     {
         return ThriftTransactionHandle.class;
-    }
-
-    @Override
-    public Class<? extends ConnectorIndexHandle> getIndexHandleClass()
-    {
-        return ThriftIndexHandle.class;
     }
 }

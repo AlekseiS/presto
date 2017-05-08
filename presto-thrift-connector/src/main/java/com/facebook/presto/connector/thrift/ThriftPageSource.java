@@ -11,11 +11,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.pagesources;
+package com.facebook.presto.connector.thrift;
 
 import com.facebook.presto.connector.thrift.ThriftColumnHandle;
 import com.facebook.presto.connector.thrift.ThriftConnectorConfig;
+import com.facebook.presto.connector.thrift.ThriftConnectorSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
+import com.facebook.presto.connector.thrift.api.PrestoThriftService;
+import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.Page;
@@ -35,20 +38,28 @@ import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
 import static java.util.Collections.unmodifiableList;
 import static java.util.Objects.requireNonNull;
 
-public abstract class AbstractThriftPageSource
+public class ThriftPageSource
         implements ConnectorPageSource
 {
+    private final byte[] splitId;
+    private final PrestoThriftService client;
     private final List<String> columnNames;
     private final List<Type> columnTypes;
     private final long maxBytesPerResponse;
+    private final AtomicLong readTimeNanos = new AtomicLong(0);
+
     private byte[] nextToken;
     private boolean firstCall = true;
     private CompletableFuture<PrestoThriftRowsBatch> future;
-    private final AtomicLong readTimeNanos = new AtomicLong(0);
     private long completedBytes;
 
-    public AbstractThriftPageSource(List<ColumnHandle> columns, ThriftConnectorConfig config)
+    public ThriftPageSource(
+            PrestoThriftServiceProvider clientProvider,
+            ThriftConnectorConfig config,
+            ThriftConnectorSplit split,
+            List<ColumnHandle> columns)
     {
+        // init columns
         requireNonNull(columns, "columns is null");
         List<String> columnNames = new ArrayList<>(columns.size());
         List<Type> columnTypes = new ArrayList<>(columns.size());
@@ -59,54 +70,56 @@ public abstract class AbstractThriftPageSource
         }
         this.columnNames = unmodifiableList(columnNames);
         this.columnTypes = unmodifiableList(columnTypes);
+
+        // init config variables
         this.maxBytesPerResponse = requireNonNull(config, "config is null").getMaxResponseSize().toBytes();
-    }
 
-    public abstract ListenableFuture<PrestoThriftRowsBatch> sendDataRequest(byte[] nextToken);
+        // init split
+        requireNonNull(split, "split is null");
+        this.splitId = split.getSplitId();
 
-    public abstract void closeInternal();
-
-    public boolean canGetMoreData(byte[] nextToken)
-    {
-        return nextToken != null;
-    }
-
-    protected final List<String> getColumnNames()
-    {
-        return columnNames;
-    }
-
-    protected final long getMaxBytesPerResponse()
-    {
-        return maxBytesPerResponse;
+        // init client
+        requireNonNull(clientProvider, "clientProvider is null");
+        if (split.getAddresses().isEmpty()) {
+            this.client = clientProvider.anyHostClient();
+        }
+        else {
+            this.client = clientProvider.selectedHostClient(split.getAddresses());
+        }
     }
 
     @Override
-    public final long getTotalBytes()
+    public long getTotalBytes()
     {
         return 0;
     }
 
     @Override
-    public final long getCompletedBytes()
+    public long getCompletedBytes()
     {
         return completedBytes;
     }
 
     @Override
-    public final long getReadTimeNanos()
+    public long getReadTimeNanos()
     {
         return readTimeNanos.get();
     }
 
     @Override
-    public final boolean isFinished()
+    public long getSystemMemoryUsage()
+    {
+        return 0;
+    }
+
+    @Override
+    public boolean isFinished()
     {
         return !firstCall && !canGetMoreData(nextToken);
     }
 
     @Override
-    public final Page getNextPage()
+    public Page getNextPage()
     {
         if (future != null) {
             if (!future.isDone()) {
@@ -137,10 +150,15 @@ public abstract class AbstractThriftPageSource
         }
     }
 
+    private boolean canGetMoreData(byte[] nextToken)
+    {
+        return nextToken != null;
+    }
+
     private CompletableFuture<PrestoThriftRowsBatch> sendDataRequestInternal()
     {
         final long start = System.nanoTime();
-        ListenableFuture<PrestoThriftRowsBatch> rowsBatchFuture = sendDataRequest(nextToken);
+        ListenableFuture<PrestoThriftRowsBatch> rowsBatchFuture = client.getRows(splitId, columnNames, maxBytesPerResponse, nextToken);
         rowsBatchFuture.addListener(() -> readTimeNanos.addAndGet(System.nanoTime() - start), directExecutor());
         return toCompletableFuture(rowsBatchFuture);
     }
@@ -154,24 +172,18 @@ public abstract class AbstractThriftPageSource
     }
 
     @Override
-    public final CompletableFuture<?> isBlocked()
+    public CompletableFuture<?> isBlocked()
     {
         return future == null || future.isDone() ? NOT_BLOCKED : future;
     }
 
     @Override
-    public final long getSystemMemoryUsage()
-    {
-        return 0;
-    }
-
-    @Override
-    public final void close()
+    public void close()
             throws IOException
     {
         if (future != null) {
             future.cancel(true);
         }
-        closeInternal();
+        client.close();
     }
 }

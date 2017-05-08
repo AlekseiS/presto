@@ -29,7 +29,6 @@ public class TestThriftConnectorConfig
     {
         ConfigAssertions.assertRecordedDefaults(ConfigAssertions.recordDefaults(ThriftConnectorConfig.class)
                 .setMaxResponseSize(new DataSize(16, MEGABYTE))
-                .setMaxIndexSplitsPerBatch(2048)
                 .setMetadataRefreshThreads(1)
         );
     }
@@ -39,13 +38,11 @@ public class TestThriftConnectorConfig
     {
         Map<String, String> properties = new ImmutableMap.Builder<String, String>()
                 .put("presto-thrift.max-response-size", "2MB")
-                .put("presto-thrift.max-index-splits-per-batch", "128")
                 .put("presto-thrift.metadata-refresh-threads", "10")
                 .build();
 
         ThriftConnectorConfig expected = new ThriftConnectorConfig()
                 .setMaxResponseSize(new DataSize(2, MEGABYTE))
-                .setMaxIndexSplitsPerBatch(128)
                 .setMetadataRefreshThreads(10);
 
         ConfigAssertions.assertFullMapping(properties, expected);

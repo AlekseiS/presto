@@ -17,15 +17,12 @@ import com.facebook.presto.spi.type.FixedWidthType;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
 import com.facebook.presto.tpch.TpchMetadata;
-import com.google.common.collect.ImmutableList;
-import io.airlift.tpch.TpchColumn;
 import io.airlift.tpch.TpchColumnType;
 import io.airlift.tpch.TpchTable;
 
 import java.util.List;
 
 import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
-import static com.google.common.base.Preconditions.checkArgument;
 import static java.lang.Math.toIntExact;
 import static java.util.stream.Collectors.toList;
 
@@ -61,22 +58,6 @@ final class TpchServerUtils
             }
         }
         return toIntExact(maxBytes / bytesPerRow);
-    }
-
-    public static List<Integer> computeRemap(List<String> startSchema, List<String> endSchema)
-    {
-        ImmutableList.Builder<Integer> builder = ImmutableList.builder();
-        for (String columnName : endSchema) {
-            int index = startSchema.indexOf(columnName);
-            checkArgument(index != -1, "Column name in end that is not in the start: %s", columnName);
-            builder.add(index);
-        }
-        return builder.build();
-    }
-
-    public static List<String> allColumns(String tableName)
-    {
-        return TpchTable.getTable(tableName).getColumns().stream().map(TpchColumn::getSimplifiedColumnName).collect(toList());
     }
 
     public static List<Type> types(String tableName, List<String> columnNames)

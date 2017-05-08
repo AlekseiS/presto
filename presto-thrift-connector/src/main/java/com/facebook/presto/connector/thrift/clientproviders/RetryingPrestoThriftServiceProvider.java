@@ -14,7 +14,6 @@
 package com.facebook.presto.connector.thrift.clientproviders;
 
 import com.facebook.presto.connector.thrift.annotations.NonRetrying;
-import com.facebook.presto.connector.thrift.api.PrestoThriftNullableIndexLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
@@ -22,7 +21,6 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.api.PrestoThriftServiceException;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitBatch;
-import com.facebook.presto.connector.thrift.api.PrestoThriftSplitsOrRows;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
 import com.facebook.presto.connector.thrift.util.RetryDriver;
 import com.facebook.presto.spi.HostAddress;
@@ -133,27 +131,6 @@ public class RetryingPrestoThriftServiceProvider
         public ListenableFuture<PrestoThriftRowsBatch> getRows(byte[] splitId, List<String> columns, long maxBytes, @Nullable byte[] nextToken)
         {
             return retry.run("getRows", () -> getClient().getRows(splitId, columns, maxBytes, nextToken));
-        }
-
-        @Override
-        public PrestoThriftNullableIndexLayoutResult resolveIndex(
-                PrestoThriftSchemaTableName schemaTableName,
-                Set<String> indexableColumnNames,
-                Set<String> outputColumnNames,
-                PrestoThriftTupleDomain outputConstraint)
-        {
-            return retry.run("resolveIndex", () -> getClient().resolveIndex(schemaTableName, indexableColumnNames, outputColumnNames, outputConstraint));
-        }
-
-        @Override
-        public ListenableFuture<PrestoThriftSplitsOrRows> getRowsOrSplitsForIndex(
-                byte[] indexId,
-                PrestoThriftRowsBatch keys,
-                int maxSplitCount,
-                long rowsMaxBytes,
-                @Nullable byte[] nextToken)
-        {
-            return retry.run("getRowsOrSplitsForIndex", () -> getClient().getRowsOrSplitsForIndex(indexId, keys, maxSplitCount, rowsMaxBytes, nextToken));
         }
 
         @Override

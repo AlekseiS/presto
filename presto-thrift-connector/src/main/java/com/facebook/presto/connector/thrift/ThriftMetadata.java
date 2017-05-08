@@ -14,17 +14,12 @@
 package com.facebook.presto.connector.thrift;
 
 import com.facebook.presto.connector.thrift.annotations.ForMetadataRefresh;
-import com.facebook.presto.connector.thrift.api.PrestoThriftDomain;
-import com.facebook.presto.connector.thrift.api.PrestoThriftNullableIndexLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
-import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
-import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
-import com.facebook.presto.spi.ConnectorResolvedIndex;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableLayout;
@@ -36,8 +31,6 @@ import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.TableNotFoundException;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
-import com.facebook.presto.spi.predicate.Domain;
-import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -48,7 +41,6 @@ import io.airlift.units.Duration;
 
 import javax.inject.Inject;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -56,7 +48,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
-import static com.facebook.presto.connector.thrift.ThriftColumnHandle.tupleDomainToThriftTupleDomain;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName.fromSchemaTableName;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.cache.CacheLoader.asyncReloading;
@@ -206,47 +197,5 @@ public class ThriftMetadata
             columns.put(tableName, tableMetadata.getColumns());
         }
         return columns.build();
-    }
-
-    @Override
-    public Optional<ConnectorResolvedIndex> resolveIndex(
-            ConnectorSession session,
-            ConnectorTableHandle tableHandle,
-            Set<ColumnHandle> indexableColumns,
-            Set<ColumnHandle> outputColumns,
-            TupleDomain<ColumnHandle> tupleDomain)
-    {
-        ThriftTableHandle thriftTableHandle = (ThriftTableHandle) tableHandle;
-        PrestoThriftNullableIndexLayoutResult result = clientProvider.runOnAnyHost(
-                client -> client.resolveIndex(
-                        new PrestoThriftSchemaTableName(thriftTableHandle.getSchemaName(), thriftTableHandle.getTableName()),
-                        ThriftColumnHandle.columnNames(indexableColumns),
-                        ThriftColumnHandle.columnNames(outputColumns),
-                        tupleDomainToThriftTupleDomain(tupleDomain)));
-        if (result.getIndexLayoutResult() == null) {
-            return Optional.empty();
-        }
-        else {
-            return Optional.of(new ConnectorResolvedIndex(
-                    new ThriftIndexHandle(result.getIndexLayoutResult().getIndexId()),
-                    toTupleDomain(result.getIndexLayoutResult().getUnenforcedPredicate(), getColumnHandles(session, tableHandle))));
-        }
-    }
-
-    private static TupleDomain<ColumnHandle> toTupleDomain(
-            PrestoThriftTupleDomain thriftTupleDomain,
-            Map<String, ColumnHandle> allColumns)
-    {
-        if (thriftTupleDomain.getDomains() == null) {
-            return TupleDomain.none();
-        }
-        Map<ColumnHandle, Domain> tupleDomains = new HashMap<>(thriftTupleDomain.getDomains().size());
-        for (Map.Entry<String, PrestoThriftDomain> kv : thriftTupleDomain.getDomains().entrySet()) {
-            ThriftColumnHandle handle = (ThriftColumnHandle) requireNonNull(allColumns.get(kv.getKey()),
-                    "Column handle is not present");
-            Domain domain = kv.getValue().toDomain(handle.getColumnType());
-            tupleDomains.put(handle, domain);
-        }
-        return TupleDomain.withColumnDomains(tupleDomains);
     }
 }

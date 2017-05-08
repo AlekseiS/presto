@@ -26,7 +26,6 @@ import static io.airlift.units.DataSize.Unit.MEGABYTE;
 public class ThriftConnectorConfig
 {
     private DataSize maxResponseSize = new DataSize(16, MEGABYTE);
-    private int maxIndexSplitsPerBatch = 2048;
     private int metadataRefreshThreads = 1;
 
     @NotNull
@@ -41,19 +40,6 @@ public class ThriftConnectorConfig
     public ThriftConnectorConfig setMaxResponseSize(DataSize maxResponseSize)
     {
         this.maxResponseSize = maxResponseSize;
-        return this;
-    }
-
-    @Min(1)
-    public int getMaxIndexSplitsPerBatch()
-    {
-        return maxIndexSplitsPerBatch;
-    }
-
-    @Config("presto-thrift.max-index-splits-per-batch")
-    public ThriftConnectorConfig setMaxIndexSplitsPerBatch(int maxIndexSplitsPerBatch)
-    {
-        this.maxIndexSplitsPerBatch = maxIndexSplitsPerBatch;
         return this;
     }
 

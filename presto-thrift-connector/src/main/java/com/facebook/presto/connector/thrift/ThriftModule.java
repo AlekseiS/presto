@@ -49,7 +49,6 @@ public class ThriftModule
                 .to(DefaultPrestoThriftServiceProvider.class).in(Scopes.SINGLETON);
         configBinder(binder).bindConfig(ThriftConnectorConfig.class);
         binder.bind(ThriftSessionProperties.class).in(Scopes.SINGLETON);
-        binder.bind(ThriftIndexProvider.class).in(Scopes.SINGLETON);
     }
 
     @Provides

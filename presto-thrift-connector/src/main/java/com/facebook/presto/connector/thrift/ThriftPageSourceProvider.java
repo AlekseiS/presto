@@ -14,7 +14,6 @@
 package com.facebook.presto.connector.thrift;
 
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
-import com.facebook.presto.connector.thrift.pagesources.ThriftPageSource;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.ConnectorSession;

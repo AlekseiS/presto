@@ -15,8 +15,6 @@ package com.facebook.presto.connector.thrift.server;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnMetadata;
-import com.facebook.presto.connector.thrift.api.PrestoThriftIndexLayoutResult;
-import com.facebook.presto.connector.thrift.api.PrestoThriftNullableIndexLayoutResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftRowsBatch;
@@ -25,20 +23,12 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.api.PrestoThriftServiceException;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitBatch;
-import com.facebook.presto.connector.thrift.api.PrestoThriftSplitsOrRows;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
-import com.facebook.presto.connector.thrift.server.states.IndexInfo;
 import com.facebook.presto.connector.thrift.server.states.SplitInfo;
 import com.facebook.presto.connector.thrift.writers.ColumnWriter;
 import com.facebook.presto.connector.thrift.writers.ColumnWriters;
-import com.facebook.presto.operator.index.PageRecordSet;
-import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.RecordCursor;
-import com.facebook.presto.spi.RecordSet;
-import com.facebook.presto.spi.type.Type;
-import com.facebook.presto.split.MappedRecordSet;
-import com.facebook.presto.tests.tpch.TpchIndexedData;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -53,18 +43,14 @@ import javax.annotation.PreDestroy;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
 
-import static com.facebook.presto.connector.thrift.readers.ColumnReaders.convertToPage;
-import static com.facebook.presto.connector.thrift.server.TpchServerUtils.computeRemap;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.estimateRecords;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.getTypeString;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.schemaNameToScaleFactor;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.types;
 import static com.facebook.presto.connector.thrift.server.states.SerializationUtils.deserialize;
 import static com.facebook.presto.connector.thrift.server.states.SerializationUtils.serialize;
-import static com.facebook.presto.tests.AbstractTestIndexedQueries.INDEX_SPEC;
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
 import static com.google.common.base.Preconditions.checkState;
@@ -85,9 +71,6 @@ public class ThriftTpchService
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
     private final ListeningExecutorService dataExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("data-generator-%s")));
-    private final ListeningExecutorService indexDataExecutor =
-            listeningDecorator(newCachedThreadPool(threadsNamed("index-data-generator-%s")));
-    private final TpchIndexedData indexedData = new TpchIndexedData("tpchindexed", INDEX_SPEC);
 
     @Override
     public List<String> listSchemaNames()
@@ -184,91 +167,12 @@ public class ThriftTpchService
         return dataExecutor.submit(() -> getRowsInternal(splitId, columns, maxBytes, nextToken));
     }
 
-    @Override
-    public PrestoThriftNullableIndexLayoutResult resolveIndex(
-            PrestoThriftSchemaTableName schemaTableName,
-            Set<String> indexableColumnNames,
-            Set<String> outputColumnNames,
-            PrestoThriftTupleDomain outputConstraint)
-    {
-        Optional<TpchIndexedData.IndexedTable> indexedTable = indexedData.getIndexedTable(
-                schemaTableName.getTableName(),
-                schemaNameToScaleFactor(schemaTableName.getSchemaName()),
-                indexableColumnNames);
-        if (!indexedTable.isPresent()) {
-            return new PrestoThriftNullableIndexLayoutResult(null);
-        }
-        IndexInfo indexInfo = new IndexInfo(
-                schemaTableName.getSchemaName(),
-                schemaTableName.getTableName(),
-                indexableColumnNames,
-                ImmutableList.copyOf(outputColumnNames));
-        return new PrestoThriftNullableIndexLayoutResult(new PrestoThriftIndexLayoutResult(serialize(indexInfo), outputConstraint));
-    }
-
-    @Override
-    public ListenableFuture<PrestoThriftSplitsOrRows> getRowsOrSplitsForIndex(
-            byte[] indexId,
-            PrestoThriftRowsBatch keys,
-            int maxSplitCount,
-            long rowsMaxBytes,
-            @Nullable byte[] nextToken)
-    {
-        return indexDataExecutor.submit(() -> getRowsForIndexInternal(indexId, keys, rowsMaxBytes, nextToken));
-    }
-
     @PreDestroy
     @Override
     public void close()
     {
         splitsExecutor.shutdownNow();
         dataExecutor.shutdownNow();
-        indexDataExecutor.shutdownNow();
-    }
-
-    private PrestoThriftSplitsOrRows getRowsForIndexInternal(
-            byte[] indexId,
-            PrestoThriftRowsBatch keys,
-            long rowsMaxBytes,
-            @Nullable byte[] nextToken)
-    {
-        IndexInfo indexInfo = deserialize(indexId, IndexInfo.class);
-        TpchIndexedData.IndexedTable indexedTable = indexedData.getIndexedTable(
-                indexInfo.getTableName(),
-                schemaNameToScaleFactor(indexInfo.getSchemaName()),
-                indexInfo.getIndexableColumnNames())
-                .orElseThrow(() -> new IllegalArgumentException("Index is not present"));
-
-        RecordSet keyRecordSet = batchToRecordSet(keys, indexInfo.getTableName(), indexedTable.getKeyColumns());
-        RecordSet outputRecordSet = lookupIndexKeys(keyRecordSet, indexedTable, indexInfo.getOutputColumnNames());
-
-        return new PrestoThriftSplitsOrRows(
-                null,
-                cursorToRowsBatch(
-                        outputRecordSet.cursor(),
-                        indexInfo.getOutputColumnNames(),
-                        estimateRecords(rowsMaxBytes, outputRecordSet.getColumnTypes()),
-                        nextToken));
-    }
-
-    /**
-     * Convert a batch of index keys to record set which can be passed to index lookup.
-     */
-    private static RecordSet batchToRecordSet(PrestoThriftRowsBatch keys, String tableName, List<String> keyColumns)
-    {
-        List<Type> keyTypes = types(tableName, keyColumns);
-        Page keysPage = convertToPage(keys, keyColumns, keyTypes);
-        return new PageRecordSet(keyTypes, keysPage);
-    }
-
-    /**
-     * Get lookup result and re-map output columns based on requested order.
-     */
-    private static RecordSet lookupIndexKeys(RecordSet keys, TpchIndexedData.IndexedTable table, List<String> outputColumnNames)
-    {
-        RecordSet allColumnsOutputRecordSet = table.lookupKeys(keys);
-        List<Integer> outputRemap = computeRemap(table.getOutputColumns(), outputColumnNames);
-        return new MappedRecordSet(allColumnsOutputRecordSet, outputRemap);
     }
 
     private static PrestoThriftRowsBatch getRowsInternal(byte[] splitId, List<String> columns, long maxBytes, @Nullable byte[] nextToken)
