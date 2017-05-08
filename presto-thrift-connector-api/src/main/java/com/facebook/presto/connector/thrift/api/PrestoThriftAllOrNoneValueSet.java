@@ -14,7 +14,6 @@
 package com.facebook.presto.connector.thrift.api;
 
 import com.facebook.presto.spi.predicate.AllOrNoneValueSet;
-import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
@@ -34,11 +33,6 @@ public final class PrestoThriftAllOrNoneValueSet
     public boolean isAll()
     {
         return all;
-    }
-
-    public AllOrNoneValueSet toAllOrNoneValueSet(Type type)
-    {
-        return new AllOrNoneValueSet(type, all);
     }
 
     public static PrestoThriftAllOrNoneValueSet fromAllOrNoneValueSet(AllOrNoneValueSet valueSet)

@@ -14,29 +14,26 @@
 package com.facebook.presto.connector.thrift.api;
 
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
-import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.predicate.EquatableValueSet;
+import com.facebook.presto.spi.predicate.EquatableValueSet.ValueEntry;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
-import java.util.HashSet;
 import java.util.Set;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftEquatableValueSet.ThriftValueEntrySet.fromValueEntries;
 import static com.google.common.base.Preconditions.checkState;
-import static java.util.Collections.unmodifiableSet;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
 public final class PrestoThriftEquatableValueSet
 {
     private final boolean whiteList;
-    private final ThriftValueEntrySet values;
+    private final PrestoThriftColumnData values;
 
     @ThriftConstructor
-    public PrestoThriftEquatableValueSet(boolean whiteList, ThriftValueEntrySet values)
+    public PrestoThriftEquatableValueSet(boolean whiteList, PrestoThriftColumnData values)
     {
         this.whiteList = whiteList;
         this.values = requireNonNull(values, "values are null");
@@ -49,63 +46,20 @@ public final class PrestoThriftEquatableValueSet
     }
 
     @ThriftField(2)
-    public ThriftValueEntrySet getValues()
+    public PrestoThriftColumnData getValues()
     {
         return values;
     }
 
-    public EquatableValueSet toEquatableValueSet(Type type)
-    {
-        return new EquatableValueSet(type, whiteList, values.toValueEntries(type));
-    }
-
     public static PrestoThriftEquatableValueSet fromEquatableValueSet(EquatableValueSet valueSet)
     {
-        return new PrestoThriftEquatableValueSet(valueSet.isWhiteList(), fromValueEntries(valueSet.getEntries(), valueSet.getType()));
-    }
-
-    @ThriftStruct
-    public static final class ThriftValueEntrySet
-    {
-        private final PrestoThriftColumnData columnData;
-
-        @ThriftConstructor
-        public ThriftValueEntrySet(PrestoThriftColumnData columnData)
-        {
-            this.columnData = requireNonNull(columnData, "columnData is null");
+        Type type = valueSet.getType();
+        Set<ValueEntry> values = valueSet.getEntries();
+        ColumnBuilder builder = PrestoThriftColumnData.builder(type, values.size());
+        for (ValueEntry value : values) {
+            checkState(type.equals(value.getType()), "ValueEntrySet has elements of different types: %s vs %s", type, value.getType());
+            builder.append(value.getBlock(), 0, type);
         }
-
-        @ThriftField(1)
-        public PrestoThriftColumnData getColumnData()
-        {
-            return columnData;
-        }
-
-        public Set<EquatableValueSet.ValueEntry> toValueEntries(Type type)
-        {
-            int elementCount = columnData.numberOfRecords();
-            Block block = columnData.toBlock(type);
-            Set<EquatableValueSet.ValueEntry> result = new HashSet<>(elementCount);
-            for (int i = 0; i < elementCount; i++) {
-                result.add(new EquatableValueSet.ValueEntry(type, block.copyRegion(i, 1)));
-            }
-            return unmodifiableSet(result);
-        }
-
-        public static ThriftValueEntrySet fromValueEntries(Set<EquatableValueSet.ValueEntry> values, Type type)
-        {
-            ColumnBuilder builder = PrestoThriftColumnData.builder(type, values.size());
-            int idx = 0;
-            for (EquatableValueSet.ValueEntry value : values) {
-                checkState(type.equals(value.getType()),
-                        "ValueEntrySet has elements of different types: %s vs %s", type, value.getType());
-                Block valueBlock = value.getBlock();
-                checkState(valueBlock.getPositionCount() == 1,
-                        "Block in ValueEntry has more than one position: %s", valueBlock.getPositionCount());
-                builder.append(valueBlock, 0, type);
-                idx++;
-            }
-            return new ThriftValueEntrySet(builder.build());
-        }
+        return new PrestoThriftEquatableValueSet(valueSet.isWhiteList(), builder.build());
     }
 }

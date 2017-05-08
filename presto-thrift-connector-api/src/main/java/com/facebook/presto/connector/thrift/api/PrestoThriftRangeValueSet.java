@@ -18,7 +18,6 @@ import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.predicate.Marker.Bound;
 import com.facebook.presto.spi.predicate.Range;
 import com.facebook.presto.spi.predicate.SortedRangeSet;
-import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftEnum;
 import com.facebook.swift.codec.ThriftEnumValue;
@@ -27,9 +26,7 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftBound.fromBound;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftRangeValueSet.PrestoThriftMarker.fromMarker;
@@ -53,15 +50,6 @@ public final class PrestoThriftRangeValueSet
     public List<PrestoThriftRange> getRanges()
     {
         return ranges;
-    }
-
-    public SortedRangeSet toRangeValueSet(Type type)
-    {
-        List<Range> result = new ArrayList<>(ranges.size());
-        for (PrestoThriftRange thriftRange : ranges) {
-            result.add(thriftRange.toRange(type));
-        }
-        return SortedRangeSet.copyOf(type, result);
     }
 
     public static PrestoThriftRangeValueSet fromSortedRangeSet(SortedRangeSet valueSet)
@@ -91,20 +79,6 @@ public final class PrestoThriftRangeValueSet
         public int getValue()
         {
             return value;
-        }
-
-        public Bound toMarkerBound()
-        {
-            switch (this) {
-                case BELOW:
-                    return Bound.BELOW;
-                case EXACTLY:
-                    return Bound.EXACTLY;
-                case ABOVE:
-                    return Bound.ABOVE;
-                default:
-                    throw new IllegalArgumentException("Unknown thrift bound: " + this);
-            }
         }
 
         public static PrestoThriftBound fromBound(Bound bound)
@@ -153,25 +127,6 @@ public final class PrestoThriftRangeValueSet
             return bound;
         }
 
-        public Marker toMarker(Type type)
-        {
-            if (value == null) {
-                switch (bound) {
-                    case ABOVE:
-                        return Marker.lowerUnbounded(type);
-                    case BELOW:
-                        return Marker.upperUnbounded(type);
-                    case EXACTLY:
-                        throw new IllegalArgumentException("Value cannot be null for 'EXACTLY' bound");
-                    default:
-                        throw new IllegalArgumentException("Unknown bound type: " + bound);
-                }
-            }
-            else {
-                return new Marker(type, Optional.of(value.toBlock(type)), bound.toMarkerBound());
-            }
-        }
-
         public static PrestoThriftMarker fromMarker(Marker marker)
         {
             PrestoThriftColumnData value;
@@ -210,11 +165,6 @@ public final class PrestoThriftRangeValueSet
         public PrestoThriftMarker getHigh()
         {
             return high;
-        }
-
-        public Range toRange(Type type)
-        {
-            return new Range(low.toMarker(type), high.toMarker(type));
         }
 
         public static PrestoThriftRange fromRange(Range range)
