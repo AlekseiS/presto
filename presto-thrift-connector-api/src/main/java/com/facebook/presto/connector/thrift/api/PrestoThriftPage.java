@@ -36,14 +36,15 @@ import static java.util.Objects.requireNonNull;
 public final class PrestoThriftPage
 {
     private final List<PrestoThriftColumnData> columnsData;
-    private final Integer rowCount;
+    private final int rowCount;
     private final byte[] nextToken;
 
     @ThriftConstructor
-    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, @Nullable Integer rowCount, @Nullable byte[] nextToken)
+    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, int rowCount, @Nullable byte[] nextToken)
     {
         this.columnsData = requireNonNull(columnsData, "columnsData is null");
-        checkConsistency(columnsData, rowCount);
+        checkArgument(rowCount >= 0, "rowCount is negative");
+        checkAllColumnsAreOfExpectedSize(columnsData, rowCount);
         this.rowCount = rowCount;
         this.nextToken = nextToken;
     }
@@ -58,13 +59,8 @@ public final class PrestoThriftPage
         return columnsData;
     }
 
-    /**
-     * Number of rows is optional when at least one column is present.
-     * However, it is required when a list of columns is empty, such as when sending data for "count star" queries.
-     */
-    @Nullable
-    @ThriftField(value = 2, requiredness = OPTIONAL)
-    public Integer getRowCount()
+    @ThriftField(2)
+    public int getRowCount()
     {
         return rowCount;
     }
@@ -80,28 +76,19 @@ public final class PrestoThriftPage
     public Page toPage(List<Type> columnTypes)
     {
         checkArgument(columnsData.size() == columnTypes.size(), "columns and types have different sizes");
-        int numberOfRows = numberOfRows();
-        if (numberOfRows == 0) {
+        if (rowCount == 0) {
             return null;
         }
         int numberOfColumns = columnsData.size();
         if (numberOfColumns == 0) {
             // request/response with no columns, used for queries like "select count star"
-            return new Page(numberOfRows);
+            return new Page(rowCount);
         }
         Block[] blocks = new Block[numberOfColumns];
         for (int i = 0; i < numberOfColumns; i++) {
             blocks[i] = columnsData.get(i).toBlock(columnTypes.get(i));
         }
         return new Page(blocks);
-    }
-
-    private int numberOfRows()
-    {
-        if (rowCount != null) {
-            return rowCount;
-        }
-        return columnsData.get(0).numberOfRecords();
     }
 
     @Override
@@ -121,7 +108,7 @@ public final class PrestoThriftPage
         }
         PrestoThriftPage other = (PrestoThriftPage) obj;
         return Objects.equals(this.columnsData, other.columnsData) &&
-                Objects.equals(this.rowCount, other.rowCount) &&
+                this.rowCount == other.rowCount &&
                 Arrays.equals(this.nextToken, other.nextToken);
     }
 
@@ -133,18 +120,6 @@ public final class PrestoThriftPage
                 .add("rowCount", rowCount)
                 .add("nextToken", summarize(nextToken))
                 .toString();
-    }
-
-    private static void checkConsistency(List<PrestoThriftColumnData> columnsData, Integer rowCount)
-    {
-        if (rowCount != null) {
-            checkArgument(rowCount >= 0, "rowCount must be non-negative when present");
-            checkAllColumnsAreOfExpectedSize(columnsData, rowCount);
-        }
-        else {
-            checkArgument(!columnsData.isEmpty(), "rowCount must be present when list of columns is empty");
-            checkAllColumnsAreOfExpectedSize(columnsData, columnsData.get(0).numberOfRecords());
-        }
     }
 
     private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftColumnData> columnsData, int expectedNumberOfRows)
