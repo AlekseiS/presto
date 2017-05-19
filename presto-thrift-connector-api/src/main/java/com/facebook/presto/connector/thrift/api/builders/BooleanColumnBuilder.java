@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.builders;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBoolean;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
@@ -21,7 +21,7 @@ import com.facebook.presto.spi.type.Type;
 
 import java.util.Arrays;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.booleanData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.booleanData;
 import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.doubleCapacityChecked;
 import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.trim;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -85,7 +85,7 @@ public class BooleanColumnBuilder
     }
 
     @Override
-    public PrestoThriftColumnData build()
+    public PrestoThriftBlock build()
     {
         return booleanData(new PrestoThriftBoolean(trim(nulls, hasNulls, index), trim(booleans, hasData, index)));
     }

@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.builders;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
@@ -40,7 +40,7 @@ public abstract class AbstractLongColumnBuilder
         this.longs = new long[initialCapacity];
     }
 
-    protected abstract PrestoThriftColumnData buildInternal(boolean[] trimmedNulls, long[] trimmedLongs);
+    protected abstract PrestoThriftBlock buildInternal(boolean[] trimmedNulls, long[] trimmedLongs);
 
     @Override
     public final void append(RecordCursor cursor, int field)
@@ -85,7 +85,7 @@ public abstract class AbstractLongColumnBuilder
     }
 
     @Override
-    public final PrestoThriftColumnData build()
+    public final PrestoThriftBlock build()
     {
         return buildInternal(trim(nulls, hasNulls, index), trim(longs, hasData, index));
     }

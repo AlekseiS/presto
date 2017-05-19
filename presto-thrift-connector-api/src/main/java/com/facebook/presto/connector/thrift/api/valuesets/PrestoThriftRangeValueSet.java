@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.valuesets;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.predicate.Marker.Bound;
@@ -133,11 +133,11 @@ public final class PrestoThriftRangeValueSet
     @ThriftStruct
     public static final class PrestoThriftMarker
     {
-        private final PrestoThriftColumnData value;
+        private final PrestoThriftBlock value;
         private final PrestoThriftBound bound;
 
         @ThriftConstructor
-        public PrestoThriftMarker(@Nullable PrestoThriftColumnData value, PrestoThriftBound bound)
+        public PrestoThriftMarker(@Nullable PrestoThriftBlock value, PrestoThriftBound bound)
         {
             checkArgument(value == null || value.numberOfRecords() == 1, "value must contain exactly one record when present");
             this.value = value;
@@ -146,7 +146,7 @@ public final class PrestoThriftRangeValueSet
 
         @Nullable
         @ThriftField(value = 1, requiredness = OPTIONAL)
-        public PrestoThriftColumnData getValue()
+        public PrestoThriftBlock getValue()
         {
             return value;
         }
@@ -188,12 +188,12 @@ public final class PrestoThriftRangeValueSet
 
         public static PrestoThriftMarker fromMarker(Marker marker)
         {
-            PrestoThriftColumnData value;
+            PrestoThriftBlock value;
             if (!marker.getValueBlock().isPresent()) {
                 value = null;
             }
             else {
-                ColumnBuilder builder = PrestoThriftColumnData.builder(marker.getType(), 1);
+                ColumnBuilder builder = PrestoThriftBlock.builder(marker.getType(), 1);
                 builder.append(marker.getValueBlock().get(), 0, marker.getType());
                 value = builder.build();
             }

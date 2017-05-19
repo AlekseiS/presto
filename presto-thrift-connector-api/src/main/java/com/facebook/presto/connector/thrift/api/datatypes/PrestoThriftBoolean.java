@@ -38,7 +38,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 @ThriftStruct
 public final class PrestoThriftBoolean
-        implements PrestoThriftColumnType
+        implements PrestoThriftColumnData
 {
     private final boolean[] nulls;
     private final boolean[] booleans;

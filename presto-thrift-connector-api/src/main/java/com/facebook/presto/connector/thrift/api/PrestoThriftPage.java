@@ -33,16 +33,16 @@ import static java.util.Objects.requireNonNull;
 @ThriftStruct
 public final class PrestoThriftPage
 {
-    private final List<PrestoThriftColumnData> columnsData;
+    private final List<PrestoThriftBlock> columnBlocks;
     private final int rowCount;
     private final PrestoThriftId nextToken;
 
     @ThriftConstructor
-    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, int rowCount, @Nullable PrestoThriftId nextToken)
+    public PrestoThriftPage(List<PrestoThriftBlock> columnBlocks, int rowCount, @Nullable PrestoThriftId nextToken)
     {
-        this.columnsData = requireNonNull(columnsData, "columnsData is null");
+        this.columnBlocks = requireNonNull(columnBlocks, "columnBlocks is null");
         checkArgument(rowCount >= 0, "rowCount is negative");
-        checkAllColumnsAreOfExpectedSize(columnsData, rowCount);
+        checkAllColumnsAreOfExpectedSize(columnBlocks, rowCount);
         this.rowCount = rowCount;
         this.nextToken = nextToken;
     }
@@ -52,9 +52,9 @@ public final class PrestoThriftPage
      * Columns in this list must be in the order they were requested by the engine.
      */
     @ThriftField(1)
-    public List<PrestoThriftColumnData> getColumnsData()
+    public List<PrestoThriftBlock> getColumnBlocks()
     {
-        return columnsData;
+        return columnBlocks;
     }
 
     @ThriftField(2)
@@ -73,18 +73,18 @@ public final class PrestoThriftPage
     @Nullable
     public Page toPage(List<Type> columnTypes)
     {
-        checkArgument(columnsData.size() == columnTypes.size(), "columns and types have different sizes");
+        checkArgument(columnBlocks.size() == columnTypes.size(), "columns and types have different sizes");
         if (rowCount == 0) {
             return null;
         }
-        int numberOfColumns = columnsData.size();
+        int numberOfColumns = columnBlocks.size();
         if (numberOfColumns == 0) {
             // request/response with no columns, used for queries like "select count star"
             return new Page(rowCount);
         }
         Block[] blocks = new Block[numberOfColumns];
         for (int i = 0; i < numberOfColumns; i++) {
-            blocks[i] = columnsData.get(i).toBlock(columnTypes.get(i));
+            blocks[i] = columnBlocks.get(i).toBlock(columnTypes.get(i));
         }
         return new Page(blocks);
     }
@@ -99,7 +99,7 @@ public final class PrestoThriftPage
             return false;
         }
         PrestoThriftPage other = (PrestoThriftPage) obj;
-        return Objects.equals(this.columnsData, other.columnsData) &&
+        return Objects.equals(this.columnBlocks, other.columnBlocks) &&
                 this.rowCount == other.rowCount &&
                 Objects.equals(this.nextToken, other.nextToken);
     }
@@ -107,25 +107,25 @@ public final class PrestoThriftPage
     @Override
     public int hashCode()
     {
-        return Objects.hash(columnsData, rowCount, nextToken);
+        return Objects.hash(columnBlocks, rowCount, nextToken);
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("columnsData", columnsData)
+                .add("columnBlocks", columnBlocks)
                 .add("rowCount", rowCount)
                 .add("nextToken", nextToken)
                 .toString();
     }
 
-    private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftColumnData> columnsData, int expectedNumberOfRows)
+    private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftBlock> columnBlocks, int expectedNumberOfRows)
     {
-        for (int i = 0; i < columnsData.size(); i++) {
-            checkArgument(columnsData.get(i).numberOfRecords() == expectedNumberOfRows,
+        for (int i = 0; i < columnBlocks.size(); i++) {
+            checkArgument(columnBlocks.get(i).numberOfRecords() == expectedNumberOfRows,
                     "Incorrect number of records for column with index %s: expected %s, got %s",
-                    i, expectedNumberOfRows, columnsData.get(i).numberOfRecords());
+                    i, expectedNumberOfRows, columnBlocks.get(i).numberOfRecords());
         }
     }
 }

@@ -16,7 +16,7 @@ package com.facebook.presto.connector.thrift.api.datatypes;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
 
-public interface PrestoThriftColumnType
+public interface PrestoThriftColumnData
 {
     Block toBlock(Type desiredType);
 

@@ -16,7 +16,7 @@ package com.facebook.presto.connector.thrift.api;
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigint;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBoolean;
-import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftColumnType;
+import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftDate;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftDouble;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftHyperLogLog;
@@ -48,7 +48,7 @@ import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
-public final class PrestoThriftColumnData
+public final class PrestoThriftBlock
 {
     private final PrestoThriftBigint bigintData;
     private final PrestoThriftTimestamp timestampData;
@@ -61,10 +61,10 @@ public final class PrestoThriftColumnData
     private final PrestoThriftDate dateData;
 
     // non-thrift field which points to non-null data item
-    private final PrestoThriftColumnType dataReference;
+    private final PrestoThriftColumnData dataReference;
 
     @ThriftConstructor
-    public PrestoThriftColumnData(
+    public PrestoThriftBlock(
             @Nullable PrestoThriftBigint bigintData,
             @Nullable PrestoThriftTimestamp timestampData,
             @Nullable PrestoThriftInteger integerData,
@@ -169,7 +169,7 @@ public final class PrestoThriftColumnData
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        PrestoThriftColumnData other = (PrestoThriftColumnData) obj;
+        PrestoThriftBlock other = (PrestoThriftBlock) obj;
         // remaining fields are guaranteed to be null by the constructor
         return Objects.equals(this.dataReference, other.dataReference);
     }
@@ -188,49 +188,49 @@ public final class PrestoThriftColumnData
                 .toString();
     }
 
-    public static PrestoThriftColumnData bigintData(PrestoThriftBigint bigintData)
+    public static PrestoThriftBlock bigintData(PrestoThriftBigint bigintData)
     {
-        return new PrestoThriftColumnData(bigintData, null, null, null, null, null, null, null, null);
+        return new PrestoThriftBlock(bigintData, null, null, null, null, null, null, null, null);
     }
 
-    public static PrestoThriftColumnData timestampData(PrestoThriftTimestamp timestampData)
+    public static PrestoThriftBlock timestampData(PrestoThriftTimestamp timestampData)
     {
-        return new PrestoThriftColumnData(null, timestampData, null, null, null, null, null, null, null);
+        return new PrestoThriftBlock(null, timestampData, null, null, null, null, null, null, null);
     }
 
-    public static PrestoThriftColumnData integerData(PrestoThriftInteger integerData)
+    public static PrestoThriftBlock integerData(PrestoThriftInteger integerData)
     {
-        return new PrestoThriftColumnData(null, null, integerData, null, null, null, null, null, null);
+        return new PrestoThriftBlock(null, null, integerData, null, null, null, null, null, null);
     }
 
-    public static PrestoThriftColumnData booleanData(PrestoThriftBoolean booleanData)
+    public static PrestoThriftBlock booleanData(PrestoThriftBoolean booleanData)
     {
-        return new PrestoThriftColumnData(null, null, null, booleanData, null, null, null, null, null);
+        return new PrestoThriftBlock(null, null, null, booleanData, null, null, null, null, null);
     }
 
-    public static PrestoThriftColumnData doubleData(PrestoThriftDouble doubleData)
+    public static PrestoThriftBlock doubleData(PrestoThriftDouble doubleData)
     {
-        return new PrestoThriftColumnData(null, null, null, null, doubleData, null, null, null, null);
+        return new PrestoThriftBlock(null, null, null, null, doubleData, null, null, null, null);
     }
 
-    public static PrestoThriftColumnData varcharData(PrestoThriftVarchar varcharData)
+    public static PrestoThriftBlock varcharData(PrestoThriftVarchar varcharData)
     {
-        return new PrestoThriftColumnData(null, null, null, null, null, varcharData, null, null, null);
+        return new PrestoThriftBlock(null, null, null, null, null, varcharData, null, null, null);
     }
 
-    public static PrestoThriftColumnData hyperLogLogData(PrestoThriftHyperLogLog hyperLogLogData)
+    public static PrestoThriftBlock hyperLogLogData(PrestoThriftHyperLogLog hyperLogLogData)
     {
-        return new PrestoThriftColumnData(null, null, null, null, null, null, hyperLogLogData, null, null);
+        return new PrestoThriftBlock(null, null, null, null, null, null, hyperLogLogData, null, null);
     }
 
-    public static PrestoThriftColumnData jsonData(PrestoThriftJson jsonData)
+    public static PrestoThriftBlock jsonData(PrestoThriftJson jsonData)
     {
-        return new PrestoThriftColumnData(null, null, null, null, null, null, null, jsonData, null);
+        return new PrestoThriftBlock(null, null, null, null, null, null, null, jsonData, null);
     }
 
-    public static PrestoThriftColumnData dateData(PrestoThriftDate dateData)
+    public static PrestoThriftBlock dateData(PrestoThriftDate dateData)
     {
-        return new PrestoThriftColumnData(null, null, null, null, null, null, null, null, dateData);
+        return new PrestoThriftBlock(null, null, null, null, null, null, null, null, dateData);
     }
 
     public static ColumnBuilder builder(Type columnType, int initialCapacity)
@@ -259,13 +259,13 @@ public final class PrestoThriftColumnData
         }
     }
 
-    private static PrestoThriftColumnType theOnlyNonNull(PrestoThriftColumnType... types)
+    private static PrestoThriftColumnData theOnlyNonNull(PrestoThriftColumnData... columnsData)
     {
-        PrestoThriftColumnType result = null;
-        for (PrestoThriftColumnType type : types) {
-            if (type != null) {
+        PrestoThriftColumnData result = null;
+        for (PrestoThriftColumnData data : columnsData) {
+            if (data != null) {
                 checkArgument(result == null, "more than one type is present");
-                result = type;
+                result = data;
             }
         }
         checkArgument(result != null, "no types are present");

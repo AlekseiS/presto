@@ -27,14 +27,14 @@ import java.util.Objects;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
-final class SliceType
-        implements PrestoThriftColumnType
+final class SliceData
+        implements PrestoThriftColumnData
 {
     private final boolean[] nulls;
     private final int[] sizes;
     private final byte[] bytes;
 
-    public SliceType(@Nullable boolean[] nulls, @Nullable int[] sizes, @Nullable byte[] bytes)
+    public SliceData(@Nullable boolean[] nulls, @Nullable int[] sizes, @Nullable byte[] bytes)
     {
         checkArgument(sameSizeIfPresent(nulls, sizes), "nulls and values must be of the same size");
         checkArgument(totalSize(nulls, sizes) == (bytes != null ? bytes.length : 0), "total bytes size doesn't match expected size");
@@ -89,7 +89,7 @@ final class SliceType
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        SliceType other = (SliceType) obj;
+        SliceData other = (SliceData) obj;
         return Arrays.equals(this.nulls, other.nulls) &&
                 Arrays.equals(this.sizes, other.sizes) &&
                 Arrays.equals(this.bytes, other.bytes);

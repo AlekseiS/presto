@@ -115,11 +115,11 @@ public class TestColumnReaderWriter
         }
 
         // convert column data to thrift ("write step")
-        List<PrestoThriftColumnData> columnsData = new ArrayList<>(columns.size());
+        List<PrestoThriftBlock> columnBlocks = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
-            columnsData.add(writeColumnAsThrift(columns.get(i), inputBlocks.get(i)));
+            columnBlocks.add(writeColumnAsThrift(columns.get(i), inputBlocks.get(i)));
         }
-        PrestoThriftPage batch = new PrestoThriftPage(columnsData, records, null);
+        PrestoThriftPage batch = new PrestoThriftPage(columnBlocks, records, null);
 
         // convert thrift data to page/blocks ("read step")
         Page page = batch.toPage(columns.stream().map(ColumnDefinition::getType).collect(toImmutableList()));
@@ -134,9 +134,9 @@ public class TestColumnReaderWriter
         }
     }
 
-    private static PrestoThriftColumnData writeColumnAsThrift(ColumnDefinition column, Block block)
+    private static PrestoThriftBlock writeColumnAsThrift(ColumnDefinition column, Block block)
     {
-        ColumnBuilder builder = PrestoThriftColumnData.builder(column.getType(), BUILDER_INITIAL_CAPACITY);
+        ColumnBuilder builder = PrestoThriftBlock.builder(column.getType(), BUILDER_INITIAL_CAPACITY);
         for (int i = 0; i < block.getPositionCount(); i++) {
             builder.append(block, i, column.getType());
         }

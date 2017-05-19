@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.server;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftId;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
@@ -200,7 +200,7 @@ public class ThriftTpchService
         // create and initialize builders
         List<ColumnBuilder> builders = new ArrayList<>(numColumns);
         for (int i = 0; i < numColumns; i++) {
-            builders.add(PrestoThriftColumnData.builder(cursor.getType(i), min(maxRowCount, MAX_WRITERS_INITIAL_CAPACITY)));
+            builders.add(PrestoThriftBlock.builder(cursor.getType(i), min(maxRowCount, MAX_WRITERS_INITIAL_CAPACITY)));
         }
 
         // iterate over the cursor and append data to builders
@@ -214,7 +214,7 @@ public class ThriftTpchService
         }
 
         // populate the final thrift result from builders
-        List<PrestoThriftColumnData> result = new ArrayList<>(numColumns);
+        List<PrestoThriftBlock> result = new ArrayList<>(numColumns);
         for (ColumnBuilder builder : builders) {
             result.add(builder.build());
         }

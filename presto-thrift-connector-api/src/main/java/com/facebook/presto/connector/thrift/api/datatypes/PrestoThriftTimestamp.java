@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.datatypes;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.builders.AbstractLongColumnBuilder;
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
@@ -28,7 +28,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.timestampData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.timestampData;
 import static com.facebook.presto.spi.type.TimestampType.TIMESTAMP;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -41,7 +41,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 @ThriftStruct
 public final class PrestoThriftTimestamp
-        implements PrestoThriftColumnType
+        implements PrestoThriftColumnData
 {
     private final boolean[] nulls;
     private final long[] timestamps;
@@ -118,7 +118,7 @@ public final class PrestoThriftTimestamp
         return new AbstractLongColumnBuilder(initialCapacity)
         {
             @Override
-            protected PrestoThriftColumnData buildInternal(boolean[] trimmedNulls, long[] trimmedLongs)
+            protected PrestoThriftBlock buildInternal(boolean[] trimmedNulls, long[] trimmedLongs)
             {
                 return timestampData(new PrestoThriftTimestamp(trimmedNulls, trimmedLongs));
             }

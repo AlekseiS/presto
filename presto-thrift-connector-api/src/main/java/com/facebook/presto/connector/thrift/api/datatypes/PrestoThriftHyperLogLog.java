@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.datatypes;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.builders.AbstractSliceColumnBuilder;
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
@@ -26,7 +26,7 @@ import javax.annotation.Nullable;
 
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.hyperLogLogData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.hyperLogLogData;
 import static com.facebook.presto.spi.type.HyperLogLogType.HYPER_LOG_LOG;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -42,14 +42,14 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 @ThriftStruct
 public final class PrestoThriftHyperLogLog
-        implements PrestoThriftColumnType
+        implements PrestoThriftColumnData
 {
-    private final SliceType sliceType;
+    private final SliceData sliceType;
 
     @ThriftConstructor
     public PrestoThriftHyperLogLog(@Nullable boolean[] nulls, @Nullable int[] sizes, @Nullable byte[] bytes)
     {
-        this.sliceType = new SliceType(nulls, sizes, bytes);
+        this.sliceType = new SliceData(nulls, sizes, bytes);
     }
 
     @Nullable
@@ -118,7 +118,7 @@ public final class PrestoThriftHyperLogLog
         return new AbstractSliceColumnBuilder(initialCapacity)
         {
             @Override
-            protected PrestoThriftColumnData buildInternal(boolean[] trimmedNulls, int[] trimmedSizes, byte[] trimmedBytes)
+            protected PrestoThriftBlock buildInternal(boolean[] trimmedNulls, int[] trimmedSizes, byte[] trimmedBytes)
             {
                 return hyperLogLogData(new PrestoThriftHyperLogLog(trimmedNulls, trimmedSizes, trimmedBytes));
             }

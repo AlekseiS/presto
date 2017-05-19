@@ -13,15 +13,15 @@
  */
 package com.facebook.presto.connector.thrift.api.datatypes;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.spi.block.Block;
 import org.testng.annotations.Test;
 
 import java.util.Arrays;
 import java.util.List;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.bigintData;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.integerData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.bigintData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.integerData;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static java.util.Collections.unmodifiableList;
@@ -34,7 +34,7 @@ public class TestPrestoThriftBigint
     public void testReadBlock()
             throws Exception
     {
-        PrestoThriftColumnData columnsData = longColumn(
+        PrestoThriftBlock columnsData = longColumn(
                 new boolean[] {false, true, false, false, false, false, true},
                 new long[] {2, 0, 1, 3, 8, 4, 0}
         );
@@ -45,7 +45,7 @@ public class TestPrestoThriftBigint
     @Test
     public void testReadBlockAllNullsOption1()
     {
-        PrestoThriftColumnData columnsData = longColumn(
+        PrestoThriftBlock columnsData = longColumn(
                 new boolean[] {true, true, true, true, true, true, true},
                 null
         );
@@ -56,7 +56,7 @@ public class TestPrestoThriftBigint
     @Test
     public void testReadBlockAllNullsOption2()
     {
-        PrestoThriftColumnData columnsData = longColumn(
+        PrestoThriftBlock columnsData = longColumn(
                 new boolean[] {true, true, true, true, true, true, true},
                 new long[] {0, 0, 0, 0, 0, 0, 0}
         );
@@ -68,7 +68,7 @@ public class TestPrestoThriftBigint
     public void testReadBlockAllNonNullOption1()
             throws Exception
     {
-        PrestoThriftColumnData columnsData = longColumn(
+        PrestoThriftBlock columnsData = longColumn(
                 null,
                 new long[] {2, 7, 1, 3, 8, 4, 5}
         );
@@ -80,7 +80,7 @@ public class TestPrestoThriftBigint
     public void testReadBlockAllNonNullOption2()
             throws Exception
     {
-        PrestoThriftColumnData columnsData = longColumn(
+        PrestoThriftBlock columnsData = longColumn(
                 new boolean[] {false, false, false, false, false, false, false},
                 new long[] {2, 7, 1, 3, 8, 4, 5}
         );
@@ -92,7 +92,7 @@ public class TestPrestoThriftBigint
     public void testReadBlockWrongActualType()
             throws Exception
     {
-        PrestoThriftColumnData columnsData = integerData(new PrestoThriftInteger(null, null));
+        PrestoThriftBlock columnsData = integerData(new PrestoThriftInteger(null, null));
         columnsData.toBlock(BIGINT);
     }
 
@@ -100,7 +100,7 @@ public class TestPrestoThriftBigint
     public void testReadBlockWrongDesiredType()
             throws Exception
     {
-        PrestoThriftColumnData columnsData = longColumn(null, null);
+        PrestoThriftBlock columnsData = longColumn(null, null);
         columnsData.toBlock(INTEGER);
     }
 
@@ -117,7 +117,7 @@ public class TestPrestoThriftBigint
         }
     }
 
-    private static PrestoThriftColumnData longColumn(boolean[] nulls, long[] longs)
+    private static PrestoThriftBlock longColumn(boolean[] nulls, long[] longs)
     {
         return bigintData(new PrestoThriftBigint(nulls, longs));
     }

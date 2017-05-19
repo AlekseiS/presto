@@ -18,7 +18,7 @@ import com.facebook.presto.spi.predicate.ValueSet;
 import com.google.common.primitives.Bytes;
 import org.testng.annotations.Test;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.jsonData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.jsonData;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftValueSet.fromValueSet;
 import static com.facebook.presto.type.JsonType.JSON;
 import static io.airlift.slice.Slices.utf8Slice;

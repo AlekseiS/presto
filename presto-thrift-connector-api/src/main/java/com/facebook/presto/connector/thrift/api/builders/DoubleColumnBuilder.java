@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.builders;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftDouble;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
@@ -21,7 +21,7 @@ import com.facebook.presto.spi.type.Type;
 
 import java.util.Arrays;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.doubleData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.doubleData;
 import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.doubleCapacityChecked;
 import static com.facebook.presto.connector.thrift.api.builders.BuilderUtils.trim;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -85,7 +85,7 @@ public class DoubleColumnBuilder
     }
 
     @Override
-    public PrestoThriftColumnData build()
+    public PrestoThriftBlock build()
     {
         return doubleData(new PrestoThriftDouble(trim(nulls, hasNulls, index), trim(doubles, hasData, index)));
     }

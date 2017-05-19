@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.valuesets;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigint;
 import com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftMarker;
 import com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftRange;
@@ -22,7 +22,7 @@ import com.facebook.presto.spi.predicate.ValueSet;
 import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.bigintData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.bigintData;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.ABOVE;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.BELOW;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.EXACTLY;
@@ -88,7 +88,7 @@ public class PrestoThriftRangeValueSetTest
                 new PrestoThriftRange(new PrestoThriftMarker(longValue(-1), ABOVE), new PrestoThriftMarker(longValue(100), EXACTLY))));
     }
 
-    private static PrestoThriftColumnData longValue(long value)
+    private static PrestoThriftBlock longValue(long value)
     {
         return bigintData(new PrestoThriftBigint(null, new long[] {value}));
     }

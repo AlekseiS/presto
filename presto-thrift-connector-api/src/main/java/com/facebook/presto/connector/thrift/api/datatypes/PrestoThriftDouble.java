@@ -39,7 +39,7 @@ import static java.lang.Double.doubleToLongBits;
  */
 @ThriftStruct
 public final class PrestoThriftDouble
-        implements PrestoThriftColumnType
+        implements PrestoThriftColumnData
 {
     private final boolean[] nulls;
     private final double[] doubles;

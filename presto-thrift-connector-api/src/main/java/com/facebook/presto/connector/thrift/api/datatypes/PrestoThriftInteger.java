@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.datatypes;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.builders.AbstractIntColumnBuilder;
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
@@ -28,7 +28,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftColumnData.integerData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.integerData;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -40,7 +40,7 @@ import static com.google.common.base.Preconditions.checkArgument;
  */
 @ThriftStruct
 public final class PrestoThriftInteger
-        implements PrestoThriftColumnType
+        implements PrestoThriftColumnData
 {
     private final boolean[] nulls;
     private final int[] ints;
@@ -117,7 +117,7 @@ public final class PrestoThriftInteger
         return new AbstractIntColumnBuilder(initialCapacity)
         {
             @Override
-            protected PrestoThriftColumnData buildInternal(boolean[] trimmedNulls, int[] trimmedInts)
+            protected PrestoThriftBlock buildInternal(boolean[] trimmedNulls, int[] trimmedInts)
             {
                 return integerData(new PrestoThriftInteger(trimmedNulls, trimmedInts));
             }

@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.valuesets;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.predicate.EquatableValueSet;
 import com.facebook.presto.spi.predicate.EquatableValueSet.ValueEntry;
@@ -33,10 +33,10 @@ import static java.util.Objects.requireNonNull;
 public final class PrestoThriftEquatableValueSet
 {
     private final boolean whiteList;
-    private final PrestoThriftColumnData values;
+    private final PrestoThriftBlock values;
 
     @ThriftConstructor
-    public PrestoThriftEquatableValueSet(boolean whiteList, PrestoThriftColumnData values)
+    public PrestoThriftEquatableValueSet(boolean whiteList, PrestoThriftBlock values)
     {
         this.whiteList = whiteList;
         this.values = requireNonNull(values, "values are null");
@@ -49,7 +49,7 @@ public final class PrestoThriftEquatableValueSet
     }
 
     @ThriftField(2)
-    public PrestoThriftColumnData getValues()
+    public PrestoThriftBlock getValues()
     {
         return values;
     }
@@ -87,7 +87,7 @@ public final class PrestoThriftEquatableValueSet
     {
         Type type = valueSet.getType();
         Set<ValueEntry> values = valueSet.getEntries();
-        ColumnBuilder builder = PrestoThriftColumnData.builder(type, values.size());
+        ColumnBuilder builder = PrestoThriftBlock.builder(type, values.size());
         for (ValueEntry value : values) {
             checkState(type.equals(value.getType()), "ValueEntrySet has elements of different types: %s vs %s", type, value.getType());
             builder.append(value.getBlock(), 0, type);

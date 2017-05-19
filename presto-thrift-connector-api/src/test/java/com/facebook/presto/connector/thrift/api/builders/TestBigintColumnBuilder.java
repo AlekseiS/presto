@@ -13,7 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.builders;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigint;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -48,7 +48,7 @@ public class TestBigintColumnBuilder
         for (int i = 0; i < source.getPositionCount(); i++) {
             builder.append(source, i, BIGINT);
         }
-        PrestoThriftColumnData column = builder.build();
+        PrestoThriftBlock column = builder.build();
         assertNotNull(column.getBigintData());
         assertEquals(column.getBigintData().getNulls(),
                 new boolean[] {false, true, false, true, false, true, false, true, false, true, false, true, false, true});
@@ -65,7 +65,7 @@ public class TestBigintColumnBuilder
         for (int i = 0; i < source.getPositionCount(); i++) {
             builder.append(source, i, BIGINT);
         }
-        PrestoThriftColumnData column = builder.build();
+        PrestoThriftBlock column = builder.build();
         assertNotNull(column.getBigintData());
         assertEquals(column.getBigintData().getNulls(), new boolean[] {true, true, true, true, true});
         assertNull(column.getBigintData().getLongs());
@@ -80,7 +80,7 @@ public class TestBigintColumnBuilder
         for (int i = 0; i < source.getPositionCount(); i++) {
             builder.append(source, i, BIGINT);
         }
-        PrestoThriftColumnData column = builder.build();
+        PrestoThriftBlock column = builder.build();
         assertNotNull(column.getBigintData());
         assertNull(column.getBigintData().getNulls());
         assertEquals(column.getBigintData().getLongs(), new long[] {1, 2, 3, 4, 5});
@@ -91,7 +91,7 @@ public class TestBigintColumnBuilder
             throws Exception
     {
         ColumnBuilder builder = PrestoThriftBigint.builder(10);
-        PrestoThriftColumnData column = builder.build();
+        PrestoThriftBlock column = builder.build();
         assertNotNull(column.getBigintData());
         assertNull(column.getBigintData().getNulls());
         assertNull(column.getBigintData().getLongs());
@@ -102,7 +102,7 @@ public class TestBigintColumnBuilder
             throws Exception
     {
         ColumnBuilder builder = PrestoThriftBigint.builder(0);
-        PrestoThriftColumnData column = builder.build();
+        PrestoThriftBlock column = builder.build();
         assertNotNull(column.getBigintData());
         assertNull(column.getBigintData().getNulls());
         assertNull(column.getBigintData().getLongs());
@@ -114,7 +114,7 @@ public class TestBigintColumnBuilder
     {
         ColumnBuilder builder = PrestoThriftBigint.builder(0);
         builder.append(longBlock(1), 0, BIGINT);
-        PrestoThriftColumnData column = builder.build();
+        PrestoThriftBlock column = builder.build();
         assertNotNull(column.getBigintData());
         assertNull(column.getBigintData().getNulls());
         assertEquals(column.getBigintData().getLongs(), new long[] {1});
