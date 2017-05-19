@@ -43,12 +43,6 @@ public final class PrestoThriftNullableToken
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(token);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -59,6 +53,12 @@ public final class PrestoThriftNullableToken
         }
         PrestoThriftNullableToken other = (PrestoThriftNullableToken) obj;
         return Objects.equals(this.token, other.token);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(token);
     }
 
     @Override

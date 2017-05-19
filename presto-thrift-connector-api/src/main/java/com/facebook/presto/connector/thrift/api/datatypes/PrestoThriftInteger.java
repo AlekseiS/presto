@@ -85,12 +85,6 @@ public final class PrestoThriftInteger
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(ints));
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -102,6 +96,12 @@ public final class PrestoThriftInteger
         PrestoThriftInteger other = (PrestoThriftInteger) obj;
         return Arrays.equals(this.nulls, other.nulls) &&
                 Arrays.equals(this.ints, other.ints);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(ints));
     }
 
     @Override

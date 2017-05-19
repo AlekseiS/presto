@@ -53,12 +53,6 @@ public final class PrestoThriftSplitBatch
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(splits, nextToken);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -70,6 +64,12 @@ public final class PrestoThriftSplitBatch
         PrestoThriftSplitBatch other = (PrestoThriftSplitBatch) obj;
         return Objects.equals(this.splits, other.splits) &&
                 Objects.equals(this.nextToken, other.nextToken);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(splits, nextToken);
     }
 
     @Override

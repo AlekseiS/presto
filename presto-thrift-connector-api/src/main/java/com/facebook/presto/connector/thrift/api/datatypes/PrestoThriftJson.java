@@ -83,12 +83,6 @@ public final class PrestoThriftJson
     }
 
     @Override
-    public int hashCode()
-    {
-        return sliceType.hashCode();
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -99,6 +93,12 @@ public final class PrestoThriftJson
         }
         PrestoThriftJson other = (PrestoThriftJson) obj;
         return Objects.equals(this.sliceType, other.sliceType);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return sliceType.hashCode();
     }
 
     @Override

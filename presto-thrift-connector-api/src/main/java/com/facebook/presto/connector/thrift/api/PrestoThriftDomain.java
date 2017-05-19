@@ -51,12 +51,6 @@ public final class PrestoThriftDomain
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(valueSet, nullAllowed);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -68,6 +62,12 @@ public final class PrestoThriftDomain
         PrestoThriftDomain other = (PrestoThriftDomain) obj;
         return Objects.equals(this.valueSet, other.valueSet) &&
                 this.nullAllowed == other.nullAllowed;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(valueSet, nullAllowed);
     }
 
     @Override

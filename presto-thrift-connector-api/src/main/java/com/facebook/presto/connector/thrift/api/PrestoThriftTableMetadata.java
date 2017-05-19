@@ -86,12 +86,6 @@ public final class PrestoThriftTableMetadata
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(schemaTableName, columns, comment);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -104,6 +98,12 @@ public final class PrestoThriftTableMetadata
         return Objects.equals(this.schemaTableName, other.schemaTableName) &&
                 Objects.equals(this.columns, other.columns) &&
                 Objects.equals(this.comment, other.comment);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(schemaTableName, columns, comment);
     }
 
     @Override

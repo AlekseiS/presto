@@ -81,12 +81,6 @@ public final class PrestoThriftColumnMetadata
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(name, type, comment, hidden);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -100,6 +94,12 @@ public final class PrestoThriftColumnMetadata
                 Objects.equals(this.type, other.type) &&
                 Objects.equals(this.comment, other.comment) &&
                 this.hidden == other.hidden;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(name, type, comment, hidden);
     }
 
     @Override

@@ -43,12 +43,6 @@ public final class PrestoThriftNullableSchemaName
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(schemaName);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -59,6 +53,12 @@ public final class PrestoThriftNullableSchemaName
         }
         PrestoThriftNullableSchemaName other = (PrestoThriftNullableSchemaName) obj;
         return Objects.equals(this.schemaName, other.schemaName);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(schemaName);
     }
 
     @Override

@@ -85,12 +85,6 @@ public final class PrestoThriftTimestamp
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(timestamps));
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -102,6 +96,12 @@ public final class PrestoThriftTimestamp
         PrestoThriftTimestamp other = (PrestoThriftTimestamp) obj;
         return Arrays.equals(this.nulls, other.nulls) &&
                 Arrays.equals(this.timestamps, other.timestamps);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(timestamps));
     }
 
     @Override

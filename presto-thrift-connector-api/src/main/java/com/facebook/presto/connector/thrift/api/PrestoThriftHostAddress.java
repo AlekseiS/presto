@@ -54,12 +54,6 @@ public final class PrestoThriftHostAddress
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(host, port);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -71,6 +65,12 @@ public final class PrestoThriftHostAddress
         PrestoThriftHostAddress other = (PrestoThriftHostAddress) obj;
         return Objects.equals(this.host, other.host) &&
                 this.port == other.port;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(host, port);
     }
 
     @Override

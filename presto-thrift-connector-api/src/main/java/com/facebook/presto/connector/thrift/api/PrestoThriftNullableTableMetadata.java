@@ -43,12 +43,6 @@ public final class PrestoThriftNullableTableMetadata
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(tableMetadata);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -59,6 +53,12 @@ public final class PrestoThriftNullableTableMetadata
         }
         PrestoThriftNullableTableMetadata other = (PrestoThriftNullableTableMetadata) obj;
         return Objects.equals(this.tableMetadata, other.tableMetadata);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(tableMetadata);
     }
 
     @Override

@@ -52,12 +52,6 @@ public final class PrestoThriftTupleDomain
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(domains);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -68,6 +62,12 @@ public final class PrestoThriftTupleDomain
         }
         PrestoThriftTupleDomain other = (PrestoThriftTupleDomain) obj;
         return Objects.equals(this.domains, other.domains);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(domains);
     }
 
     @Override

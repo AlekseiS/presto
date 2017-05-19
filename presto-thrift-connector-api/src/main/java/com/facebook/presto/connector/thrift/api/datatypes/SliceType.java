@@ -81,12 +81,6 @@ final class SliceType
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(sizes), Arrays.hashCode(bytes));
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -99,6 +93,12 @@ final class SliceType
         return Arrays.equals(this.nulls, other.nulls) &&
                 Arrays.equals(this.sizes, other.sizes) &&
                 Arrays.equals(this.bytes, other.bytes);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(sizes), Arrays.hashCode(bytes));
     }
 
     @Override

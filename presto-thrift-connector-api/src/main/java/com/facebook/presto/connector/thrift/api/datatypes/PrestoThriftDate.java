@@ -85,12 +85,6 @@ public final class PrestoThriftDate
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(dates));
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -102,6 +96,12 @@ public final class PrestoThriftDate
         PrestoThriftDate other = (PrestoThriftDate) obj;
         return Arrays.equals(this.nulls, other.nulls) &&
                 Arrays.equals(this.dates, other.dates);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(dates));
     }
 
     @Override

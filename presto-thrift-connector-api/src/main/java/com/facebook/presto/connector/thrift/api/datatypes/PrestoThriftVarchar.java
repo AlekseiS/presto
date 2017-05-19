@@ -86,12 +86,6 @@ public final class PrestoThriftVarchar
     }
 
     @Override
-    public int hashCode()
-    {
-        return sliceType.hashCode();
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -102,6 +96,12 @@ public final class PrestoThriftVarchar
         }
         PrestoThriftVarchar other = (PrestoThriftVarchar) obj;
         return Objects.equals(this.sliceType, other.sliceType);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return sliceType.hashCode();
     }
 
     @Override

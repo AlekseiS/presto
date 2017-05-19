@@ -90,12 +90,6 @@ public final class PrestoThriftPage
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(columnsData, rowCount, nextToken);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -108,6 +102,12 @@ public final class PrestoThriftPage
         return Objects.equals(this.columnsData, other.columnsData) &&
                 this.rowCount == other.rowCount &&
                 Objects.equals(this.nextToken, other.nextToken);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(columnsData, rowCount, nextToken);
     }
 
     @Override

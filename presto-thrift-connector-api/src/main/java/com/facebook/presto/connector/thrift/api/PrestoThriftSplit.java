@@ -49,12 +49,6 @@ public final class PrestoThriftSplit
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(splitId, hosts);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -66,6 +60,12 @@ public final class PrestoThriftSplit
         PrestoThriftSplit other = (PrestoThriftSplit) obj;
         return Objects.equals(this.splitId, other.splitId) &&
                 Objects.equals(this.hosts, other.hosts);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(splitId, hosts);
     }
 
     @Override

@@ -44,12 +44,6 @@ public final class PrestoThriftNullableColumnSet
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(columns);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -60,6 +54,12 @@ public final class PrestoThriftNullableColumnSet
         }
         PrestoThriftNullableColumnSet other = (PrestoThriftNullableColumnSet) obj;
         return Objects.equals(this.columns, other.columns);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(columns);
     }
 
     @Override

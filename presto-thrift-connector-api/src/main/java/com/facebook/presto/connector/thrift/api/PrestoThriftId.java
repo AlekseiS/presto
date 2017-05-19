@@ -41,12 +41,6 @@ public final class PrestoThriftId
     }
 
     @Override
-    public int hashCode()
-    {
-        return Arrays.hashCode(id);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -57,6 +51,12 @@ public final class PrestoThriftId
         }
         PrestoThriftId other = (PrestoThriftId) obj;
         return Arrays.equals(this.id, other.id);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Arrays.hashCode(id);
     }
 
     @Override

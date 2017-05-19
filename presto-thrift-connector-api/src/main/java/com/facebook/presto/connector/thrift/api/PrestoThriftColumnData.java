@@ -161,12 +161,6 @@ public final class PrestoThriftColumnData
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(bigintData, timestampData, integerData, booleanData, doubleData, varcharData, hyperLogLogData, jsonData, dateData);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -178,6 +172,12 @@ public final class PrestoThriftColumnData
         PrestoThriftColumnData other = (PrestoThriftColumnData) obj;
         // remaining fields are guaranteed to be null by the constructor
         return Objects.equals(this.dataReference, other.dataReference);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(bigintData, timestampData, integerData, booleanData, doubleData, varcharData, hyperLogLogData, jsonData, dateData);
     }
 
     @Override

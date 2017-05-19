@@ -49,12 +49,6 @@ public final class PrestoThriftSchemaTableName
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(schemaName, tableName);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -66,6 +60,12 @@ public final class PrestoThriftSchemaTableName
         PrestoThriftSchemaTableName other = (PrestoThriftSchemaTableName) obj;
         return Objects.equals(this.schemaName, other.schemaName) &&
                 Objects.equals(this.tableName, other.tableName);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(schemaName, tableName);
     }
 
     @Override
