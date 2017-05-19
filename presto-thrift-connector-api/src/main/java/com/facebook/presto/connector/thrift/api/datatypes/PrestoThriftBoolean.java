@@ -34,7 +34,7 @@ import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Elements of {@code nulls} array determine if a value for a corresponding row is null.
- * Elements of {@code booleans} array are values for each row.
+ * Elements of {@code booleans} array are values for each row. If row is null then value is ignored.
  */
 @ThriftStruct
 public final class PrestoThriftBoolean

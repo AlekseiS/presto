@@ -35,7 +35,7 @@ import static java.lang.Double.doubleToLongBits;
 
 /**
  * Elements of {@code nulls} array determine if a value for a corresponding row is null.
- * Elements of {@code doubles} array are values for each row.
+ * Elements of {@code doubles} array are values for each row. If row is null then value is ignored.
  */
 @ThriftStruct
 public final class PrestoThriftDouble
