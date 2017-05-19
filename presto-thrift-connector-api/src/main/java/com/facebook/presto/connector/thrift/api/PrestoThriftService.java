@@ -89,7 +89,7 @@ public interface PrestoThriftService
      */
     @ThriftMethod("prestoGetRows")
     ListenableFuture<PrestoThriftPage> getRows(
-            @ThriftField(name = "splitId") byte[] splitId,
+            @ThriftField(name = "splitId") PrestoThriftId splitId,
             @ThriftField(name = "columns") List<String> columns,
             @ThriftField(name = "maxBytes") long maxBytes,
             @ThriftField(name = "nextToken") PrestoThriftNullableToken nextToken)

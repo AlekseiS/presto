@@ -15,6 +15,7 @@ package com.facebook.presto.connector.thrift;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftDomain;
 import com.facebook.presto.connector.thrift.api.PrestoThriftHostAddress;
+import com.facebook.presto.connector.thrift.api.PrestoThriftId;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
@@ -108,7 +109,7 @@ public class ThriftSplitManager
         // the code assumes getNextBatch is called by a single thread
 
         private final AtomicBoolean hasMoreData;
-        private final AtomicReference<byte[]> nextToken;
+        private final AtomicReference<PrestoThriftId> nextToken;
         private final AtomicReference<Future<?>> future;
         private final PrestoThriftSchemaTableName schemaTableName;
         private final Optional<Set<String>> columnNames;
@@ -139,7 +140,7 @@ public class ThriftSplitManager
         {
             checkState(future.get() == null || future.get().isDone(), "previous batch not completed");
             checkState(hasMoreData.get(), "this method cannot be invoked when there's no more data");
-            byte[] currentToken = nextToken.get();
+            PrestoThriftId currentToken = nextToken.get();
             ListenableFuture<PrestoThriftSplitBatch> splitsFuture = client.getSplits(
                     schemaTableName,
                     new PrestoThriftNullableColumnSet(columnNames.orElse(null)),
@@ -181,7 +182,7 @@ public class ThriftSplitManager
         private static ThriftConnectorSplit toConnectorSplit(PrestoThriftSplit thriftSplit)
         {
             return new ThriftConnectorSplit(
-                    thriftSplit.getSplitId(),
+                    thriftSplit.getSplitId().getId(),
                     toHostAddressList(thriftSplit.getHosts()));
         }
 

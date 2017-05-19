@@ -17,45 +17,33 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
-import javax.annotation.Nullable;
+import java.util.Arrays;
 
-import java.util.List;
-import java.util.Objects;
-
-import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
+import static com.facebook.presto.connector.thrift.api.utils.ByteUtils.summarize;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
-public final class PrestoThriftSplitBatch
+public final class PrestoThriftId
 {
-    private final List<PrestoThriftSplit> splits;
-    private final PrestoThriftId nextToken;
+    private final byte[] id;
 
     @ThriftConstructor
-    public PrestoThriftSplitBatch(List<PrestoThriftSplit> splits, @Nullable PrestoThriftId nextToken)
+    public PrestoThriftId(byte[] id)
     {
-        this.splits = requireNonNull(splits, "splits is null");
-        this.nextToken = nextToken;
+        this.id = requireNonNull(id, "id is null");
     }
 
     @ThriftField(1)
-    public List<PrestoThriftSplit> getSplits()
+    public byte[] getId()
     {
-        return splits;
-    }
-
-    @Nullable
-    @ThriftField(value = 2, requiredness = OPTIONAL)
-    public PrestoThriftId getNextToken()
-    {
-        return nextToken;
+        return id;
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(splits, nextToken);
+        return Arrays.hashCode(id);
     }
 
     @Override
@@ -67,17 +55,15 @@ public final class PrestoThriftSplitBatch
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        PrestoThriftSplitBatch other = (PrestoThriftSplitBatch) obj;
-        return Objects.equals(this.splits, other.splits) &&
-                Objects.equals(this.nextToken, other.nextToken);
+        PrestoThriftId other = (PrestoThriftId) obj;
+        return Arrays.equals(this.id, other.id);
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("numberOfSplits", splits.size())
-                .add("nextToken", nextToken)
+                .add("id", summarize(id))
                 .toString();
     }
 }

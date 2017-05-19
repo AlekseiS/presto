@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.connector.thrift;
 
+import com.facebook.presto.connector.thrift.api.PrestoThriftId;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
 import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
@@ -38,14 +39,14 @@ import static java.util.Objects.requireNonNull;
 public class ThriftPageSource
         implements ConnectorPageSource
 {
-    private final byte[] splitId;
+    private final PrestoThriftId splitId;
     private final PrestoThriftService client;
     private final List<String> columnNames;
     private final List<Type> columnTypes;
     private final long maxBytesPerResponse;
     private final AtomicLong readTimeNanos = new AtomicLong(0);
 
-    private byte[] nextToken;
+    private PrestoThriftId nextToken;
     private boolean firstCall = true;
     private CompletableFuture<PrestoThriftPage> future;
     private long completedBytes;
@@ -73,7 +74,7 @@ public class ThriftPageSource
 
         // init split
         requireNonNull(split, "split is null");
-        this.splitId = split.getSplitId();
+        this.splitId = new PrestoThriftId(split.getSplitId());
 
         // init client
         requireNonNull(clientProvider, "clientProvider is null");
@@ -147,7 +148,7 @@ public class ThriftPageSource
         }
     }
 
-    private boolean canGetMoreData(byte[] nextToken)
+    private boolean canGetMoreData(PrestoThriftId nextToken)
     {
         return nextToken != null;
     }
@@ -155,8 +156,11 @@ public class ThriftPageSource
     private CompletableFuture<PrestoThriftPage> sendDataRequestInternal()
     {
         final long start = System.nanoTime();
-        ListenableFuture<PrestoThriftPage> rowsBatchFuture =
-                client.getRows(splitId, columnNames, maxBytesPerResponse, new PrestoThriftNullableToken(nextToken));
+        ListenableFuture<PrestoThriftPage> rowsBatchFuture = client.getRows(
+                splitId,
+                columnNames,
+                maxBytesPerResponse,
+                new PrestoThriftNullableToken(nextToken));
         rowsBatchFuture.addListener(() -> readTimeNanos.addAndGet(System.nanoTime() - start), directExecutor());
         return toCompletableFuture(rowsBatchFuture);
     }

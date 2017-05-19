@@ -22,11 +22,9 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.utils.ByteUtils.summarize;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -37,10 +35,10 @@ public final class PrestoThriftPage
 {
     private final List<PrestoThriftColumnData> columnsData;
     private final int rowCount;
-    private final byte[] nextToken;
+    private final PrestoThriftId nextToken;
 
     @ThriftConstructor
-    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, int rowCount, @Nullable byte[] nextToken)
+    public PrestoThriftPage(List<PrestoThriftColumnData> columnsData, int rowCount, @Nullable PrestoThriftId nextToken)
     {
         this.columnsData = requireNonNull(columnsData, "columnsData is null");
         checkArgument(rowCount >= 0, "rowCount is negative");
@@ -67,7 +65,7 @@ public final class PrestoThriftPage
 
     @Nullable
     @ThriftField(value = 3, requiredness = OPTIONAL)
-    public byte[] getNextToken()
+    public PrestoThriftId getNextToken()
     {
         return nextToken;
     }
@@ -94,7 +92,7 @@ public final class PrestoThriftPage
     @Override
     public int hashCode()
     {
-        return Objects.hash(columnsData, rowCount, Arrays.hashCode(nextToken));
+        return Objects.hash(columnsData, rowCount, nextToken);
     }
 
     @Override
@@ -109,7 +107,7 @@ public final class PrestoThriftPage
         PrestoThriftPage other = (PrestoThriftPage) obj;
         return Objects.equals(this.columnsData, other.columnsData) &&
                 this.rowCount == other.rowCount &&
-                Arrays.equals(this.nextToken, other.nextToken);
+                Objects.equals(this.nextToken, other.nextToken);
     }
 
     @Override
@@ -118,7 +116,7 @@ public final class PrestoThriftPage
         return toStringHelper(this)
                 .add("columnsData", columnsData)
                 .add("rowCount", rowCount)
-                .add("nextToken", summarize(nextToken))
+                .add("nextToken", nextToken)
                 .toString();
     }
 

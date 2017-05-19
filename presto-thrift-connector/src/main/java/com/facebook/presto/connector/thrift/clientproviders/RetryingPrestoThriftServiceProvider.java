@@ -14,6 +14,7 @@
 package com.facebook.presto.connector.thrift.clientproviders;
 
 import com.facebook.presto.connector.thrift.annotations.NonRetrying;
+import com.facebook.presto.connector.thrift.api.PrestoThriftId;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
@@ -128,7 +129,7 @@ public class RetryingPrestoThriftServiceProvider
         }
 
         @Override
-        public ListenableFuture<PrestoThriftPage> getRows(byte[] splitId, List<String> columns, long maxBytes, PrestoThriftNullableToken nextToken)
+        public ListenableFuture<PrestoThriftPage> getRows(PrestoThriftId splitId, List<String> columns, long maxBytes, PrestoThriftNullableToken nextToken)
         {
             return retry.run("getRows", () -> getClient().getRows(splitId, columns, maxBytes, nextToken));
         }

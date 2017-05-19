@@ -17,29 +17,27 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.utils.ByteUtils.summarize;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
 public final class PrestoThriftSplit
 {
-    private final byte[] splitId;
+    private final PrestoThriftId splitId;
     private final List<PrestoThriftHostAddress> hosts;
 
     @ThriftConstructor
-    public PrestoThriftSplit(byte[] splitId, List<PrestoThriftHostAddress> hosts)
+    public PrestoThriftSplit(PrestoThriftId splitId, List<PrestoThriftHostAddress> hosts)
     {
         this.splitId = requireNonNull(splitId, "splitId is null");
         this.hosts = requireNonNull(hosts, "hosts is null");
     }
 
     @ThriftField(1)
-    public byte[] getSplitId()
+    public PrestoThriftId getSplitId()
     {
         return splitId;
     }
@@ -53,7 +51,7 @@ public final class PrestoThriftSplit
     @Override
     public int hashCode()
     {
-        return Objects.hash(Arrays.hashCode(splitId), hosts);
+        return Objects.hash(splitId, hosts);
     }
 
     @Override
@@ -66,7 +64,7 @@ public final class PrestoThriftSplit
             return false;
         }
         PrestoThriftSplit other = (PrestoThriftSplit) obj;
-        return Arrays.equals(this.splitId, other.splitId) &&
+        return Objects.equals(this.splitId, other.splitId) &&
                 Objects.equals(this.hosts, other.hosts);
     }
 
@@ -74,7 +72,7 @@ public final class PrestoThriftSplit
     public String toString()
     {
         return toStringHelper(this)
-                .add("splitId", summarize(splitId))
+                .add("splitId", splitId)
                 .add("hosts", hosts)
                 .toString();
     }

@@ -19,26 +19,25 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import javax.annotation.Nullable;
 
-import java.util.Arrays;
+import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.utils.ByteUtils.summarize;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 
 @ThriftStruct
 public final class PrestoThriftNullableToken
 {
-    private final byte[] token;
+    private final PrestoThriftId token;
 
     @ThriftConstructor
-    public PrestoThriftNullableToken(@Nullable byte[] token)
+    public PrestoThriftNullableToken(@Nullable PrestoThriftId token)
     {
         this.token = token;
     }
 
     @Nullable
     @ThriftField(value = 1, requiredness = OPTIONAL)
-    public byte[] getToken()
+    public PrestoThriftId getToken()
     {
         return token;
     }
@@ -46,7 +45,7 @@ public final class PrestoThriftNullableToken
     @Override
     public int hashCode()
     {
-        return Arrays.hashCode(token);
+        return Objects.hashCode(token);
     }
 
     @Override
@@ -59,14 +58,14 @@ public final class PrestoThriftNullableToken
             return false;
         }
         PrestoThriftNullableToken other = (PrestoThriftNullableToken) obj;
-        return Arrays.equals(this.token, other.token);
+        return Objects.equals(this.token, other.token);
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("token", summarize(token))
+                .add("token", token)
                 .toString();
     }
 }

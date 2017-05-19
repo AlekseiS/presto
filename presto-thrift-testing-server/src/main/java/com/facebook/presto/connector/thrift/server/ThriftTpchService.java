@@ -15,6 +15,7 @@ package com.facebook.presto.connector.thrift.server;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.PrestoThriftColumnMetadata;
+import com.facebook.presto.connector.thrift.api.PrestoThriftId;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
@@ -135,11 +136,11 @@ public class ThriftTpchService
     private static PrestoThriftSplitBatch getSplitsInternal(
             PrestoThriftSchemaTableName schemaTableName,
             int maxSplitCount,
-            @Nullable byte[] nextToken)
+            @Nullable PrestoThriftId nextToken)
     {
         int totalParts = DEFAULT_NUMBER_OF_SPLITS;
         // last sent part
-        int partNumber = nextToken == null ? 0 : Ints.fromByteArray(nextToken);
+        int partNumber = nextToken == null ? 0 : Ints.fromByteArray(nextToken.getId());
         int numberOfSplits = min(maxSplitCount, totalParts - partNumber);
 
         List<PrestoThriftSplit> splits = new ArrayList<>(numberOfSplits);
@@ -149,17 +150,16 @@ public class ThriftTpchService
                     schemaTableName.getTableName(),
                     partNumber + 1,
                     totalParts);
-            byte[] splitId = serialize(splitInfo);
-            splits.add(new PrestoThriftSplit(splitId, ImmutableList.of()));
+            splits.add(new PrestoThriftSplit(new PrestoThriftId(serialize(splitInfo)), ImmutableList.of()));
             partNumber++;
         }
-        byte[] newNextToken = partNumber < totalParts ? Ints.toByteArray(partNumber) : null;
+        PrestoThriftId newNextToken = partNumber < totalParts ? new PrestoThriftId(Ints.toByteArray(partNumber)) : null;
         return new PrestoThriftSplitBatch(splits, newNextToken);
     }
 
     @Override
     public ListenableFuture<PrestoThriftPage> getRows(
-            byte[] splitId,
+            PrestoThriftId splitId,
             List<String> columns,
             long maxBytes,
             PrestoThriftNullableToken nextToken)
@@ -175,9 +175,9 @@ public class ThriftTpchService
         dataExecutor.shutdownNow();
     }
 
-    private static PrestoThriftPage getRowsInternal(byte[] splitId, List<String> columns, long maxBytes, @Nullable byte[] nextToken)
+    private static PrestoThriftPage getRowsInternal(PrestoThriftId splitId, List<String> columns, long maxBytes, @Nullable PrestoThriftId nextToken)
     {
-        SplitInfo splitInfo = deserialize(splitId, SplitInfo.class);
+        SplitInfo splitInfo = deserialize(splitId.getId(), SplitInfo.class);
         RecordCursor cursor = createCursor(splitInfo, columns);
         return cursorToRowsBatch(
                 cursor,
@@ -190,9 +190,9 @@ public class ThriftTpchService
             RecordCursor cursor,
             List<String> columnNames,
             int maxRowCount,
-            @Nullable byte[] nextToken)
+            @Nullable PrestoThriftId nextToken)
     {
-        long skip = nextToken != null ? Longs.fromByteArray(nextToken) : 0;
+        long skip = nextToken != null ? Longs.fromByteArray(nextToken.getId()) : 0;
         // very inefficient implementation as it needs to re-generate all previous results to get the next batch
         skipRows(cursor, skip);
         int numColumns = columnNames.size();
@@ -219,7 +219,7 @@ public class ThriftTpchService
             result.add(builder.build());
         }
 
-        return new PrestoThriftPage(result, position, hasNext ? Longs.toByteArray(skip + position) : null);
+        return new PrestoThriftPage(result, position, hasNext ? new PrestoThriftId(Longs.toByteArray(skip + position)) : null);
     }
 
     private static void skipRows(RecordCursor cursor, long numberOfRows)
