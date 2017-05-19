@@ -21,13 +21,12 @@ import com.facebook.swift.codec.ThriftStruct;
 public final class PrestoThriftServiceException
         extends RuntimeException
 {
-    private final String message;
     private final boolean retryable;
 
     @ThriftConstructor
     public PrestoThriftServiceException(String message, boolean retryable)
     {
-        this.message = message;
+        super(message);
         this.retryable = retryable;
     }
 
@@ -35,7 +34,7 @@ public final class PrestoThriftServiceException
     @ThriftField(1)
     public String getMessage()
     {
-        return message;
+        return super.getMessage();
     }
 
     @ThriftField(2)
