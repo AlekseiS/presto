@@ -45,7 +45,7 @@ import static com.facebook.presto.spi.type.StandardTypes.TIMESTAMP;
 import static com.facebook.presto.spi.type.StandardTypes.VARCHAR;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Preconditions.checkArgument;
 
 @ThriftStruct
 public final class PrestoThriftColumnData
@@ -264,11 +264,11 @@ public final class PrestoThriftColumnData
         PrestoThriftColumnType result = null;
         for (PrestoThriftColumnType type : types) {
             if (type != null) {
-                checkState(result == null, "more than one type is present");
+                checkArgument(result == null, "more than one type is present");
                 result = type;
             }
         }
-        checkState(result != null, "no types are present");
+        checkArgument(result != null, "no types are present");
         return result;
     }
 }
