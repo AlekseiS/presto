@@ -20,8 +20,8 @@ import com.facebook.swift.codec.ThriftStruct;
 
 import java.util.Objects;
 
+import static com.facebook.presto.connector.thrift.api.utils.NameValidationUtils.checkValidName;
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
 public final class PrestoThriftSchemaTableName
@@ -32,8 +32,8 @@ public final class PrestoThriftSchemaTableName
     @ThriftConstructor
     public PrestoThriftSchemaTableName(String schemaName, String tableName)
     {
-        this.schemaName = requireNonNull(schemaName, "schemaName is null");
-        this.tableName = requireNonNull(tableName, "tableName is null");
+        this.schemaName = checkValidName(schemaName);
+        this.tableName = checkValidName(tableName);
     }
 
     @ThriftField(1)

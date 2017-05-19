@@ -49,6 +49,7 @@ import java.util.Set;
 import java.util.concurrent.Executor;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName.fromSchemaTableName;
+import static com.facebook.presto.connector.thrift.api.utils.NameValidationUtils.checkValidNames;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.cache.CacheLoader.asyncReloading;
 import static com.google.common.collect.ImmutableList.toImmutableList;
@@ -102,7 +103,7 @@ public class ThriftMetadata
     @Override
     public List<String> listSchemaNames(ConnectorSession session)
     {
-        return clientProvider.runOnAnyHost(PrestoThriftService::listSchemaNames);
+        return checkValidNames(clientProvider.runOnAnyHost(PrestoThriftService::listSchemaNames));
     }
 
     @Override

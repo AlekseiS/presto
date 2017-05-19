@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 import java.util.Map;
 import java.util.Objects;
 
+import static com.facebook.presto.connector.thrift.api.utils.NameValidationUtils.checkValidNames;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 
@@ -34,6 +35,9 @@ public final class PrestoThriftTupleDomain
     @ThriftConstructor
     public PrestoThriftTupleDomain(@Nullable Map<String, PrestoThriftDomain> domains)
     {
+        if (domains != null) {
+            checkValidNames(domains.keySet());
+        }
         this.domains = domains;
     }
 

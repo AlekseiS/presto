@@ -23,6 +23,7 @@ import javax.annotation.Nullable;
 
 import java.util.Objects;
 
+import static com.facebook.presto.connector.thrift.api.utils.NameValidationUtils.checkValidName;
 import static com.facebook.presto.spi.type.TypeSignature.parseTypeSignature;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -39,7 +40,7 @@ public final class PrestoThriftColumnMetadata
     @ThriftConstructor
     public PrestoThriftColumnMetadata(String name, String type, @Nullable String comment, boolean hidden)
     {
-        this.name = requireNonNull(name, "name is null");
+        this.name = checkValidName(name);
         this.type = requireNonNull(type, "type is null");
         this.comment = comment;
         this.hidden = hidden;
