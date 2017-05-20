@@ -14,14 +14,11 @@
 package com.facebook.presto.connector.thrift.api.builders;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
-import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
 
 public interface ColumnBuilder
 {
-    void append(RecordCursor cursor, int field);
-
     void append(Block block, int position, Type type);
 
     PrestoThriftBlock build();

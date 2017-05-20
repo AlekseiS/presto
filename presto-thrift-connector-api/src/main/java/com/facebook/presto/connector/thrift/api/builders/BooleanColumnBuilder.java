@@ -15,7 +15,6 @@ package com.facebook.presto.connector.thrift.api.builders;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBoolean;
-import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
 
@@ -40,17 +39,6 @@ public class BooleanColumnBuilder
         checkArgument(initialCapacity >= 0, "initialCapacity is negative");
         this.nulls = new boolean[initialCapacity];
         this.booleans = new boolean[initialCapacity];
-    }
-
-    @Override
-    public void append(RecordCursor cursor, int field)
-    {
-        if (cursor.isNull(field)) {
-            appendNull();
-        }
-        else {
-            appendValue(cursor.getBoolean(field));
-        }
     }
 
     @Override

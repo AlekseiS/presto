@@ -14,7 +14,6 @@
 package com.facebook.presto.connector.thrift.api.builders;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
-import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
 
@@ -41,17 +40,6 @@ public abstract class AbstractIntColumnBuilder
     }
 
     protected abstract PrestoThriftBlock buildInternal(boolean[] trimmedNulls, int[] trimmedInts);
-
-    @Override
-    public void append(RecordCursor cursor, int field)
-    {
-        if (cursor.isNull(field)) {
-            appendNull();
-        }
-        else {
-            appendValue((int) cursor.getLong(field));
-        }
-    }
 
     @Override
     public void append(Block block, int position, Type type)
