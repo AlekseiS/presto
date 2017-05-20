@@ -73,12 +73,6 @@ public final class PrestoThriftValueSet
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(allOrNoneValueSet, equatableValueSet, rangeValueSet);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -91,6 +85,12 @@ public final class PrestoThriftValueSet
         return Objects.equals(this.allOrNoneValueSet, other.allOrNoneValueSet) &&
                 Objects.equals(this.equatableValueSet, other.equatableValueSet) &&
                 Objects.equals(this.rangeValueSet, other.rangeValueSet);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(allOrNoneValueSet, equatableValueSet, rangeValueSet);
     }
 
     @Override

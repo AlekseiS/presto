@@ -38,12 +38,6 @@ public final class PrestoThriftAllOrNoneValueSet
     }
 
     @Override
-    public int hashCode()
-    {
-        return Boolean.hashCode(all);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -54,6 +48,12 @@ public final class PrestoThriftAllOrNoneValueSet
         }
         PrestoThriftAllOrNoneValueSet other = (PrestoThriftAllOrNoneValueSet) obj;
         return this.all == other.all;
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Boolean.hashCode(all);
     }
 
     @Override

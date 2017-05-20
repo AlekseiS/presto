@@ -55,12 +55,6 @@ public final class PrestoThriftEquatableValueSet
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hash(whiteList, values);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -72,6 +66,12 @@ public final class PrestoThriftEquatableValueSet
         PrestoThriftEquatableValueSet other = (PrestoThriftEquatableValueSet) obj;
         return this.whiteList == other.whiteList &&
                 Objects.equals(this.values, other.values);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hash(whiteList, values);
     }
 
     @Override

@@ -56,12 +56,6 @@ public final class PrestoThriftRangeValueSet
     }
 
     @Override
-    public int hashCode()
-    {
-        return Objects.hashCode(ranges);
-    }
-
-    @Override
     public boolean equals(Object obj)
     {
         if (this == obj) {
@@ -72,6 +66,12 @@ public final class PrestoThriftRangeValueSet
         }
         PrestoThriftRangeValueSet other = (PrestoThriftRangeValueSet) obj;
         return Objects.equals(this.ranges, other.ranges);
+    }
+
+    @Override
+    public int hashCode()
+    {
+        return Objects.hashCode(ranges);
     }
 
     @Override
@@ -158,12 +158,6 @@ public final class PrestoThriftRangeValueSet
         }
 
         @Override
-        public int hashCode()
-        {
-            return Objects.hash(value, bound);
-        }
-
-        @Override
         public boolean equals(Object obj)
         {
             if (this == obj) {
@@ -175,6 +169,12 @@ public final class PrestoThriftRangeValueSet
             PrestoThriftMarker other = (PrestoThriftMarker) obj;
             return Objects.equals(this.value, other.value) &&
                     Objects.equals(this.bound, other.bound);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(value, bound);
         }
 
         @Override
@@ -227,12 +227,6 @@ public final class PrestoThriftRangeValueSet
         }
 
         @Override
-        public int hashCode()
-        {
-            return Objects.hash(low, high);
-        }
-
-        @Override
         public boolean equals(Object obj)
         {
             if (this == obj) {
@@ -244,6 +238,12 @@ public final class PrestoThriftRangeValueSet
             PrestoThriftRange other = (PrestoThriftRange) obj;
             return Objects.equals(this.low, other.low) &&
                     Objects.equals(this.high, other.high);
+        }
+
+        @Override
+        public int hashCode()
+        {
+            return Objects.hash(low, high);
         }
 
         @Override
