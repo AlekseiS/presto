@@ -46,6 +46,7 @@ import javax.annotation.PreDestroy;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.getTypeString;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.schemaNameToScaleFactor;
@@ -247,6 +248,7 @@ public class ThriftTpchService
                 columns,
                 schemaNameToScaleFactor(splitInfo.getSchemaName()),
                 splitInfo.getPartNumber(),
-                splitInfo.getTotalParts()));
+                splitInfo.getTotalParts(),
+                Optional.empty()));
     }
 }
