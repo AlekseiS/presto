@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -31,6 +30,7 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.DateType.DATE;
@@ -51,7 +51,6 @@ import static org.testng.Assert.assertNotNull;
 public class TestColumnReaderWriter
 {
     private static final double NULL_FRACTION = 0.1;
-    private static final int BUILDER_INITIAL_CAPACITY = 1024;
     private static final int MAX_VARCHAR_GENERATED_LENGTH = 64;
     private static final char[] SYMBOLS;
     private static final long MIN_GENERATED_TIMESTAMP;
@@ -117,7 +116,7 @@ public class TestColumnReaderWriter
         // convert column data to thrift ("write step")
         List<PrestoThriftBlock> columnBlocks = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
-            columnBlocks.add(writeColumnAsThrift(columns.get(i), inputBlocks.get(i)));
+            columnBlocks.add(fromBlock(inputBlocks.get(i), columns.get(i).getType()));
         }
         PrestoThriftPage batch = new PrestoThriftPage(columnBlocks, records, null);
 
@@ -132,15 +131,6 @@ public class TestColumnReaderWriter
             Block expected = inputBlocks.get(i);
             assertBlock(actual, expected, columns.get(i));
         }
-    }
-
-    private static PrestoThriftBlock writeColumnAsThrift(ColumnDefinition column, Block block)
-    {
-        ColumnBuilder builder = PrestoThriftBlock.builder(column.getType(), BUILDER_INITIAL_CAPACITY);
-        for (int i = 0; i < block.getPositionCount(); i++) {
-            builder.append(block, i, column.getType());
-        }
-        return builder.build();
     }
 
     private static Block generateColumn(ColumnDefinition column, Random random, int records)

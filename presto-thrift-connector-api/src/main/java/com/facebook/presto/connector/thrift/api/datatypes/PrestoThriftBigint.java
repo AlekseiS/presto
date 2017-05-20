@@ -84,18 +84,6 @@ public final class PrestoThriftBigint
         return nulls != null ? nulls.length : (longs != null ? longs.length : 0);
     }
 
-    public static ColumnBuilder builder(int initialCapacity)
-    {
-        return new AbstractLongColumnBuilder(initialCapacity)
-        {
-            @Override
-            protected PrestoThriftBlock buildInternal(boolean[] trimmedNulls, long[] trimmedLongs)
-            {
-                return bigintData(new PrestoThriftBigint(trimmedNulls, trimmedLongs));
-            }
-        };
-    }
-
     @Override
     public boolean equals(Object obj)
     {
@@ -122,6 +110,28 @@ public final class PrestoThriftBigint
         return toStringHelper(this)
                 .add("numberOfRecords", numberOfRecords())
                 .toString();
+    }
+
+    public static ColumnBuilder builder(int initialCapacity)
+    {
+        return new AbstractLongColumnBuilder(initialCapacity)
+        {
+            @Override
+            protected PrestoThriftBlock buildInternal(boolean[] trimmedNulls, long[] trimmedLongs)
+            {
+                return bigintData(new PrestoThriftBigint(trimmedNulls, trimmedLongs));
+            }
+        };
+    }
+
+    public static PrestoThriftBlock singleValueBlock(Block block)
+    {
+        if (block.isNull(0)) {
+            return bigintData(new PrestoThriftBigint(new boolean[] {true}, null));
+        }
+        else {
+            return bigintData(new PrestoThriftBigint(null, new long[] {BIGINT.getLong(block, 0)}));
+        }
     }
 
     private static boolean sameSizeIfPresent(boolean[] nulls, long[] longs)

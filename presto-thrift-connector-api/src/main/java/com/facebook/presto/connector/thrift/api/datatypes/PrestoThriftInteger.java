@@ -124,6 +124,16 @@ public final class PrestoThriftInteger
         };
     }
 
+    public static PrestoThriftBlock singleValueBlock(Block block)
+    {
+        if (block.isNull(0)) {
+            return integerData(new PrestoThriftInteger(new boolean[] {true}, null));
+        }
+        else {
+            return integerData(new PrestoThriftInteger(null, new int[] {(int) INTEGER.getLong(block, 0)}));
+        }
+    }
+
     private static boolean sameSizeIfPresent(boolean[] nulls, int[] ints)
     {
         return nulls == null || ints == null || nulls.length == ints.length;

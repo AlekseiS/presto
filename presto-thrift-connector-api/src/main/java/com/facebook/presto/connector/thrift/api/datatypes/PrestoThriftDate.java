@@ -125,6 +125,16 @@ public final class PrestoThriftDate
         };
     }
 
+    public static PrestoThriftBlock singleValueBlock(Block block)
+    {
+        if (block.isNull(0)) {
+            return dateData(new PrestoThriftDate(new boolean[] {true}, null));
+        }
+        else {
+            return dateData(new PrestoThriftDate(null, new int[] {(int) DATE.getLong(block, 0)}));
+        }
+    }
+
     private static boolean sameSizeIfPresent(boolean[] nulls, int[] dates)
     {
         return nulls == null || dates == null || nulls.length == dates.length;

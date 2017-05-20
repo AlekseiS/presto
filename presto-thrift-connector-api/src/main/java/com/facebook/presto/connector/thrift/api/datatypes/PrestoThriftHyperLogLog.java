@@ -21,6 +21,7 @@ import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
+import io.airlift.slice.Slice;
 
 import javax.annotation.Nullable;
 
@@ -123,5 +124,16 @@ public final class PrestoThriftHyperLogLog
                 return hyperLogLogData(new PrestoThriftHyperLogLog(trimmedNulls, trimmedSizes, trimmedBytes));
             }
         };
+    }
+
+    public static PrestoThriftBlock singleValueBlock(Block block)
+    {
+        if (block.isNull(0)) {
+            return hyperLogLogData(new PrestoThriftHyperLogLog(new boolean[] {true}, null, null));
+        }
+        else {
+            Slice slice = HYPER_LOG_LOG.getSlice(block, 0);
+            return hyperLogLogData(new PrestoThriftHyperLogLog(null, new int[] {slice.length()}, slice.getBytes()));
+        }
     }
 }

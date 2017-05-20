@@ -233,7 +233,7 @@ public final class PrestoThriftBlock
         return new PrestoThriftBlock(null, null, null, null, null, null, null, null, dateData);
     }
 
-    public static ColumnBuilder builder(Type columnType, int initialCapacity)
+    private static ColumnBuilder builder(Type columnType, int initialCapacity)
     {
         switch (columnType.getTypeSignature().getBase()) {
             case BIGINT:
@@ -259,13 +259,40 @@ public final class PrestoThriftBlock
         }
     }
 
-    public static PrestoThriftBlock fromBlock(Block block, Type type, int initialCapacity)
+    public static PrestoThriftBlock fromBlock(Block block, Type type)
     {
-        ColumnBuilder builder = builder(type, initialCapacity);
+        ColumnBuilder builder = builder(type, block.getPositionCount());
         for (int position = 0; position < block.getPositionCount(); position++) {
             builder.append(block, position, type);
         }
         return builder.build();
+    }
+
+    public static PrestoThriftBlock singleValueBlock(Block block, Type type)
+    {
+        checkArgument(block.getPositionCount() == 1, "block must have exactly one value");
+        switch (type.getTypeSignature().getBase()) {
+            case BIGINT:
+                return PrestoThriftBigint.singleValueBlock(block);
+            case TIMESTAMP:
+                return PrestoThriftTimestamp.singleValueBlock(block);
+            case INTEGER:
+                return PrestoThriftInteger.singleValueBlock(block);
+            case BOOLEAN:
+                return PrestoThriftBoolean.singleValueBlock(block);
+            case DOUBLE:
+                return PrestoThriftDouble.singleValueBlock(block);
+            case VARCHAR:
+                return PrestoThriftVarchar.singleValueBlock(block, type);
+            case HYPER_LOG_LOG:
+                return PrestoThriftHyperLogLog.singleValueBlock(block);
+            case JSON:
+                return PrestoThriftJson.singleValueBlock(block, type);
+            case DATE:
+                return PrestoThriftDate.singleValueBlock(block);
+            default:
+                throw new IllegalArgumentException("Unsupported writer type: " + type);
+        }
     }
 
     private static PrestoThriftColumnData theOnlyNonNull(PrestoThriftColumnData... columnsData)

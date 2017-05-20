@@ -22,6 +22,7 @@ import com.facebook.presto.spi.type.VarcharType;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
+import io.airlift.slice.Slice;
 
 import javax.annotation.Nullable;
 
@@ -123,5 +124,16 @@ public final class PrestoThriftVarchar
                 return varcharData(new PrestoThriftVarchar(trimmedNulls, trimmedSizes, trimmedBytes));
             }
         };
+    }
+
+    public static PrestoThriftBlock singleValueBlock(Block block, Type type)
+    {
+        if (block.isNull(0)) {
+            return varcharData(new PrestoThriftVarchar(new boolean[] {true}, null, null));
+        }
+        else {
+            Slice slice = type.getSlice(block, 0);
+            return varcharData(new PrestoThriftVarchar(null, new int[] {slice.length()}, slice.getBytes()));
+        }
     }
 }

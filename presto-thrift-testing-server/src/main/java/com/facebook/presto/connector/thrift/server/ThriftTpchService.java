@@ -68,7 +68,6 @@ public class ThriftTpchService
 {
     private static final int DEFAULT_NUMBER_OF_SPLITS = 3;
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
-    private static final int WRITERS_INITIAL_CAPACITY = 8192;
 
     private final ListeningExecutorService splitsExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
@@ -207,7 +206,7 @@ public class ThriftTpchService
         int numberOfColumns = columnTypes.size();
         List<PrestoThriftBlock> columnBlocks = new ArrayList<>(numberOfColumns);
         for (int i = 0; i < numberOfColumns; i++) {
-            columnBlocks.add(PrestoThriftBlock.fromBlock(page.getBlock(i), columnTypes.get(i), WRITERS_INITIAL_CAPACITY));
+            columnBlocks.add(PrestoThriftBlock.fromBlock(page.getBlock(i), columnTypes.get(i)));
         }
         return new PrestoThriftPage(columnBlocks, page.getPositionCount(), nextToken);
     }

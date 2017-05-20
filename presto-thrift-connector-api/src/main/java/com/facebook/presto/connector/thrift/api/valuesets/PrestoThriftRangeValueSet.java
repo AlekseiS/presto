@@ -14,7 +14,6 @@
 package com.facebook.presto.connector.thrift.api.valuesets;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.predicate.Marker;
 import com.facebook.presto.spi.predicate.Marker.Bound;
 import com.facebook.presto.spi.predicate.Range;
@@ -30,6 +29,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.singleValueBlock;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.fromBound;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftMarker.fromMarker;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
@@ -188,15 +188,7 @@ public final class PrestoThriftRangeValueSet
 
         public static PrestoThriftMarker fromMarker(Marker marker)
         {
-            PrestoThriftBlock value;
-            if (!marker.getValueBlock().isPresent()) {
-                value = null;
-            }
-            else {
-                ColumnBuilder builder = PrestoThriftBlock.builder(marker.getType(), 1);
-                builder.append(marker.getValueBlock().get(), 0, marker.getType());
-                value = builder.build();
-            }
+            PrestoThriftBlock value = marker.getValueBlock().isPresent() ? singleValueBlock(marker.getValueBlock().get(), marker.getType()) : null;
             return new PrestoThriftMarker(value, fromBound(marker.getBound()));
         }
     }

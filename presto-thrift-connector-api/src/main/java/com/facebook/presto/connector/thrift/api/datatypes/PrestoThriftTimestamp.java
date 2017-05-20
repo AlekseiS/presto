@@ -125,6 +125,16 @@ public final class PrestoThriftTimestamp
         };
     }
 
+    public static PrestoThriftBlock singleValueBlock(Block block)
+    {
+        if (block.isNull(0)) {
+            return timestampData(new PrestoThriftTimestamp(new boolean[] {true}, null));
+        }
+        else {
+            return timestampData(new PrestoThriftTimestamp(null, new long[] {TIMESTAMP.getLong(block, 0)}));
+        }
+    }
+
     private static boolean sameSizeIfPresent(boolean[] nulls, long[] timestamps)
     {
         return nulls == null || timestamps == null || nulls.length == timestamps.length;

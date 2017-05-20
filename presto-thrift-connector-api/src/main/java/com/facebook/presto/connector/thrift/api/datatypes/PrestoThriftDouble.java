@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api.datatypes;
 
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.connector.thrift.api.builders.DoubleColumnBuilder;
 import com.facebook.presto.spi.block.Block;
@@ -27,6 +28,7 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.doubleData;
 import static com.facebook.presto.spi.type.DoubleType.DOUBLE;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
@@ -120,6 +122,16 @@ public final class PrestoThriftDouble
     public static ColumnBuilder builder(int initialCapacity)
     {
         return new DoubleColumnBuilder(initialCapacity);
+    }
+
+    public static PrestoThriftBlock singleValueBlock(Block block)
+    {
+        if (block.isNull(0)) {
+            return doubleData(new PrestoThriftDouble(new boolean[] {true}, null));
+        }
+        else {
+            return doubleData(new PrestoThriftDouble(null, new double[] {DOUBLE.getDouble(block, 0)}));
+        }
     }
 
     private static boolean sameSizeIfPresent(boolean[] nulls, double[] doubles)
