@@ -13,9 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.server;
 
-import com.facebook.presto.spi.type.FixedWidthType;
 import com.facebook.presto.spi.type.Type;
-import com.facebook.presto.spi.type.VarcharType;
 import com.facebook.presto.tpch.TpchMetadata;
 import io.airlift.tpch.TpchColumnType;
 import io.airlift.tpch.TpchTable;
@@ -23,41 +21,12 @@ import io.airlift.tpch.TpchTable;
 import java.util.List;
 
 import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
-import static java.lang.Math.toIntExact;
 import static java.util.stream.Collectors.toList;
 
 final class TpchServerUtils
 {
     private TpchServerUtils()
     {
-    }
-
-    public static int estimateRecords(long maxBytes, List<Type> types)
-    {
-        if (types.isEmpty()) {
-            // no data will be returned, only row count
-            return Integer.MAX_VALUE;
-        }
-        int bytesPerRow = 0;
-        for (Type type : types) {
-            if (type instanceof FixedWidthType) {
-                bytesPerRow += ((FixedWidthType) type).getFixedSize();
-            }
-            else if (type instanceof VarcharType) {
-                VarcharType varchar = (VarcharType) type;
-                if (varchar.isUnbounded()) {
-                    // random estimate
-                    bytesPerRow += 32;
-                }
-                else {
-                    bytesPerRow += varchar.getLengthSafe();
-                }
-            }
-            else {
-                throw new IllegalArgumentException("Cannot compute estimates for an unknown type: " + type);
-            }
-        }
-        return toIntExact(maxBytes / bytesPerRow);
     }
 
     public static List<Type> types(String tableName, List<String> columnNames)

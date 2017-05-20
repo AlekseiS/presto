@@ -73,10 +73,10 @@ public final class PrestoThriftPage
     @Nullable
     public Page toPage(List<Type> columnTypes)
     {
-        checkArgument(columnBlocks.size() == columnTypes.size(), "columns and types have different sizes");
         if (rowCount == 0) {
             return null;
         }
+        checkArgument(columnBlocks.size() == columnTypes.size(), "columns and types have different sizes");
         int numberOfColumns = columnBlocks.size();
         if (numberOfColumns == 0) {
             // request/response with no columns, used for queries like "select count star"

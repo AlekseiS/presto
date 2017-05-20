@@ -28,12 +28,13 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftSplit;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSplitBatch;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.connector.thrift.server.states.SplitInfo;
-import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.ConnectorPageSource;
+import com.facebook.presto.spi.Page;
+import com.facebook.presto.spi.RecordPageSource;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
 import com.google.common.primitives.Ints;
-import com.google.common.primitives.Longs;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
 import io.airlift.tpch.TpchColumn;
@@ -46,14 +47,15 @@ import javax.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.List;
 
-import static com.facebook.presto.connector.thrift.server.TpchServerUtils.estimateRecords;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.getTypeString;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.schemaNameToScaleFactor;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.types;
 import static com.facebook.presto.connector.thrift.server.states.SerializationUtils.deserialize;
 import static com.facebook.presto.connector.thrift.server.states.SerializationUtils.serialize;
+import static com.facebook.presto.spi.block.PageBuilderStatus.DEFAULT_MAX_PAGE_SIZE_IN_BYTES;
 import static com.facebook.presto.tpch.TpchMetadata.ROW_NUMBER_COLUMN_NAME;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
 import static io.airlift.concurrent.Threads.threadsNamed;
@@ -66,7 +68,7 @@ public class ThriftTpchService
 {
     private static final int DEFAULT_NUMBER_OF_SPLITS = 3;
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
-    private static final int MAX_WRITERS_INITIAL_CAPACITY = 8192;
+    private static final int WRITERS_INITIAL_CAPACITY = 8192;
 
     private final ListeningExecutorService splitsExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
@@ -175,90 +177,77 @@ public class ThriftTpchService
         dataExecutor.shutdownNow();
     }
 
-    private static PrestoThriftPage getRowsInternal(PrestoThriftId splitId, List<String> columns, long maxBytes, @Nullable PrestoThriftId nextToken)
+    private static PrestoThriftPage getRowsInternal(PrestoThriftId splitId, List<String> columnNames, long maxBytes, @Nullable PrestoThriftId nextToken)
     {
+        checkArgument(maxBytes >= DEFAULT_MAX_PAGE_SIZE_IN_BYTES, "requested maxBytes is too small");
         SplitInfo splitInfo = deserialize(splitId.getId(), SplitInfo.class);
-        RecordCursor cursor = createCursor(splitInfo, columns);
-        return cursorToRowsBatch(
-                cursor,
-                columns,
-                estimateRecords(maxBytes, types(splitInfo.getTableName(), columns)),
-                nextToken);
+        ConnectorPageSource pageSource = createPageSource(splitInfo, columnNames);
+
+        // very inefficient implementation as it needs to re-generate all previous results to get the next page
+        int skipPages = nextToken != null ? Ints.fromByteArray(nextToken.getId()) : 0;
+        skipPages(pageSource, skipPages);
+
+        Page page = null;
+        while (!pageSource.isFinished() && page == null) {
+            page = pageSource.getNextPage();
+            skipPages++;
+        }
+        PrestoThriftId newNextToken = pageSource.isFinished() ? null : new PrestoThriftId(Ints.toByteArray(skipPages));
+
+        return toThriftPage(page, types(splitInfo.getTableName(), columnNames), newNextToken);
     }
 
-    private static PrestoThriftPage cursorToRowsBatch(
-            RecordCursor cursor,
-            List<String> columnNames,
-            int maxRowCount,
-            @Nullable PrestoThriftId nextToken)
+    private static PrestoThriftPage toThriftPage(Page page, List<Type> columnTypes, @Nullable PrestoThriftId nextToken)
     {
-        long skip = nextToken != null ? Longs.fromByteArray(nextToken.getId()) : 0;
-        // very inefficient implementation as it needs to re-generate all previous results to get the next batch
-        skipRows(cursor, skip);
-        int numColumns = columnNames.size();
-
-        // create and initialize builders
-        List<ColumnBuilder> builders = new ArrayList<>(numColumns);
-        for (int i = 0; i < numColumns; i++) {
-            builders.add(PrestoThriftBlock.builder(cursor.getType(i), min(maxRowCount, MAX_WRITERS_INITIAL_CAPACITY)));
+        if (page == null) {
+            checkState(nextToken == null, "there must be no more data when page is null");
+            return new PrestoThriftPage(ImmutableList.of(), 0, null);
         }
-
-        // iterate over the cursor and append data to builders
-        boolean hasNext = cursor.advanceNextPosition();
-        int position;
-        for (position = 0; position < maxRowCount && hasNext; position++) {
-            for (int columnIdx = 0; columnIdx < numColumns; columnIdx++) {
-                builders.get(columnIdx).append(cursor, columnIdx);
-            }
-            hasNext = cursor.advanceNextPosition();
+        checkState(page.getChannelCount() == columnTypes.size(), "number of columns in a page doesn't match the one in requested types");
+        int numberOfColumns = columnTypes.size();
+        List<PrestoThriftBlock> columnBlocks = new ArrayList<>(numberOfColumns);
+        for (int i = 0; i < numberOfColumns; i++) {
+            columnBlocks.add(PrestoThriftBlock.fromBlock(page.getBlock(i), columnTypes.get(i), WRITERS_INITIAL_CAPACITY));
         }
-
-        // populate the final thrift result from builders
-        List<PrestoThriftBlock> result = new ArrayList<>(numColumns);
-        for (ColumnBuilder builder : builders) {
-            result.add(builder.build());
-        }
-
-        return new PrestoThriftPage(result, position, hasNext ? new PrestoThriftId(Longs.toByteArray(skip + position)) : null);
+        return new PrestoThriftPage(columnBlocks, page.getPositionCount(), nextToken);
     }
 
-    private static void skipRows(RecordCursor cursor, long numberOfRows)
+    private static void skipPages(ConnectorPageSource pageSource, int skipPages)
     {
-        boolean hasPreviousData = true;
-        for (long i = 0; i < numberOfRows; i++) {
-            hasPreviousData = cursor.advanceNextPosition();
+        for (int i = 0; i < skipPages; i++) {
+            checkState(!pageSource.isFinished(), "pageSource is unexpectedly finished");
+            pageSource.getNextPage();
         }
-        checkState(hasPreviousData, "Cursor is expected to have previously generated data");
     }
 
-    private static RecordCursor createCursor(SplitInfo splitInfo, List<String> columnNames)
+    private static ConnectorPageSource createPageSource(SplitInfo splitInfo, List<String> columnNames)
     {
         switch (splitInfo.getTableName()) {
             case "orders":
-                return createCursor(TpchTable.ORDERS, columnNames, splitInfo);
+                return createPageSource(TpchTable.ORDERS, columnNames, splitInfo);
             case "customer":
-                return createCursor(TpchTable.CUSTOMER, columnNames, splitInfo);
+                return createPageSource(TpchTable.CUSTOMER, columnNames, splitInfo);
             case "lineitem":
-                return createCursor(TpchTable.LINE_ITEM, columnNames, splitInfo);
+                return createPageSource(TpchTable.LINE_ITEM, columnNames, splitInfo);
             case "nation":
-                return createCursor(TpchTable.NATION, columnNames, splitInfo);
+                return createPageSource(TpchTable.NATION, columnNames, splitInfo);
             case "region":
-                return createCursor(TpchTable.REGION, columnNames, splitInfo);
+                return createPageSource(TpchTable.REGION, columnNames, splitInfo);
             case "part":
-                return createCursor(TpchTable.PART, columnNames, splitInfo);
+                return createPageSource(TpchTable.PART, columnNames, splitInfo);
             default:
                 throw new IllegalArgumentException("Table not setup: " + splitInfo.getTableName());
         }
     }
 
-    private static <T extends TpchEntity> RecordCursor createCursor(TpchTable<T> table, List<String> columnNames, SplitInfo splitInfo)
+    private static <T extends TpchEntity> ConnectorPageSource createPageSource(TpchTable<T> table, List<String> columnNames, SplitInfo splitInfo)
     {
         List<TpchColumn<T>> columns = columnNames.stream().map(table::getColumn).collect(toList());
-        return createTpchRecordSet(
+        return new RecordPageSource(createTpchRecordSet(
                 table,
                 columns,
                 schemaNameToScaleFactor(splitInfo.getSchemaName()),
                 splitInfo.getPartNumber(),
-                splitInfo.getTotalParts()).cursor();
+                splitInfo.getTotalParts()));
     }
 }

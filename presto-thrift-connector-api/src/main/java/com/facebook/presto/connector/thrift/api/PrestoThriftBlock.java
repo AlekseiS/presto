@@ -259,6 +259,15 @@ public final class PrestoThriftBlock
         }
     }
 
+    public static PrestoThriftBlock fromBlock(Block block, Type type, int initialCapacity)
+    {
+        ColumnBuilder builder = builder(type, initialCapacity);
+        for (int position = 0; position < block.getPositionCount(); position++) {
+            builder.append(block, position, type);
+        }
+        return builder.build();
+    }
+
     private static PrestoThriftColumnData theOnlyNonNull(PrestoThriftColumnData... columnsData)
     {
         PrestoThriftColumnData result = null;
