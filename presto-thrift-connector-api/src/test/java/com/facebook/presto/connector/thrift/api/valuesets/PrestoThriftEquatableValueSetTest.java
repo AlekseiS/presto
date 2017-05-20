@@ -15,7 +15,7 @@ package com.facebook.presto.connector.thrift.api.valuesets;
 
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftJson;
 import com.facebook.presto.spi.predicate.ValueSet;
-import com.google.common.primitives.Bytes;
+import com.google.common.collect.ImmutableList;
 import org.testng.annotations.Test;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.jsonData;
@@ -40,7 +40,7 @@ public class PrestoThriftEquatableValueSetTest
         PrestoThriftValueSet thriftValueSet = fromValueSet(ValueSet.all(JSON));
         assertNotNull(thriftValueSet.getEquatableValueSet());
         assertFalse(thriftValueSet.getEquatableValueSet().isWhiteList());
-        assertEquals(thriftValueSet.getEquatableValueSet().getValues(), jsonData(new PrestoThriftJson(null, null, null)));
+        assertTrue(thriftValueSet.getEquatableValueSet().getValues().isEmpty());
     }
 
     @Test
@@ -50,7 +50,7 @@ public class PrestoThriftEquatableValueSetTest
         PrestoThriftValueSet thriftValueSet = fromValueSet(ValueSet.none(JSON));
         assertNotNull(thriftValueSet.getEquatableValueSet());
         assertTrue(thriftValueSet.getEquatableValueSet().isWhiteList());
-        assertEquals(thriftValueSet.getEquatableValueSet().getValues(), jsonData(new PrestoThriftJson(null, null, null)));
+        assertTrue(thriftValueSet.getEquatableValueSet().getValues().isEmpty());
     }
 
     @Test
@@ -60,10 +60,8 @@ public class PrestoThriftEquatableValueSetTest
         PrestoThriftValueSet thriftValueSet = fromValueSet(ValueSet.of(JSON, utf8Slice(JSON1), utf8Slice(JSON2)));
         assertNotNull(thriftValueSet.getEquatableValueSet());
         assertTrue(thriftValueSet.getEquatableValueSet().isWhiteList());
-        assertEquals(thriftValueSet.getEquatableValueSet().getValues(), jsonData(
-                new PrestoThriftJson(
-                        null,
-                        new int[] {JSON1.length(), JSON2.length()},
-                        Bytes.concat(JSON1.getBytes(UTF_8), JSON2.getBytes(UTF_8)))));
+        assertEquals(thriftValueSet.getEquatableValueSet().getValues(), ImmutableList.of(
+                jsonData(new PrestoThriftJson(null, new int[] {JSON1.length()}, JSON1.getBytes(UTF_8))),
+                jsonData(new PrestoThriftJson(null, new int[] {JSON2.length()}, JSON2.getBytes(UTF_8)))));
     }
 }

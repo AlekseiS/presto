@@ -22,6 +22,8 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -33,10 +35,10 @@ import static java.util.Objects.requireNonNull;
 public final class PrestoThriftEquatableValueSet
 {
     private final boolean whiteList;
-    private final PrestoThriftBlock values;
+    private final List<PrestoThriftBlock> values;
 
     @ThriftConstructor
-    public PrestoThriftEquatableValueSet(boolean whiteList, PrestoThriftBlock values)
+    public PrestoThriftEquatableValueSet(boolean whiteList, List<PrestoThriftBlock> values)
     {
         this.whiteList = whiteList;
         this.values = requireNonNull(values, "values are null");
@@ -49,7 +51,7 @@ public final class PrestoThriftEquatableValueSet
     }
 
     @ThriftField(2)
-    public PrestoThriftBlock getValues()
+    public List<PrestoThriftBlock> getValues()
     {
         return values;
     }
@@ -79,7 +81,7 @@ public final class PrestoThriftEquatableValueSet
     {
         return toStringHelper(this)
                 .add("whiteList", whiteList)
-                .add("valuesClass", values.getClass())
+                .add("values", values)
                 .toString();
     }
 
@@ -87,11 +89,13 @@ public final class PrestoThriftEquatableValueSet
     {
         Type type = valueSet.getType();
         Set<ValueEntry> values = valueSet.getEntries();
-        ColumnBuilder builder = PrestoThriftBlock.builder(type, values.size());
+        List<PrestoThriftBlock> thriftValues = new ArrayList<>(values.size());
         for (ValueEntry value : values) {
             checkState(type.equals(value.getType()), "ValueEntrySet has elements of different types: %s vs %s", type, value.getType());
+            ColumnBuilder builder = PrestoThriftBlock.builder(type, 1);
             builder.append(value.getBlock(), 0, type);
+            thriftValues.add(builder.build());
         }
-        return new PrestoThriftEquatableValueSet(valueSet.isWhiteList(), builder.build());
+        return new PrestoThriftEquatableValueSet(valueSet.isWhiteList(), thriftValues);
     }
 }
