@@ -14,8 +14,6 @@
 package com.facebook.presto.connector.thrift.api.datatypes;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
-import com.facebook.presto.connector.thrift.api.builders.BooleanColumnBuilder;
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.ByteArrayBlock;
 import com.facebook.presto.spi.type.Type;
@@ -112,12 +110,7 @@ public final class PrestoThriftBoolean
                 .toString();
     }
 
-    public static ColumnBuilder builder(int initialCapacity)
-    {
-        return new BooleanColumnBuilder(initialCapacity);
-    }
-
-    public static PrestoThriftBlock singleValueBlock(Block block)
+    public static PrestoThriftBlock fromSingleValueBlock(Block block)
     {
         if (block.isNull(0)) {
             return booleanData(new PrestoThriftBoolean(new boolean[] {true}, null));

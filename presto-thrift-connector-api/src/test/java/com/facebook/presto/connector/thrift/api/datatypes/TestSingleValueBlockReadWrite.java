@@ -11,15 +11,28 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.api.builders;
+package com.facebook.presto.connector.thrift.api.datatypes;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
 
-public interface ColumnBuilder
-{
-    void append(Block block, int position, Type type);
+import java.util.Random;
 
-    PrestoThriftBlock build();
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromSingleValueBlock;
+
+public class TestSingleValueBlockReadWrite
+        extends AbstractTestReadWrite
+{
+    @Override
+    protected int numberOfRecords(Random random)
+    {
+        return 1;
+    }
+
+    @Override
+    protected PrestoThriftBlock toThriftBlock(Block block, Type type)
+    {
+        return fromSingleValueBlock(block, type);
+    }
 }

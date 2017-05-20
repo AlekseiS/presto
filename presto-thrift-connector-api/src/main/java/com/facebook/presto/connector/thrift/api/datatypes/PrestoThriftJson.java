@@ -14,8 +14,6 @@
 package com.facebook.presto.connector.thrift.api.datatypes;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
-import com.facebook.presto.connector.thrift.api.builders.AbstractSliceColumnBuilder;
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
@@ -111,19 +109,7 @@ public final class PrestoThriftJson
                 .toString();
     }
 
-    public static ColumnBuilder builder(int initialCapacity)
-    {
-        return new AbstractSliceColumnBuilder(initialCapacity)
-        {
-            @Override
-            protected PrestoThriftBlock buildInternal(boolean[] trimmedNulls, int[] trimmedSizes, byte[] trimmedBytes)
-            {
-                return jsonData(new PrestoThriftJson(trimmedNulls, trimmedSizes, trimmedBytes));
-            }
-        };
-    }
-
-    public static PrestoThriftBlock singleValueBlock(Block block, Type type)
+    public static PrestoThriftBlock fromSingleValueBlock(Block block, Type type)
     {
         if (block.isNull(0)) {
             return jsonData(new PrestoThriftJson(new boolean[] {true}, null, null));

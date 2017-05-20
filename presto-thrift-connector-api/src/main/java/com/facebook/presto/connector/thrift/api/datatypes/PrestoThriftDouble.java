@@ -14,8 +14,6 @@
 package com.facebook.presto.connector.thrift.api.datatypes;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
-import com.facebook.presto.connector.thrift.api.builders.DoubleColumnBuilder;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.LongArrayBlock;
 import com.facebook.presto.spi.type.Type;
@@ -119,12 +117,7 @@ public final class PrestoThriftDouble
                 .toString();
     }
 
-    public static ColumnBuilder builder(int initialCapacity)
-    {
-        return new DoubleColumnBuilder(initialCapacity);
-    }
-
-    public static PrestoThriftBlock singleValueBlock(Block block)
+    public static PrestoThriftBlock fromSingleValueBlock(Block block)
     {
         if (block.isNull(0)) {
             return doubleData(new PrestoThriftDouble(new boolean[] {true}, null));

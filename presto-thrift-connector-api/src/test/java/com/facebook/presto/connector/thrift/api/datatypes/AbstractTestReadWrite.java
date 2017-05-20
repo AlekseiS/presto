@@ -11,8 +11,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.connector.thrift.api;
+package com.facebook.presto.connector.thrift.api.datatypes;
 
+import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
+import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -30,7 +32,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.DateType.DATE;
@@ -48,7 +49,7 @@ import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertNotNull;
 
-public class TestColumnReaderWriter
+public abstract class AbstractTestReadWrite
 {
     private static final double NULL_FRACTION = 0.1;
     private static final int MAX_VARCHAR_GENERATED_LENGTH = 64;
@@ -87,8 +88,12 @@ public class TestColumnReaderWriter
         MAX_GENERATED_DATE = toIntExact(MILLISECONDS.toDays(MAX_GENERATED_TIMESTAMP));
     }
 
+    protected abstract int numberOfRecords(Random random);
+
+    protected abstract PrestoThriftBlock toThriftBlock(Block block, Type type);
+
     @Test(invocationCount = 10)
-    public void testReadWrite()
+    public final void testReadWrite()
             throws Exception
     {
         List<ColumnDefinition> columns = ImmutableList.of(
@@ -105,7 +110,7 @@ public class TestColumnReaderWriter
         );
 
         Random random = new Random(seedGenerator.incrementAndGet());
-        int records = random.nextInt(10000) + 10000;
+        int records = numberOfRecords(random);
 
         // generate columns data
         List<Block> inputBlocks = new ArrayList<>(columns.size());
@@ -116,7 +121,7 @@ public class TestColumnReaderWriter
         // convert column data to thrift ("write step")
         List<PrestoThriftBlock> columnBlocks = new ArrayList<>(columns.size());
         for (int i = 0; i < columns.size(); i++) {
-            columnBlocks.add(fromBlock(inputBlocks.get(i), columns.get(i).getType()));
+            columnBlocks.add(toThriftBlock(inputBlocks.get(i), columns.get(i).getType()));
         }
         PrestoThriftPage batch = new PrestoThriftPage(columnBlocks, records, null);
 

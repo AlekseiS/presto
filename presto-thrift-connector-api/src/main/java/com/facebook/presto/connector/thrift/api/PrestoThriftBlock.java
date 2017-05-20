@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigint;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBoolean;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftColumnData;
@@ -233,65 +232,30 @@ public final class PrestoThriftBlock
         return new PrestoThriftBlock(null, null, null, null, null, null, null, null, dateData);
     }
 
-    private static ColumnBuilder builder(Type columnType, int initialCapacity)
-    {
-        switch (columnType.getTypeSignature().getBase()) {
-            case BIGINT:
-                return PrestoThriftBigint.builder(initialCapacity);
-            case TIMESTAMP:
-                return PrestoThriftTimestamp.builder(initialCapacity);
-            case INTEGER:
-                return PrestoThriftInteger.builder(initialCapacity);
-            case BOOLEAN:
-                return PrestoThriftBoolean.builder(initialCapacity);
-            case DOUBLE:
-                return PrestoThriftDouble.builder(initialCapacity);
-            case VARCHAR:
-                return PrestoThriftVarchar.builder(initialCapacity);
-            case HYPER_LOG_LOG:
-                return PrestoThriftHyperLogLog.builder(initialCapacity);
-            case JSON:
-                return PrestoThriftJson.builder(initialCapacity);
-            case DATE:
-                return PrestoThriftDate.builder(initialCapacity);
-            default:
-                throw new IllegalArgumentException("Unsupported writer type: " + columnType);
-        }
-    }
-
-    public static PrestoThriftBlock fromBlock(Block block, Type type)
-    {
-        ColumnBuilder builder = builder(type, block.getPositionCount());
-        for (int position = 0; position < block.getPositionCount(); position++) {
-            builder.append(block, position, type);
-        }
-        return builder.build();
-    }
-
-    public static PrestoThriftBlock singleValueBlock(Block block, Type type)
+    public static PrestoThriftBlock fromSingleValueBlock(Block block, Type type)
     {
         checkArgument(block.getPositionCount() == 1, "block must have exactly one value");
         switch (type.getTypeSignature().getBase()) {
             case BIGINT:
-                return PrestoThriftBigint.singleValueBlock(block);
+                return PrestoThriftBigint.fromSingleValueBlock(block);
             case TIMESTAMP:
-                return PrestoThriftTimestamp.singleValueBlock(block);
+                return PrestoThriftTimestamp.fromSingleValueBlock(block);
             case INTEGER:
-                return PrestoThriftInteger.singleValueBlock(block);
+                return PrestoThriftInteger.fromSingleValueBlock(block);
             case BOOLEAN:
-                return PrestoThriftBoolean.singleValueBlock(block);
+                return PrestoThriftBoolean.fromSingleValueBlock(block);
             case DOUBLE:
-                return PrestoThriftDouble.singleValueBlock(block);
+                return PrestoThriftDouble.fromSingleValueBlock(block);
             case VARCHAR:
-                return PrestoThriftVarchar.singleValueBlock(block, type);
+                return PrestoThriftVarchar.fromSingleValueBlock(block, type);
             case HYPER_LOG_LOG:
-                return PrestoThriftHyperLogLog.singleValueBlock(block);
+                return PrestoThriftHyperLogLog.fromSingleValueBlock(block);
             case JSON:
-                return PrestoThriftJson.singleValueBlock(block, type);
+                return PrestoThriftJson.fromSingleValueBlock(block, type);
             case DATE:
-                return PrestoThriftDate.singleValueBlock(block);
+                return PrestoThriftDate.fromSingleValueBlock(block);
             default:
-                throw new IllegalArgumentException("Unsupported writer type: " + type);
+                throw new IllegalArgumentException("Unsupported block type: " + type);
         }
     }
 

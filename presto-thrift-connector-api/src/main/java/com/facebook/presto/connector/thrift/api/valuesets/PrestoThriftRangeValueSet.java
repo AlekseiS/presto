@@ -29,7 +29,7 @@ import javax.annotation.Nullable;
 import java.util.List;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.singleValueBlock;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromSingleValueBlock;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftBound.fromBound;
 import static com.facebook.presto.connector.thrift.api.valuesets.PrestoThriftRangeValueSet.PrestoThriftMarker.fromMarker;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
@@ -188,7 +188,7 @@ public final class PrestoThriftRangeValueSet
 
         public static PrestoThriftMarker fromMarker(Marker marker)
         {
-            PrestoThriftBlock value = marker.getValueBlock().isPresent() ? singleValueBlock(marker.getValueBlock().get(), marker.getType()) : null;
+            PrestoThriftBlock value = marker.getValueBlock().isPresent() ? fromSingleValueBlock(marker.getValueBlock().get(), marker.getType()) : null;
             return new PrestoThriftMarker(value, fromBound(marker.getBound()));
         }
     }

@@ -48,6 +48,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static com.facebook.presto.connector.thrift.server.ColumnWriters.toThriftBlock;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.getTypeString;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.schemaNameToScaleFactor;
 import static com.facebook.presto.connector.thrift.server.TpchServerUtils.types;
@@ -207,7 +208,7 @@ public class ThriftTpchService
         int numberOfColumns = columnTypes.size();
         List<PrestoThriftBlock> columnBlocks = new ArrayList<>(numberOfColumns);
         for (int i = 0; i < numberOfColumns; i++) {
-            columnBlocks.add(PrestoThriftBlock.fromBlock(page.getBlock(i), columnTypes.get(i)));
+            columnBlocks.add(toThriftBlock(page.getBlock(i), columnTypes.get(i)));
         }
         return new PrestoThriftPage(columnBlocks, page.getPositionCount(), nextToken);
     }

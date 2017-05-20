@@ -14,8 +14,6 @@
 package com.facebook.presto.connector.thrift.api.datatypes;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
-import com.facebook.presto.connector.thrift.api.builders.AbstractLongColumnBuilder;
-import com.facebook.presto.connector.thrift.api.builders.ColumnBuilder;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.LongArrayBlock;
 import com.facebook.presto.spi.type.Type;
@@ -113,19 +111,7 @@ public final class PrestoThriftTimestamp
                 .toString();
     }
 
-    public static ColumnBuilder builder(int initialCapacity)
-    {
-        return new AbstractLongColumnBuilder(initialCapacity)
-        {
-            @Override
-            protected PrestoThriftBlock buildInternal(boolean[] trimmedNulls, long[] trimmedLongs)
-            {
-                return timestampData(new PrestoThriftTimestamp(trimmedNulls, trimmedLongs));
-            }
-        };
-    }
-
-    public static PrestoThriftBlock singleValueBlock(Block block)
+    public static PrestoThriftBlock fromSingleValueBlock(Block block)
     {
         if (block.isNull(0)) {
             return timestampData(new PrestoThriftTimestamp(new boolean[] {true}, null));
