@@ -58,24 +58,24 @@ public final class ColumnWriters
     public static PrestoThriftBlock toThriftBlock(Block block, Type type)
     {
         switch (type.getTypeSignature().getBase()) {
-            case BIGINT:
-                return toLongBasedThriftBlock(block, type, (nulls, longs) -> bigintData(new PrestoThriftBigint(nulls, longs)));
-            case TIMESTAMP:
-                return toLongBasedThriftBlock(block, type, (nulls, longs) -> timestampData(new PrestoThriftTimestamp(nulls, longs)));
             case INTEGER:
                 return toIntBasedThriftBlock(block, type, (nulls, ints) -> integerData(new PrestoThriftInteger(nulls, ints)));
-            case BOOLEAN:
-                return toBooleanThriftBlock(block, type);
+            case BIGINT:
+                return toLongBasedThriftBlock(block, type, (nulls, longs) -> bigintData(new PrestoThriftBigint(nulls, longs)));
             case DOUBLE:
                 return toDoubleThriftBlock(block, type);
             case VARCHAR:
                 return toSliceBasedThriftBlock(block, type, (nulls, sizes, bytes) -> varcharData(new PrestoThriftVarchar(nulls, sizes, bytes)));
-            case HYPER_LOG_LOG:
-                return toSliceBasedThriftBlock(block, type, (nulls, sizes, bytes) -> hyperLogLogData(new PrestoThriftHyperLogLog(nulls, sizes, bytes)));
-            case JSON:
-                return toSliceBasedThriftBlock(block, type, (nulls, sizes, bytes) -> jsonData(new PrestoThriftJson(nulls, sizes, bytes)));
+            case BOOLEAN:
+                return toBooleanThriftBlock(block, type);
             case DATE:
                 return toIntBasedThriftBlock(block, type, (nulls, ints) -> dateData(new PrestoThriftDate(nulls, ints)));
+            case TIMESTAMP:
+                return toLongBasedThriftBlock(block, type, (nulls, longs) -> timestampData(new PrestoThriftTimestamp(nulls, longs)));
+            case JSON:
+                return toSliceBasedThriftBlock(block, type, (nulls, sizes, bytes) -> jsonData(new PrestoThriftJson(nulls, sizes, bytes)));
+            case HYPER_LOG_LOG:
+                return toSliceBasedThriftBlock(block, type, (nulls, sizes, bytes) -> hyperLogLogData(new PrestoThriftHyperLogLog(nulls, sizes, bytes)));
             default:
                 throw new IllegalArgumentException("Unsupported block type: " + type);
         }

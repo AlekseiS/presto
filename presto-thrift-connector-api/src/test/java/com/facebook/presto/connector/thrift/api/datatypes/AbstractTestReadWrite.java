@@ -92,19 +92,19 @@ public abstract class AbstractTestReadWrite
 
     protected abstract PrestoThriftBlock toThriftBlock(Block block, Type type);
 
-    @Test(invocationCount = 10)
+    @Test(invocationCount = 20)
     public final void testReadWrite()
             throws Exception
     {
         List<ColumnDefinition> columns = ImmutableList.of(
-                new BigintColumn(),
                 new IntegerColumn(),
-                new BooleanColumn(),
+                new BigintColumn(),
                 new DoubleColumn(),
                 new VarcharColumn(createUnboundedVarcharType()),
                 new VarcharColumn(createVarcharType(MAX_VARCHAR_GENERATED_LENGTH / 2)),
-                new TimestampColumn(),
+                new BooleanColumn(),
                 new DateColumn(),
+                new TimestampColumn(),
                 new JsonColumn(),
                 new HyperLogLogColumn()
         );
@@ -217,69 +217,6 @@ public abstract class AbstractTestReadWrite
         abstract void writeNextRandomValue(Random random, BlockBuilder builder);
     }
 
-    private static final class BigintColumn
-            extends ColumnDefinition
-    {
-        public BigintColumn()
-        {
-            super(BIGINT);
-        }
-
-        @Override
-        Object extractValue(Block block, int position)
-        {
-            return BIGINT.getLong(block, position);
-        }
-
-        @Override
-        void writeNextRandomValue(Random random, BlockBuilder builder)
-        {
-            BIGINT.writeLong(builder, random.nextLong());
-        }
-    }
-
-    private static final class TimestampColumn
-            extends ColumnDefinition
-    {
-        public TimestampColumn()
-        {
-            super(TIMESTAMP);
-        }
-
-        @Override
-        Object extractValue(Block block, int position)
-        {
-            return TIMESTAMP.getLong(block, position);
-        }
-
-        @Override
-        void writeNextRandomValue(Random random, BlockBuilder builder)
-        {
-            TIMESTAMP.writeLong(builder, nextTimestamp(random));
-        }
-    }
-
-    private static final class DateColumn
-            extends ColumnDefinition
-    {
-        public DateColumn()
-        {
-            super(DATE);
-        }
-
-        @Override
-        Object extractValue(Block block, int position)
-        {
-            return DATE.getLong(block, position);
-        }
-
-        @Override
-        void writeNextRandomValue(Random random, BlockBuilder builder)
-        {
-            DATE.writeLong(builder, nextDate(random));
-        }
-    }
-
     private static final class IntegerColumn
             extends ColumnDefinition
     {
@@ -301,24 +238,24 @@ public abstract class AbstractTestReadWrite
         }
     }
 
-    private static final class BooleanColumn
+    private static final class BigintColumn
             extends ColumnDefinition
     {
-        public BooleanColumn()
+        public BigintColumn()
         {
-            super(BOOLEAN);
+            super(BIGINT);
         }
 
         @Override
         Object extractValue(Block block, int position)
         {
-            return BOOLEAN.getBoolean(block, position);
+            return BIGINT.getLong(block, position);
         }
 
         @Override
         void writeNextRandomValue(Random random, BlockBuilder builder)
         {
-            BOOLEAN.writeBoolean(builder, random.nextBoolean());
+            BIGINT.writeLong(builder, random.nextLong());
         }
     }
 
@@ -364,6 +301,69 @@ public abstract class AbstractTestReadWrite
         void writeNextRandomValue(Random random, BlockBuilder builder)
         {
             varcharType.writeString(builder, nextString(random));
+        }
+    }
+
+    private static final class BooleanColumn
+            extends ColumnDefinition
+    {
+        public BooleanColumn()
+        {
+            super(BOOLEAN);
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return BOOLEAN.getBoolean(block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            BOOLEAN.writeBoolean(builder, random.nextBoolean());
+        }
+    }
+
+    private static final class DateColumn
+            extends ColumnDefinition
+    {
+        public DateColumn()
+        {
+            super(DATE);
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return DATE.getLong(block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            DATE.writeLong(builder, nextDate(random));
+        }
+    }
+
+    private static final class TimestampColumn
+            extends ColumnDefinition
+    {
+        public TimestampColumn()
+        {
+            super(TIMESTAMP);
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return TIMESTAMP.getLong(block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            TIMESTAMP.writeLong(builder, nextTimestamp(random));
         }
     }
 
