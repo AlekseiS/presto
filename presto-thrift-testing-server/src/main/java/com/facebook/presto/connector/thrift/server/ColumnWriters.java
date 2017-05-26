@@ -61,7 +61,7 @@ public final class ColumnWriters
             case INTEGER:
                 return toIntBasedThriftBlock(block, type, (nulls, ints) -> integerData(new PrestoThriftInteger(nulls, ints)));
             case BIGINT:
-                return toLongBasedThriftBlock(block, type, (nulls, longs) -> bigintData(new PrestoThriftBigint(nulls, longs)));
+                return bigintData(PrestoThriftBigint.fromBlock(block));
             case DOUBLE:
                 return toDoubleThriftBlock(block, type);
             case VARCHAR:

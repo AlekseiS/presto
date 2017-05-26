@@ -14,6 +14,7 @@
 package com.facebook.presto.connector.thrift.api;
 
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigint;
+import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBigintArray;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftBoolean;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftColumnData;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftDate;
@@ -24,6 +25,7 @@ import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftJson;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftTimestamp;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftVarchar;
 import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.type.BigintType;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
@@ -33,6 +35,7 @@ import javax.annotation.Nullable;
 
 import java.util.Objects;
 
+import static com.facebook.presto.spi.type.StandardTypes.ARRAY;
 import static com.facebook.presto.spi.type.StandardTypes.BIGINT;
 import static com.facebook.presto.spi.type.StandardTypes.BOOLEAN;
 import static com.facebook.presto.spi.type.StandardTypes.DATE;
@@ -45,6 +48,7 @@ import static com.facebook.presto.spi.type.StandardTypes.VARCHAR;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.collect.Iterables.getOnlyElement;
 
 @ThriftStruct
 public final class PrestoThriftBlock
@@ -68,6 +72,9 @@ public final class PrestoThriftBlock
     private final PrestoThriftJson jsonData;
     private final PrestoThriftHyperLogLog hyperLogLogData;
 
+    // array
+    private final PrestoThriftBigintArray bigintArrayData;
+
     // non-thrift field which points to non-null data item
     private final PrestoThriftColumnData dataReference;
 
@@ -81,7 +88,8 @@ public final class PrestoThriftBlock
             @Nullable PrestoThriftDate dateData,
             @Nullable PrestoThriftTimestamp timestampData,
             @Nullable PrestoThriftJson jsonData,
-            @Nullable PrestoThriftHyperLogLog hyperLogLogData)
+            @Nullable PrestoThriftHyperLogLog hyperLogLogData,
+            @Nullable PrestoThriftBigintArray bigintArrayData)
     {
         this.integerData = integerData;
         this.bigintData = bigintData;
@@ -92,7 +100,8 @@ public final class PrestoThriftBlock
         this.timestampData = timestampData;
         this.jsonData = jsonData;
         this.hyperLogLogData = hyperLogLogData;
-        this.dataReference = theOnlyNonNull(integerData, bigintData, doubleData, varcharData, booleanData, dateData, timestampData, jsonData, hyperLogLogData);
+        this.bigintArrayData = bigintArrayData;
+        this.dataReference = theOnlyNonNull(integerData, bigintData, doubleData, varcharData, booleanData, dateData, timestampData, jsonData, hyperLogLogData, bigintArrayData);
     }
 
     @Nullable
@@ -158,6 +167,13 @@ public final class PrestoThriftBlock
         return hyperLogLogData;
     }
 
+    @Nullable
+    @ThriftField(value = 10, requiredness = OPTIONAL)
+    public PrestoThriftBigintArray getBigintArrayData()
+    {
+        return bigintArrayData;
+    }
+
     public Block toBlock(Type desiredType)
     {
         return dataReference.toBlock(desiredType);
@@ -185,7 +201,7 @@ public final class PrestoThriftBlock
     @Override
     public int hashCode()
     {
-        return Objects.hash(integerData, bigintData, doubleData, varcharData, booleanData, dateData, timestampData, jsonData, hyperLogLogData);
+        return Objects.hash(integerData, bigintData, doubleData, varcharData, booleanData, dateData, timestampData, jsonData, hyperLogLogData, bigintArrayData);
     }
 
     @Override
@@ -198,47 +214,52 @@ public final class PrestoThriftBlock
 
     public static PrestoThriftBlock integerData(PrestoThriftInteger integerData)
     {
-        return new PrestoThriftBlock(integerData, null, null, null, null, null, null, null, null);
+        return new PrestoThriftBlock(integerData, null, null, null, null, null, null, null, null, null);
     }
 
     public static PrestoThriftBlock bigintData(PrestoThriftBigint bigintData)
     {
-        return new PrestoThriftBlock(null, bigintData, null, null, null, null, null, null, null);
+        return new PrestoThriftBlock(null, bigintData, null, null, null, null, null, null, null, null);
     }
 
     public static PrestoThriftBlock doubleData(PrestoThriftDouble doubleData)
     {
-        return new PrestoThriftBlock(null, null, doubleData, null, null, null, null, null, null);
+        return new PrestoThriftBlock(null, null, doubleData, null, null, null, null, null, null, null);
     }
 
     public static PrestoThriftBlock varcharData(PrestoThriftVarchar varcharData)
     {
-        return new PrestoThriftBlock(null, null, null, varcharData, null, null, null, null, null);
+        return new PrestoThriftBlock(null, null, null, varcharData, null, null, null, null, null, null);
     }
 
     public static PrestoThriftBlock booleanData(PrestoThriftBoolean booleanData)
     {
-        return new PrestoThriftBlock(null, null, null, null, booleanData, null, null, null, null);
+        return new PrestoThriftBlock(null, null, null, null, booleanData, null, null, null, null, null);
     }
 
     public static PrestoThriftBlock dateData(PrestoThriftDate dateData)
     {
-        return new PrestoThriftBlock(null, null, null, null, null, dateData, null, null, null);
+        return new PrestoThriftBlock(null, null, null, null, null, dateData, null, null, null, null);
     }
 
     public static PrestoThriftBlock timestampData(PrestoThriftTimestamp timestampData)
     {
-        return new PrestoThriftBlock(null, null, null, null, null, null, timestampData, null, null);
+        return new PrestoThriftBlock(null, null, null, null, null, null, timestampData, null, null, null);
     }
 
     public static PrestoThriftBlock jsonData(PrestoThriftJson jsonData)
     {
-        return new PrestoThriftBlock(null, null, null, null, null, null, null, jsonData, null);
+        return new PrestoThriftBlock(null, null, null, null, null, null, null, jsonData, null, null);
     }
 
     public static PrestoThriftBlock hyperLogLogData(PrestoThriftHyperLogLog hyperLogLogData)
     {
-        return new PrestoThriftBlock(null, null, null, null, null, null, null, null, hyperLogLogData);
+        return new PrestoThriftBlock(null, null, null, null, null, null, null, null, hyperLogLogData, null);
+    }
+
+    public static PrestoThriftBlock bigintArrayData(PrestoThriftBigintArray bigintArrayData)
+    {
+        return new PrestoThriftBlock(null, null, null, null, null, null, null, null, null, bigintArrayData);
     }
 
     public static PrestoThriftBlock fromSingleValueBlock(Block block, Type type)
@@ -263,6 +284,14 @@ public final class PrestoThriftBlock
                 return PrestoThriftJson.fromSingleValueBlock(block, type);
             case HYPER_LOG_LOG:
                 return PrestoThriftHyperLogLog.fromSingleValueBlock(block);
+            case ARRAY:
+                Type elementType = getOnlyElement(type.getTypeParameters());
+                if (BigintType.BIGINT.equals(elementType)) {
+                    return PrestoThriftBigintArray.fromSingleValueBlock(block, type);
+                }
+                else {
+                    throw new IllegalArgumentException("Unsupported array block type: " + type);
+                }
             default:
                 throw new IllegalArgumentException("Unsupported block type: " + type);
         }

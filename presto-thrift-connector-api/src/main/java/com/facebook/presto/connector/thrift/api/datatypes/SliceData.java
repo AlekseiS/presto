@@ -24,6 +24,9 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Objects;
 
+import static com.facebook.presto.connector.thrift.api.datatypes.TypeUtils.calculateOffsets;
+import static com.facebook.presto.connector.thrift.api.datatypes.TypeUtils.sameSizeIfPresent;
+import static com.facebook.presto.connector.thrift.api.datatypes.TypeUtils.totalSize;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
@@ -107,36 +110,5 @@ final class SliceData
         return toStringHelper(this)
                 .add("numberOfRecords", numberOfRecords())
                 .toString();
-    }
-
-    private static boolean sameSizeIfPresent(boolean[] nulls, int[] sizes)
-    {
-        return nulls == null || sizes == null || nulls.length == sizes.length;
-    }
-
-    private static int totalSize(boolean[] nulls, int[] sizes)
-    {
-        int numberOfRecords = nulls != null ? nulls.length : sizes != null ? sizes.length : 0;
-        int total = 0;
-        for (int i = 0; i < numberOfRecords; i++) {
-            if (nulls == null || !nulls[i]) {
-                total += sizes[i];
-            }
-        }
-        return total;
-    }
-
-    private static int[] calculateOffsets(int[] sizes, boolean[] nulls, int totalRecords)
-    {
-        if (sizes == null) {
-            return new int[totalRecords + 1];
-        }
-        int[] offsets = new int[totalRecords + 1];
-        offsets[0] = 0;
-        for (int i = 0; i < totalRecords; i++) {
-            int size = nulls != null && nulls[i] ? 0 : sizes[i];
-            offsets[i + 1] = offsets[i] + size;
-        }
-        return offsets;
     }
 }

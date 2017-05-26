@@ -21,6 +21,7 @@ import com.facebook.presto.spi.block.BlockBuilder;
 import com.facebook.presto.spi.block.BlockBuilderStatus;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.VarcharType;
+import com.facebook.presto.type.ArrayType;
 import com.google.common.collect.ImmutableList;
 import io.airlift.slice.Slice;
 import io.airlift.stats.cardinality.HyperLogLog;
@@ -61,6 +62,7 @@ public abstract class AbstractTestReadWrite
     private static final int MAX_GENERATED_JSON_KEY_LENGTH = 8;
     private static final int HYPER_LOG_LOG_BUCKETS = 128;
     private static final int MAX_HYPER_LOG_LOG_ELEMENTS = 32;
+    private static final int MAX_ARRAY_GENERATED_LENGTH = 64;
     private final AtomicLong seedGenerator = new AtomicLong(762103512L);
 
     static {
@@ -106,7 +108,8 @@ public abstract class AbstractTestReadWrite
                 new DateColumn(),
                 new TimestampColumn(),
                 new JsonColumn(),
-                new HyperLogLogColumn()
+                new HyperLogLogColumn(),
+                new BigintArrayColumn()
         );
 
         Random random = new Random(seedGenerator.incrementAndGet());
@@ -196,6 +199,21 @@ public abstract class AbstractTestReadWrite
             hll.add(random.nextLong());
         }
         return hll.serialize();
+    }
+
+    private static void generateBigintArray(Random random, BlockBuilder parentBuilder)
+    {
+        int numberOfElements = random.nextInt(MAX_ARRAY_GENERATED_LENGTH);
+        BlockBuilder builder = parentBuilder.beginBlockEntry();
+        for (int i = 0; i < numberOfElements; i++) {
+            if (random.nextDouble() < NULL_FRACTION) {
+                builder.appendNull();
+            }
+            else {
+                builder.writeLong(random.nextLong());
+            }
+        }
+        parentBuilder.closeEntry();
     }
 
     private abstract static class ColumnDefinition
@@ -411,6 +429,35 @@ public abstract class AbstractTestReadWrite
         void writeNextRandomValue(Random random, BlockBuilder builder)
         {
             HYPER_LOG_LOG.writeSlice(builder, nextHyperLogLog(random));
+        }
+    }
+
+    private static final class BigintArrayColumn
+            extends ColumnDefinition
+    {
+        private final ArrayType arrayType;
+
+        public BigintArrayColumn()
+        {
+            this(new ArrayType(BIGINT));
+        }
+
+        private BigintArrayColumn(ArrayType arrayType)
+        {
+            super(arrayType);
+            this.arrayType = requireNonNull(arrayType, "arrayType is null");
+        }
+
+        @Override
+        Object extractValue(Block block, int position)
+        {
+            return arrayType.getObjectValue(null, block, position);
+        }
+
+        @Override
+        void writeNextRandomValue(Random random, BlockBuilder builder)
+        {
+            generateBigintArray(random, builder);
         }
     }
 }

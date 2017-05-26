@@ -14,6 +14,7 @@
 package com.facebook.presto.connector.thrift.api.datatypes;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftBlock;
+import com.facebook.presto.spi.block.ArrayBlock;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.LongArrayBlock;
 import com.facebook.presto.spi.type.Type;
@@ -26,29 +27,34 @@ import javax.annotation.Nullable;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.bigintData;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.bigintArrayData;
+import static com.facebook.presto.connector.thrift.api.datatypes.TypeUtils.calculateOffsets;
+import static com.facebook.presto.connector.thrift.api.datatypes.TypeUtils.sameSizeIfPresent;
+import static com.facebook.presto.connector.thrift.api.datatypes.TypeUtils.totalSize;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
 
 /**
- * Elements of {@code nulls} array determine if a value for a corresponding row is null.
- * Elements of {@code longs} array are values for each row. If row is null then value is ignored.
+ * TODO: write
  */
 @ThriftStruct
-public final class PrestoThriftBigint
+public final class PrestoThriftBigintArray
         implements PrestoThriftColumnData
 {
     private final boolean[] nulls;
-    private final long[] longs;
+    private final int[] sizes;
+    private final PrestoThriftBigint values;
 
     @ThriftConstructor
-    public PrestoThriftBigint(@Nullable boolean[] nulls, @Nullable long[] longs)
+    public PrestoThriftBigintArray(@Nullable boolean[] nulls, @Nullable int[] sizes, @Nullable PrestoThriftBigint values)
     {
-        checkArgument(sameSizeIfPresent(nulls, longs), "nulls and values must be of the same size");
+        checkArgument(sameSizeIfPresent(nulls, sizes), "nulls and values must be of the same size");
+        checkArgument(totalSize(nulls, sizes) == numberOfValues(values), "total number of values doesn't match expected size");
         this.nulls = nulls;
-        this.longs = longs;
+        this.sizes = sizes;
+        this.values = values;
     }
 
     @Nullable
@@ -60,26 +66,40 @@ public final class PrestoThriftBigint
 
     @Nullable
     @ThriftField(value = 2, requiredness = OPTIONAL)
-    public long[] getLongs()
+    public int[] getSizes()
     {
-        return longs;
+        return sizes;
+    }
+
+    @Nullable
+    @ThriftField(value = 3, requiredness = OPTIONAL)
+    public PrestoThriftBigint getValues()
+    {
+        return values;
     }
 
     @Override
     public Block toBlock(Type desiredType)
     {
-        checkArgument(BIGINT.equals(desiredType), "type doesn't match: %s", desiredType);
+        checkArgument(desiredType.getTypeParameters().size() == 1 && BIGINT.equals(desiredType.getTypeParameters().get(0)),
+                "type doesn't match: %s", desiredType);
         int numberOfRecords = numberOfRecords();
-        return new LongArrayBlock(
+        return new ArrayBlock(
                 numberOfRecords,
                 nulls == null ? new boolean[numberOfRecords] : nulls,
-                longs == null ? new long[numberOfRecords] : longs);
+                calculateOffsets(sizes, nulls, numberOfRecords),
+                values != null ? values.toBlock(BIGINT) : new LongArrayBlock(0, new boolean[] {}, new long[] {}));
     }
 
     @Override
     public int numberOfRecords()
     {
-        return nulls != null ? nulls.length : (longs != null ? longs.length : 0);
+        return nulls != null ? nulls.length : (sizes != null ? sizes.length : 0);
+    }
+
+    private static int numberOfValues(PrestoThriftBigint values)
+    {
+        return values != null ? values.numberOfRecords() : 0;
     }
 
     @Override
@@ -91,15 +111,16 @@ public final class PrestoThriftBigint
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        PrestoThriftBigint other = (PrestoThriftBigint) obj;
+        PrestoThriftBigintArray other = (PrestoThriftBigintArray) obj;
         return Arrays.equals(this.nulls, other.nulls) &&
-                Arrays.equals(this.longs, other.longs);
+                Arrays.equals(this.sizes, other.sizes) &&
+                Objects.equals(this.values, other.values);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(longs));
+        return Objects.hash(Arrays.hashCode(nulls), Arrays.hashCode(sizes), values);
     }
 
     @Override
@@ -110,43 +131,18 @@ public final class PrestoThriftBigint
                 .toString();
     }
 
-    public static PrestoThriftBlock fromSingleValueBlock(Block block)
+    public static PrestoThriftBlock fromSingleValueBlock(Block block, Type type)
     {
         if (block.isNull(0)) {
-            return bigintData(new PrestoThriftBigint(new boolean[] {true}, null));
+            return bigintArrayData(new PrestoThriftBigintArray(new boolean[] {true}, null, null));
         }
         else {
-            return bigintData(new PrestoThriftBigint(null, new long[] {BIGINT.getLong(block, 0)}));
+            Block value = (Block) type.getObject(block, 0);
+            PrestoThriftBigint bigintData = PrestoThriftBigint.fromBlock(value);
+            return bigintArrayData(new PrestoThriftBigintArray(
+                    null,
+                    new int[] {bigintData.numberOfRecords()},
+                    bigintData));
         }
-    }
-
-    public static PrestoThriftBigint fromBlock(Block block)
-    {
-        int positions = block.getPositionCount();
-        if (positions == 0) {
-            return new PrestoThriftBigint(null, null);
-        }
-        boolean[] nulls = null;
-        long[] longs = null;
-        for (int position = 0; position < positions; position++) {
-            if (block.isNull(position)) {
-                if (nulls == null) {
-                    nulls = new boolean[positions];
-                }
-                nulls[position] = true;
-            }
-            else {
-                if (longs == null) {
-                    longs = new long[positions];
-                }
-                longs[position] = BIGINT.getLong(block, position);
-            }
-        }
-        return new PrestoThriftBigint(nulls, longs);
-    }
-
-    private static boolean sameSizeIfPresent(boolean[] nulls, long[] longs)
-    {
-        return nulls == null || longs == null || nulls.length == longs.length;
     }
 }
