@@ -21,6 +21,7 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftService;
 import com.facebook.presto.connector.thrift.clientproviders.PrestoThriftServiceProvider;
 import com.facebook.presto.spi.ColumnHandle;
 import com.facebook.presto.spi.ColumnMetadata;
+import com.facebook.presto.spi.ConnectorResolvedIndex;
 import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorTableHandle;
 import com.facebook.presto.spi.ConnectorTableLayout;
@@ -33,6 +34,7 @@ import com.facebook.presto.spi.SchemaTableName;
 import com.facebook.presto.spi.SchemaTablePrefix;
 import com.facebook.presto.spi.TableNotFoundException;
 import com.facebook.presto.spi.connector.ConnectorMetadata;
+import com.facebook.presto.spi.predicate.TupleDomain;
 import com.facebook.presto.spi.type.TypeManager;
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -67,7 +69,7 @@ public class ThriftMetadata
 
     private final PrestoThriftServiceProvider clientProvider;
     private final TypeManager typeManager;
-    private final LoadingCache<SchemaTableName, Optional<ConnectorTableMetadata>> tableCache;
+    private final LoadingCache<SchemaTableName, Optional<ThriftTableMetadata>> tableCache;
 
     @Inject
     public ThriftMetadata(
@@ -93,7 +95,7 @@ public class ThriftMetadata
     public ConnectorTableHandle getTableHandle(ConnectorSession session, SchemaTableName tableName)
     {
         return tableCache.getUnchecked(tableName)
-                .map(ConnectorTableMetadata::getTable)
+                .map(ThriftTableMetadata::getSchemaTableName)
                 .map(ThriftTableHandle::new)
                 .orElse(null);
     }
@@ -124,7 +126,7 @@ public class ThriftMetadata
     public ConnectorTableMetadata getTableMetadata(ConnectorSession session, ConnectorTableHandle tableHandle)
     {
         ThriftTableHandle handle = ((ThriftTableHandle) tableHandle);
-        return getTableMetadata(new SchemaTableName(handle.getSchemaName(), handle.getTableName()));
+        return getTableMetadataChecked(new SchemaTableName(handle.getSchemaName(), handle.getTableName())).toConnectorTableMetadata();
     }
 
     @Override
@@ -150,12 +152,25 @@ public class ThriftMetadata
     @Override
     public Map<SchemaTableName, List<ColumnMetadata>> listTableColumns(ConnectorSession session, SchemaTablePrefix prefix)
     {
-        return listTables(session, prefix.getSchemaName()).stream().collect(toImmutableMap(identity(), schemaTableName -> getTableMetadata(schemaTableName).getColumns()));
+        return listTables(session, prefix.getSchemaName()).stream().collect(toImmutableMap(identity(), schemaTableName -> getTableMetadataChecked(schemaTableName).getColumns()));
     }
 
-    private ConnectorTableMetadata getTableMetadata(SchemaTableName schemaTableName)
+    @Override
+    public Optional<ConnectorResolvedIndex> resolveIndex(ConnectorSession session, ConnectorTableHandle tableHandle, Set<ColumnHandle> indexableColumns, Set<ColumnHandle> outputColumns, TupleDomain<ColumnHandle> tupleDomain)
     {
-        Optional<ConnectorTableMetadata> table = tableCache.getUnchecked(schemaTableName);
+        ThriftTableHandle table = (ThriftTableHandle) tableHandle;
+        ThriftTableMetadata tableMetadata = getTableMetadataChecked(new SchemaTableName(table.getSchemaName(), table.getTableName()));
+        if (tableMetadata.containsIndexableColumns(indexableColumns)) {
+            return Optional.of(new ConnectorResolvedIndex(new ThriftIndexHandle(tableMetadata.getSchemaTableName(), tupleDomain), tupleDomain));
+        }
+        else {
+            return Optional.empty();
+        }
+    }
+
+    private ThriftTableMetadata getTableMetadataChecked(SchemaTableName schemaTableName)
+    {
+        Optional<ThriftTableMetadata> table = tableCache.getUnchecked(schemaTableName);
         if (!table.isPresent()) {
             throw new TableNotFoundException(schemaTableName);
         }
@@ -165,7 +180,7 @@ public class ThriftMetadata
     }
 
     // this method makes actual thrift request and should be called only by cache load method
-    private Optional<ConnectorTableMetadata> getTableMetadataInternal(SchemaTableName schemaTableName)
+    private Optional<ThriftTableMetadata> getTableMetadataInternal(SchemaTableName schemaTableName)
     {
         requireNonNull(schemaTableName, "schemaTableName is null");
         return clientProvider.runOnAnyHost(client -> {
@@ -174,8 +189,8 @@ public class ThriftMetadata
                 return Optional.empty();
             }
             else {
-                ConnectorTableMetadata tableMetadata = thriftTableMetadata.getTableMetadata().toConnectorTableMetadata(typeManager);
-                if (!Objects.equals(schemaTableName, tableMetadata.getTable())) {
+                ThriftTableMetadata tableMetadata = new ThriftTableMetadata(thriftTableMetadata.getTableMetadata(), typeManager);
+                if (!Objects.equals(schemaTableName, tableMetadata.getSchemaTableName())) {
                     throw new PrestoException(THRIFT_SERVICE_INVALID_RESPONSE, "Requested and actual table names are different");
                 }
                 return Optional.of(tableMetadata);
