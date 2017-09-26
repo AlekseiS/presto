@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
+import com.facebook.presto.operator.index.PageRecordSet;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.block.Block;
 import com.facebook.presto.spi.block.BlockBuilder;
@@ -30,8 +31,10 @@ import java.util.Calendar;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Function;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftPageResult.fromRecordSet;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.DateType.DATE;
@@ -106,7 +109,9 @@ public class TestReadWrite
     public void testReadWriteSingleValue()
             throws Exception
     {
-        testReadWrite(new Random(singleValueSeedGenerator.incrementAndGet()), 1);
+        Random random = new Random(singleValueSeedGenerator.incrementAndGet());
+        testPageReadWrite(random, 1);
+        testRecordSetReadWrite(random, 1);
     }
 
     @Test(invocationCount = 20)
@@ -115,11 +120,32 @@ public class TestReadWrite
     {
         Random random = new Random(columnDataSeedGenerator.incrementAndGet());
         int records = random.nextInt(10000) + 10000;
-        testReadWrite(random, records);
+        testPageReadWrite(random, records);
+        testRecordSetReadWrite(random, records);
     }
 
-    private void testReadWrite(Random random, int records)
-            throws Exception
+    private void testPageReadWrite(Random random, int records)
+    {
+        testReadWrite(random, records, blocks -> {
+            List<PrestoThriftBlock> columnBlocks = new ArrayList<>(columns.size());
+            for (int i = 0; i < columns.size(); i++) {
+                columnBlocks.add(fromBlock(blocks.get(i), columns.get(i).getType()));
+            }
+            return new PrestoThriftPageResult(columnBlocks, records, null);
+        });
+    }
+
+    private void testRecordSetReadWrite(Random random, int records)
+    {
+        testReadWrite(random, records, blocks -> {
+            List<Type> types = columns.stream().map(ColumnDefinition::getType).collect(toImmutableList());
+            PageRecordSet inputRecordSet = new PageRecordSet(types, new Page(blocks.toArray(new Block[blocks.size()])));
+            return fromRecordSet(inputRecordSet);
+        });
+    }
+
+    private void testReadWrite(Random random, int records,
+            Function<List<Block>, PrestoThriftPageResult> convert)
     {
         // generate columns data
         List<Block> inputBlocks = new ArrayList<>(columns.size());
@@ -128,11 +154,7 @@ public class TestReadWrite
         }
 
         // convert column data to thrift ("write step")
-        List<PrestoThriftBlock> columnBlocks = new ArrayList<>(columns.size());
-        for (int i = 0; i < columns.size(); i++) {
-            columnBlocks.add(fromBlock(inputBlocks.get(i), columns.get(i).getType()));
-        }
-        PrestoThriftPageResult batch = new PrestoThriftPageResult(columnBlocks, records, null);
+        PrestoThriftPageResult batch = convert.apply(inputBlocks);
 
         // convert thrift data to page/blocks ("read step")
         Page page = batch.toPage(columns.stream().map(ColumnDefinition::getType).collect(toImmutableList()));
