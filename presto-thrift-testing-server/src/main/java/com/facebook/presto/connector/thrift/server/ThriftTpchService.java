@@ -159,6 +159,20 @@ public class ThriftTpchService
     }
 
     @Override
+    public ListenableFuture<PrestoThriftSplitBatch> getLookupSplits(
+            PrestoThriftSchemaTableName schemaTableName,
+            List<String> lookupColumnNames,
+            List<String> outputColumnNames,
+            PrestoThriftPageResult keys,
+            PrestoThriftTupleDomain outputConstraint,
+            int maxSplitCount,
+            PrestoThriftNullableToken nextToken)
+            throws PrestoThriftServiceException
+    {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
     public ListenableFuture<PrestoThriftPageResult> getRows(
             PrestoThriftId splitId,
             List<String> columns,

@@ -79,6 +79,30 @@ public interface PrestoThriftService
             throws PrestoThriftServiceException;
 
     /**
+     * Returns a batch of lookup splits.
+     * This method is called if index join is chosen in order to get splits for a given batch of keys.
+     *
+     * @param schemaTableName schema and table name
+     * @param lookupColumnNames specifies columns and their order for keys
+     * @param outputColumnNames a list of column names to return
+     * @param keys keys for which records need to be returned
+     * @param outputConstraint constraint on the returned data
+     * @param maxSplitCount maximum number of splits to return
+     * @param nextToken token from a previous split batch or {@literal null} if it is the first call
+     * @return a batch of splits
+     */
+    @ThriftMethod("prestoGetLookupSplits")
+    ListenableFuture<PrestoThriftSplitBatch> getLookupSplits(
+            @ThriftField(name = "schemaTableName") PrestoThriftSchemaTableName schemaTableName,
+            @ThriftField(name = "lookupColumnNames") List<String> lookupColumnNames,
+            @ThriftField(name = "outputColumnNames") List<String> outputColumnNames,
+            @ThriftField(name = "keys") PrestoThriftPageResult keys,
+            @ThriftField(name = "outputConstraint") PrestoThriftTupleDomain outputConstraint,
+            @ThriftField(name = "maxSplitCount") int maxSplitCount,
+            @ThriftField(name = "nextToken") PrestoThriftNullableToken nextToken)
+            throws PrestoThriftServiceException;
+
+    /**
      * Returns a batch of rows for the given split.
      *
      * @param splitId split id as returned in split batch
