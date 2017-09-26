@@ -13,24 +13,18 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
-import com.facebook.presto.spi.ColumnMetadata;
-import com.facebook.presto.spi.ConnectorTableMetadata;
-import com.facebook.presto.spi.type.TypeManager;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
-import com.google.common.collect.ImmutableMap;
 
 import javax.annotation.Nullable;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.Set;
 
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
@@ -78,22 +72,6 @@ public final class PrestoThriftTableMetadata
     public Set<Set<String>> getIndexableKeys()
     {
         return indexableKeys;
-    }
-
-    public ConnectorTableMetadata toConnectorTableMetadata(TypeManager typeManager)
-    {
-        return new ConnectorTableMetadata(
-                schemaTableName.toSchemaTableName(),
-                columnMetadata(typeManager),
-                ImmutableMap.of(),
-                Optional.ofNullable(comment));
-    }
-
-    private List<ColumnMetadata> columnMetadata(TypeManager typeManager)
-    {
-        return columns.stream()
-                .map(column -> column.toColumnMetadata(typeManager))
-                .collect(toImmutableList());
     }
 
     @Override
