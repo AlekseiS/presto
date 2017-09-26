@@ -131,6 +131,20 @@ public class RetryingPrestoThriftServiceProvider
         }
 
         @Override
+        public ListenableFuture<PrestoThriftSplitBatch> getLookupSplits(
+                PrestoThriftSchemaTableName schemaTableName,
+                List<String> lookupColumnNames,
+                List<String> outputColumnNames,
+                PrestoThriftPageResult keys,
+                PrestoThriftTupleDomain outputConstraint,
+                int maxSplitCount,
+                PrestoThriftNullableToken nextToken)
+                throws PrestoThriftServiceException
+        {
+            return retry.runAsync("getLookupSplits", () -> getClient().getLookupSplits(schemaTableName, lookupColumnNames, outputColumnNames, keys, outputConstraint, maxSplitCount, nextToken));
+        }
+
+        @Override
         public ListenableFuture<PrestoThriftPageResult> getRows(PrestoThriftId splitId, List<String> columns, long maxBytes, PrestoThriftNullableToken nextToken)
         {
             return retry.runAsync("getRows", () -> getClient().getRows(splitId, columns, maxBytes, nextToken));
