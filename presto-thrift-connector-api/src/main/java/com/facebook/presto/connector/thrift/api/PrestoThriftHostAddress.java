@@ -32,7 +32,9 @@ public final class PrestoThriftHostAddress
     private final int port;
 
     @ThriftConstructor
-    public PrestoThriftHostAddress(String host, int port)
+    public PrestoThriftHostAddress(
+            @ThriftField(name = "host") String host,
+            @ThriftField(name = "port") int port)
     {
         this.host = requireNonNull(host, "host is null");
         this.port = port;
