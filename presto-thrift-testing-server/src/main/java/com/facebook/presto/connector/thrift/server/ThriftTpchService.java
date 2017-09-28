@@ -32,8 +32,11 @@ import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.RecordPageSource;
 import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.tests.tpch.TpchIndexedData;
+import com.facebook.presto.tests.tpch.TpchScaledTable;
 import com.facebook.presto.tpch.TpchMetadata;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.ListenableFuture;
 import com.google.common.util.concurrent.ListeningExecutorService;
@@ -49,9 +52,11 @@ import javax.annotation.PreDestroy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
 import static com.facebook.presto.spi.block.PageBuilderStatus.DEFAULT_MAX_PAGE_SIZE_IN_BYTES;
+import static com.facebook.presto.tests.AbstractTestIndexedQueries.INDEX_SPEC;
 import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -74,6 +79,8 @@ public class ThriftTpchService
             listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
     private final ListeningExecutorService dataExecutor =
             listeningDecorator(newCachedThreadPool(threadsNamed("data-generator-%s")));
+
+    private final TpchIndexedData indexedData = new TpchIndexedData("tpchindexed", INDEX_SPEC);
 
     @Override
     public List<String> listSchemaNames()
@@ -119,7 +126,9 @@ public class ThriftTpchService
         for (TpchColumn<? extends TpchEntity> column : tpchTable.getColumns()) {
             columns.add(new PrestoThriftColumnMetadata(column.getSimplifiedColumnName(), getTypeString(column.getType()), null, false));
         }
-        return new PrestoThriftNullableTableMetadata(new PrestoThriftTableMetadata(schemaTableName, columns, null, null));
+        TpchScaledTable tpchScaledTable = new TpchScaledTable(tableName, schemaNameToScaleFactor(schemaName));
+        Set<Set<String>> indexableKeys = ImmutableSet.copyOf(INDEX_SPEC.getColumnIndexes(tpchScaledTable));
+        return new PrestoThriftNullableTableMetadata(new PrestoThriftTableMetadata(schemaTableName, columns, null, !indexableKeys.isEmpty() ? indexableKeys : null));
     }
 
     @Override
@@ -169,7 +178,7 @@ public class ThriftTpchService
             PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException
     {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException(lookupColumnNames.toString());
     }
 
     @Override
