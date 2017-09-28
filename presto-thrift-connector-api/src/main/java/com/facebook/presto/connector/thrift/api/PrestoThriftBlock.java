@@ -24,12 +24,17 @@ import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftInteger;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftJson;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftTimestamp;
 import com.facebook.presto.connector.thrift.api.datatypes.PrestoThriftVarchar;
+import com.facebook.presto.spi.RecordCursor;
+import com.facebook.presto.spi.RecordSet;
 import com.facebook.presto.spi.block.Block;
+import com.facebook.presto.spi.block.BlockBuilder;
+import com.facebook.presto.spi.block.BlockBuilderStatus;
 import com.facebook.presto.spi.type.BigintType;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
+import io.airlift.slice.Slice;
 
 import javax.annotation.Nullable;
 
@@ -294,6 +299,48 @@ public final class PrestoThriftBlock
             default:
                 throw new IllegalArgumentException("Unsupported block type: " + type);
         }
+    }
+
+    public static PrestoThriftBlock fromRecordSetColumn(RecordSet recordSet, int columnIndex, int totalRecords)
+    {
+        Type type = recordSet.getColumnTypes().get(columnIndex);
+        switch (type.getTypeSignature().getBase()) {
+            default:
+                // less efficient implementation which converts to block first
+                return fromBlock(convertColumnToBlock(recordSet, columnIndex, totalRecords), type);
+        }
+    }
+
+    private static Block convertColumnToBlock(RecordSet recordSet, int columnIndex, int totalRecords)
+    {
+        Type type = recordSet.getColumnTypes().get(columnIndex);
+        BlockBuilder output = type.createBlockBuilder(new BlockBuilderStatus(), totalRecords);
+        Class<?> javaType = type.getJavaType();
+        RecordCursor cursor = recordSet.cursor();
+        while (cursor.advanceNextPosition()) {
+            if (cursor.isNull(columnIndex)) {
+                output.appendNull();
+            }
+            else {
+                if (javaType == boolean.class) {
+                    type.writeBoolean(output, cursor.getBoolean(columnIndex));
+                }
+                else if (javaType == long.class) {
+                    type.writeLong(output, cursor.getLong(columnIndex));
+                }
+                else if (javaType == double.class) {
+                    type.writeDouble(output, cursor.getDouble(columnIndex));
+                }
+                else if (javaType == Slice.class) {
+                    Slice slice = cursor.getSlice(columnIndex);
+                    type.writeSlice(output, slice, 0, slice.length());
+                }
+                else {
+                    type.writeObject(output, cursor.getObject(columnIndex));
+                }
+            }
+        }
+        return output.build();
     }
 
     private static PrestoThriftColumnData theOnlyNonNull(PrestoThriftColumnData... columnsData)

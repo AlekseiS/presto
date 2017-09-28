@@ -17,14 +17,11 @@ import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.RecordSet;
 import com.facebook.presto.spi.block.Block;
-import com.facebook.presto.spi.block.BlockBuilder;
-import com.facebook.presto.spi.block.BlockBuilderStatus;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 import com.google.common.collect.ImmutableList;
-import io.airlift.slice.Slice;
 
 import javax.annotation.Nullable;
 
@@ -32,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromRecordSetColumn;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
@@ -136,10 +133,9 @@ public final class PrestoThriftPageResult
         if (numberOfColumns == 0) {
             return new PrestoThriftPageResult(ImmutableList.of(), positions, null);
         }
-        List<Block> blocks = convertToBlocks(recordSet, types, positions);
         List<PrestoThriftBlock> thriftBlocks = new ArrayList<>(numberOfColumns);
         for (int columnIndex = 0; columnIndex < numberOfColumns; columnIndex++) {
-            thriftBlocks.add(fromBlock(blocks.get(columnIndex), types.get(columnIndex)));
+            thriftBlocks.add(fromRecordSetColumn(recordSet, columnIndex, positions));
         }
         return new PrestoThriftPageResult(thriftBlocks, positions, null);
     }
@@ -161,47 +157,5 @@ public final class PrestoThriftPageResult
             result++;
         }
         return result;
-    }
-
-    private static List<Block> convertToBlocks(RecordSet recordSet, List<Type> types, int expectedEntries)
-    {
-        List<BlockBuilder> blockBuilders = new ArrayList<>(types.size());
-        for (Type type : types) {
-            blockBuilders.add(type.createBlockBuilder(new BlockBuilderStatus(), expectedEntries));
-        }
-        RecordCursor cursor = recordSet.cursor();
-        while (cursor.advanceNextPosition()) {
-            for (int columnIndex = 0; columnIndex < types.size(); columnIndex++) {
-                BlockBuilder output = blockBuilders.get(columnIndex);
-                if (cursor.isNull(columnIndex)) {
-                    output.appendNull();
-                }
-                else {
-                    Type type = types.get(columnIndex);
-                    Class<?> javaType = type.getJavaType();
-                    if (javaType == boolean.class) {
-                        type.writeBoolean(output, cursor.getBoolean(columnIndex));
-                    }
-                    else if (javaType == long.class) {
-                        type.writeLong(output, cursor.getLong(columnIndex));
-                    }
-                    else if (javaType == double.class) {
-                        type.writeDouble(output, cursor.getDouble(columnIndex));
-                    }
-                    else if (javaType == Slice.class) {
-                        Slice slice = cursor.getSlice(columnIndex);
-                        type.writeSlice(output, slice, 0, slice.length());
-                    }
-                    else {
-                        type.writeObject(output, cursor.getObject(columnIndex));
-                    }
-                }
-            }
-        }
-        List<Block> blocks = new ArrayList<>(types.size());
-        for (BlockBuilder builder : blockBuilders) {
-            blocks.add(builder.build());
-        }
-        return blocks;
     }
 }
