@@ -53,6 +53,7 @@ import static com.facebook.presto.spi.type.StandardTypes.VARCHAR;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
 import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.Iterables.getOnlyElement;
 
 @ThriftStruct
@@ -305,19 +306,29 @@ public final class PrestoThriftBlock
     {
         Type type = recordSet.getColumnTypes().get(columnIndex);
         switch (type.getTypeSignature().getBase()) {
+            // use more efficient implementations for numeric types which are likely to be used in index join
+            case INTEGER:
+                return PrestoThriftInteger.fromRecordSetColumn(recordSet, columnIndex, totalRecords);
+            case BIGINT:
+                return PrestoThriftBigint.fromRecordSetColumn(recordSet, columnIndex, totalRecords);
+            case DATE:
+                return PrestoThriftDate.fromRecordSetColumn(recordSet, columnIndex, totalRecords);
+            case TIMESTAMP:
+                return PrestoThriftTimestamp.fromRecordSetColumn(recordSet, columnIndex, totalRecords);
             default:
-                // less efficient implementation which converts to block first
+                // less efficient implementation which converts to a block first
                 return fromBlock(convertColumnToBlock(recordSet, columnIndex, totalRecords), type);
         }
     }
 
-    private static Block convertColumnToBlock(RecordSet recordSet, int columnIndex, int totalRecords)
+    private static Block convertColumnToBlock(RecordSet recordSet, int columnIndex, int positions)
     {
         Type type = recordSet.getColumnTypes().get(columnIndex);
-        BlockBuilder output = type.createBlockBuilder(new BlockBuilderStatus(), totalRecords);
+        BlockBuilder output = type.createBlockBuilder(new BlockBuilderStatus(), positions);
         Class<?> javaType = type.getJavaType();
         RecordCursor cursor = recordSet.cursor();
-        while (cursor.advanceNextPosition()) {
+        for (int position = 0; position < positions; position++) {
+            checkState(cursor.advanceNextPosition(), "cursor has less values than expected");
             if (cursor.isNull(columnIndex)) {
                 output.appendNull();
             }
@@ -340,6 +351,7 @@ public final class PrestoThriftBlock
                 }
             }
         }
+        checkState(!cursor.advanceNextPosition(), "cursor has more values than expected");
         return output.build();
     }
 
