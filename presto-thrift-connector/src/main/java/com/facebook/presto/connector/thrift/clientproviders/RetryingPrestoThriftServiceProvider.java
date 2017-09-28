@@ -160,7 +160,7 @@ public class RetryingPrestoThriftServiceProvider
                 client.close();
             }
             catch (Exception e) {
-                log.warn("Error closing client", e);
+                log.warn(e, "Error closing client");
             }
             client = null;
         }

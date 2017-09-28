@@ -18,9 +18,11 @@ import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
 
+import java.util.List;
 import java.util.Objects;
 
 import static com.google.common.base.MoreObjects.toStringHelper;
+import static com.google.common.collect.ImmutableList.toImmutableList;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
@@ -80,5 +82,10 @@ public final class PrestoThriftHostAddress
                 .add("host", host)
                 .add("port", port)
                 .toString();
+    }
+
+    public static List<HostAddress> toHostAddressList(List<PrestoThriftHostAddress> hosts)
+    {
+        return hosts.stream().map(PrestoThriftHostAddress::toHostAddress).collect(toImmutableList());
     }
 }
