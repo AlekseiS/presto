@@ -46,6 +46,6 @@ public class ThriftConnectorIndex
     @Override
     public ConnectorPageSource lookup(RecordSet recordSet)
     {
-        return new ThriftIndexPageSource();
+        return new ThriftIndexPageSource(clientProvider, indexHandle, lookupColumns, outputColumns, recordSet);
     }
 }

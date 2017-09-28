@@ -13,8 +13,6 @@
  */
 package com.facebook.presto.connector.thrift;
 
-import com.facebook.presto.connector.thrift.api.PrestoThriftDomain;
-import com.facebook.presto.connector.thrift.api.PrestoThriftHostAddress;
 import com.facebook.presto.connector.thrift.api.PrestoThriftId;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
@@ -29,10 +27,8 @@ import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.ConnectorSplit;
 import com.facebook.presto.spi.ConnectorSplitSource;
 import com.facebook.presto.spi.ConnectorTableLayoutHandle;
-import com.facebook.presto.spi.HostAddress;
 import com.facebook.presto.spi.connector.ConnectorSplitManager;
 import com.facebook.presto.spi.connector.ConnectorTransactionHandle;
-import com.facebook.presto.spi.predicate.TupleDomain;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 
@@ -40,7 +36,6 @@ import javax.annotation.concurrent.NotThreadSafe;
 import javax.inject.Inject;
 
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -48,10 +43,10 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftDomain.fromDomain;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftHostAddress.toHostAddressList;
+import static com.facebook.presto.connector.thrift.util.TupleDomainConversion.tupleDomainToThriftTupleDomain;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
-import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.collect.ImmutableSet.toImmutableSet;
 import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
 import static java.util.Objects.requireNonNull;
@@ -84,19 +79,6 @@ public class ThriftSplitManager
                 .map(ThriftColumnHandle.class::cast)
                 .map(ThriftColumnHandle::getColumnName)
                 .collect(toImmutableSet());
-    }
-
-    private static PrestoThriftTupleDomain tupleDomainToThriftTupleDomain(TupleDomain<ColumnHandle> tupleDomain)
-    {
-        if (!tupleDomain.getDomains().isPresent()) {
-            return new PrestoThriftTupleDomain(null);
-        }
-        Map<String, PrestoThriftDomain> thriftDomains = tupleDomain.getDomains().get()
-                .entrySet().stream()
-                .collect(toImmutableMap(
-                        entry -> ((ThriftColumnHandle) entry.getKey()).getColumnName(),
-                        entry -> fromDomain(entry.getValue())));
-        return new PrestoThriftTupleDomain(thriftDomains);
     }
 
     @NotThreadSafe
@@ -182,11 +164,6 @@ public class ThriftSplitManager
             return new ThriftConnectorSplit(
                     thriftSplit.getSplitId(),
                     toHostAddressList(thriftSplit.getHosts()));
-        }
-
-        private static List<HostAddress> toHostAddressList(List<PrestoThriftHostAddress> hosts)
-        {
-            return hosts.stream().map(PrestoThriftHostAddress::toHostAddress).collect(toImmutableList());
         }
     }
 }
