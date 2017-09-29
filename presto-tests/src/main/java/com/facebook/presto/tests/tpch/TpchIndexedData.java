@@ -184,6 +184,7 @@ public class TpchIndexedData
 
         public RecordSet lookupKeys(RecordSet recordSet)
         {
+            checkDuplicates(recordSet);
             checkArgument(recordSet.getColumnTypes().equals(keyTypes), "Input RecordSet keys do not match expected key type");
 
             Iterable<RecordSet> outputRecordSets = Iterables.transform(tupleIterable(recordSet), key -> {
@@ -196,6 +197,65 @@ public class TpchIndexedData
             });
 
             return new ConcatRecordSet(outputRecordSets, outputTypes);
+        }
+
+        private static void checkDuplicates(RecordSet recordSet)
+        {
+            RecordCursor a = recordSet.cursor();
+            int i = -1;
+            while (a.advanceNextPosition()) {
+                i++;
+                RecordCursor b = recordSet.cursor();
+                int j = -1;
+                while (j < i && b.advanceNextPosition()) {
+                    j++;
+                }
+                while (b.advanceNextPosition()) {
+                    j++;
+                    compareCursors(a, b, recordSet.getColumnTypes());
+                }
+            }
+        }
+
+        private static void compareCursors(RecordCursor a, RecordCursor b, List<Type> columnTypes)
+        {
+            if(columnTypes.isEmpty()){
+                // no columns, so comparison doesn't make sense
+                return;
+            }
+            for (int i = 0; i < columnTypes.size(); i++) {
+                Class<?> javaType = columnTypes.get(i).getJavaType();
+                boolean aNull = a.isNull(i);
+                boolean bNull = b.isNull(i);
+                if (aNull ^ bNull) {
+                    // at least one column is different, no need to compare further
+                    return;
+                }
+                if (aNull) {
+                    continue;
+                }
+                boolean equals;
+                if (javaType == boolean.class) {
+                    equals = Objects.equals(a.getBoolean(i), b.getBoolean(i));
+                }
+                else if (javaType == long.class) {
+                    equals = Objects.equals(a.getLong(i), b.getLong(i));
+                }
+                else if (javaType == double.class) {
+                    equals = Objects.equals(a.getDouble(i), b.getDouble(i));
+                }
+                else if (javaType == Slice.class) {
+                    equals = Objects.equals(a.getSlice(i), b.getSlice(i));
+                }
+                else {
+                    equals = Objects.equals(a.getObject(i), b.getObject(i));
+                }
+                if (!equals) {
+                    // at least one column is different, no need to compare further
+                    return;
+                }
+            }
+            throw new IllegalStateException("a and b have different values");
         }
 
         public RecordSet lookupKey(MaterializedTuple tupleKey)
