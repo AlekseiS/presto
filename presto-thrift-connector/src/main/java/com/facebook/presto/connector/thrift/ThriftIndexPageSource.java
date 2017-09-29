@@ -177,6 +177,11 @@ public class ThriftIndexPageSource
         if (dataSignalFuture == null) {
             // no data requests were started, start a number of initial requests
             checkState(contexts.isEmpty() && dataRequests.isEmpty(), "must have no running splits at this point");
+            if (splits.isEmpty()) {
+                // all done: no splits
+                finished = true;
+                return null;
+            }
             for (int i = 0; i < min(CONCURRENT_SPLITS, splits.size()); i++) {
                 PrestoThriftSplit split = splits.get(splitIndex);
                 splitIndex++;

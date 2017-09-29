@@ -28,13 +28,15 @@ public class ListBasedRecordSet
 {
     private final List<Type> types;
     private final List<List<Long>> keys;
+    private final int totalRecords;
 
     public ListBasedRecordSet(List<List<Long>> keys, List<Type> types)
     {
         this.types = requireNonNull(types, "types is null");
         this.keys = requireNonNull(keys, "types is null");
-        checkArgument(keys.isEmpty() || keys.get(0).size() == types.size(),
+        checkArgument(keys.isEmpty() || keys.size() == types.size(),
                 "number of types and key columns must match");
+        this.totalRecords = keys.isEmpty() ? 0 : keys.get(0).size();
     }
 
     @Override
@@ -57,24 +59,24 @@ public class ListBasedRecordSet
         @Override
         public boolean isNull(int field)
         {
-            return keys.get(position).get(field) == null;
+            return keys.get(field).get(position) == null;
         }
 
         @Override
         public long getLong(int field)
         {
-            return keys.get(position).get(field);
+            return keys.get(field).get(position);
         }
 
         @Override
         public boolean advanceNextPosition()
         {
 
-            if (position >= keys.size()) {
+            if (position >= totalRecords) {
                 return false;
             }
             position++;
-            return position < keys.size();
+            return position < totalRecords;
         }
 
         @Override
