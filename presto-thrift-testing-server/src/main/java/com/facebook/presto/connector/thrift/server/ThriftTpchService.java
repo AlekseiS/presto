@@ -31,8 +31,11 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftTupleDomain;
 import com.facebook.presto.spi.ConnectorPageSource;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.RecordPageSource;
+import com.facebook.presto.spi.RecordSet;
 import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.split.MappedRecordSet;
 import com.facebook.presto.tests.tpch.TpchIndexedData;
+import com.facebook.presto.tests.tpch.TpchIndexedData.IndexedTable;
 import com.facebook.presto.tests.tpch.TpchScaledTable;
 import com.facebook.presto.tpch.TpchMetadata;
 import com.google.common.collect.ImmutableList;
@@ -55,6 +58,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
+import static com.facebook.presto.connector.thrift.server.SplitInfo.normalSplit;
 import static com.facebook.presto.spi.block.PageBuilderStatus.DEFAULT_MAX_PAGE_SIZE_IN_BYTES;
 import static com.facebook.presto.tests.AbstractTestIndexedQueries.INDEX_SPEC;
 import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
@@ -72,14 +76,12 @@ public class ThriftTpchService
         implements PrestoThriftService
 {
     private static final int DEFAULT_NUMBER_OF_SPLITS = 3;
+    private static final int NUMBER_OF_INDEX_SPLITS = 2;
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private static final JsonCodec<SplitInfo> SPLIT_INFO_CODEC = jsonCodec(SplitInfo.class);
 
-    private final ListeningExecutorService splitsExecutor =
-            listeningDecorator(newCachedThreadPool(threadsNamed("splits-generator-%s")));
-    private final ListeningExecutorService dataExecutor =
-            listeningDecorator(newCachedThreadPool(threadsNamed("data-generator-%s")));
-
+    private final ListeningExecutorService executor =
+            listeningDecorator(newCachedThreadPool(threadsNamed("tpch-service-%s")));
     private final TpchIndexedData indexedData = new TpchIndexedData("tpchindexed", INDEX_SPEC);
 
     @Override
@@ -140,7 +142,7 @@ public class ThriftTpchService
             PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException
     {
-        return splitsExecutor.submit(() -> getSplitsInternal(schemaTableName, maxSplitCount, nextToken.getToken()));
+        return executor.submit(() -> getSplitsInternal(schemaTableName, maxSplitCount, nextToken.getToken()));
     }
 
     private static PrestoThriftSplitBatch getSplitsInternal(
@@ -155,7 +157,7 @@ public class ThriftTpchService
 
         List<PrestoThriftSplit> splits = new ArrayList<>(numberOfSplits);
         for (int i = 0; i < numberOfSplits; i++) {
-            SplitInfo splitInfo = new SplitInfo(
+            SplitInfo splitInfo = normalSplit(
                     schemaTableName.getSchemaName(),
                     schemaTableName.getTableName(),
                     partNumber + 1,
@@ -178,33 +180,47 @@ public class ThriftTpchService
             PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException
     {
-        throw new UnsupportedOperationException(lookupColumnNames.toString());
+        checkArgument(NUMBER_OF_INDEX_SPLITS <= maxSplitCount, "maxSplitCount for lookup splits is too low");
+        return executor.submit(() -> getLookupSplitsInternal(schemaTableName, lookupColumnNames, keys, nextToken.getToken()));
+    }
+
+    private PrestoThriftSplitBatch getLookupSplitsInternal(
+            PrestoThriftSchemaTableName schemaTableName,
+            List<String> lookupColumnNames,
+            PrestoThriftPageResult keys,
+            @Nullable PrestoThriftId token)
+    {
+        throw new UnsupportedOperationException();
     }
 
     @Override
     public ListenableFuture<PrestoThriftPageResult> getRows(
             PrestoThriftId splitId,
-            List<String> columns,
+            List<String> outputColumns,
             long maxBytes,
             PrestoThriftNullableToken nextToken)
     {
-        return dataExecutor.submit(() -> getRowsInternal(splitId, columns, maxBytes, nextToken.getToken()));
+        SplitInfo splitInfo = SPLIT_INFO_CODEC.fromJson(splitId.getId());
+        checkArgument(maxBytes >= DEFAULT_MAX_PAGE_SIZE_IN_BYTES, "requested maxBytes is too small");
+        ConnectorPageSource pageSource;
+        if (!splitInfo.isIndexSplit()) {
+            pageSource = createPageSource(splitInfo, outputColumns);
+        }
+        else {
+            pageSource = createLookupPageSource(splitInfo, outputColumns);
+        }
+        return executor.submit(() -> getRowsInternal(pageSource, splitInfo.getTableName(), outputColumns, nextToken.getToken()));
     }
 
     @PreDestroy
     @Override
     public void close()
     {
-        splitsExecutor.shutdownNow();
-        dataExecutor.shutdownNow();
+        executor.shutdownNow();
     }
 
-    private static PrestoThriftPageResult getRowsInternal(PrestoThriftId splitId, List<String> columnNames, long maxBytes, @Nullable PrestoThriftId nextToken)
+    private static PrestoThriftPageResult getRowsInternal(ConnectorPageSource pageSource, String tableName, List<String> columnNames, @Nullable PrestoThriftId nextToken)
     {
-        checkArgument(maxBytes >= DEFAULT_MAX_PAGE_SIZE_IN_BYTES, "requested maxBytes is too small");
-        SplitInfo splitInfo = SPLIT_INFO_CODEC.fromJson(splitId.getId());
-        ConnectorPageSource pageSource = createPageSource(splitInfo, columnNames);
-
         // very inefficient implementation as it needs to re-generate all previous results to get the next page
         int skipPages = nextToken != null ? Ints.fromByteArray(nextToken.getId()) : 0;
         skipPages(pageSource, skipPages);
@@ -216,7 +232,30 @@ public class ThriftTpchService
         }
         PrestoThriftId newNextToken = pageSource.isFinished() ? null : new PrestoThriftId(Ints.toByteArray(skipPages));
 
-        return toThriftPage(page, types(splitInfo.getTableName(), columnNames), newNextToken);
+        return toThriftPage(page, types(tableName, columnNames), newNextToken);
+    }
+
+    private ConnectorPageSource createLookupPageSource(SplitInfo splitInfo, List<String> outputColumnNames)
+    {
+        IndexedTable indexedTable = indexedData.getIndexedTable(
+                splitInfo.getTableName(),
+                schemaNameToScaleFactor(splitInfo.getSchemaName()),
+                ImmutableSet.copyOf(splitInfo.getLookupColumnNames()))
+                .orElseThrow(() -> new IllegalArgumentException("Index is not present"));
+        List<Type> lookupColumnTypes = types(splitInfo.getTableName(), splitInfo.getLookupColumnNames());
+        RecordSet keyRecordSet = new ListBasedRecordSet(splitInfo.getKeys(), lookupColumnTypes);
+        RecordSet outputRecordSet = lookupIndexKeys(keyRecordSet, indexedTable, outputColumnNames);
+        return new RecordPageSource(outputRecordSet);
+    }
+
+    /**
+     * Get lookup result and re-map output columns based on requested order.
+     */
+    private static RecordSet lookupIndexKeys(RecordSet keys, IndexedTable table, List<String> outputColumnNames)
+    {
+        RecordSet allColumnsOutputRecordSet = table.lookupKeys(keys);
+        List<Integer> outputRemap = computeRemap(table.getOutputColumns(), outputColumnNames);
+        return new MappedRecordSet(allColumnsOutputRecordSet, outputRemap);
     }
 
     private static PrestoThriftPageResult toThriftPage(Page page, List<Type> columnTypes, @Nullable PrestoThriftId nextToken)
@@ -294,5 +333,16 @@ public class ThriftTpchService
     private static String getTypeString(TpchColumnType tpchType)
     {
         return TpchMetadata.getPrestoType(tpchType).getTypeSignature().toString();
+    }
+
+    private static List<Integer> computeRemap(List<String> startSchema, List<String> endSchema)
+    {
+        ImmutableList.Builder<Integer> builder = ImmutableList.builder();
+        for (String columnName : endSchema) {
+            int index = startSchema.indexOf(columnName);
+            checkArgument(index != -1, "Column name in end that is not in the start: %s", columnName);
+            builder.add(index);
+        }
+        return builder.build();
     }
 }
