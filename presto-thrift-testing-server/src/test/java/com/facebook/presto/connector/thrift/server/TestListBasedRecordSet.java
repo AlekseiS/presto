@@ -42,9 +42,8 @@ public class TestListBasedRecordSet
     {
         ListBasedRecordSet recordSet = new ListBasedRecordSet(
                 ImmutableList.of(
-                        ImmutableList.of(1L, 10L),
-                        ImmutableList.of(2L, 20L),
-                        ImmutableList.of(3L, 30L)),
+                        ImmutableList.of(1L, 2L, 3L),
+                        ImmutableList.of(10L, 20L, 30L)),
                 ImmutableList.of(BIGINT, INTEGER));
         assertEquals(recordSet.getColumnTypes(), ImmutableList.of(BIGINT, INTEGER));
         RecordCursor cursor = recordSet.cursor();

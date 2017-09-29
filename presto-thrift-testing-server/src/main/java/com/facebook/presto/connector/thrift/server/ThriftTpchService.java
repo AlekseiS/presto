@@ -56,6 +56,7 @@ import java.util.Optional;
 import java.util.Set;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
+import static com.facebook.presto.connector.thrift.server.SplitInfo.indexSplit;
 import static com.facebook.presto.connector.thrift.server.SplitInfo.normalSplit;
 import static com.facebook.presto.spi.block.PageBuilderStatus.DEFAULT_MAX_PAGE_SIZE_IN_BYTES;
 import static com.facebook.presto.tests.AbstractTestIndexedQueries.INDEX_SPEC;
@@ -167,7 +168,29 @@ public class ThriftTpchService
             throws PrestoThriftServiceException
     {
         checkArgument(NUMBER_OF_INDEX_SPLITS <= maxSplitCount, "maxSplitCount for lookup splits is too low");
-        throw new UnsupportedOperationException();
+        checkArgument(nextToken.getToken() == null, "no continuation is supported for lookup splits");
+        int totalKeys = keys.getRowCount();
+        int partSize = totalKeys / NUMBER_OF_INDEX_SPLITS;
+        List<PrestoThriftSplit> splits = new ArrayList<>(NUMBER_OF_INDEX_SPLITS);
+        for (int splitIndex = 0; splitIndex < NUMBER_OF_INDEX_SPLITS; splitIndex++) {
+            int begin = partSize * splitIndex;
+            int end = partSize * (splitIndex + 1);
+            if (splitIndex + 1 == NUMBER_OF_INDEX_SPLITS) {
+                // add remainder to the last split
+                end = totalKeys;
+            }
+            if (begin == end) {
+                // split is empty, skip it
+                continue;
+            }
+            SplitInfo splitInfo = indexSplit(
+                    schemaTableName.getSchemaName(),
+                    schemaTableName.getTableName(),
+                    lookupColumnNames,
+                    thriftPageToLongList(keys, begin, end));
+            splits.add(new PrestoThriftSplit(new PrestoThriftId(SPLIT_INFO_CODEC.toJsonBytes(splitInfo)), ImmutableList.of()));
+        }
+        return immediateFuture(new PrestoThriftSplitBatch(splits, null));
     }
 
     @Override
@@ -288,6 +311,57 @@ public class ThriftTpchService
                 splitInfo.getPartNumber(),
                 splitInfo.getTotalParts(),
                 Optional.empty()));
+    }
+
+    private static List<List<Long>> thriftPageToLongList(PrestoThriftPageResult page, int begin, int end)
+    {
+        checkArgument(begin <= end, "invalid interval");
+        if (begin == end) {
+            // empty interval
+            return ImmutableList.of();
+        }
+        List<PrestoThriftBlock> blocks = page.getColumnBlocks();
+        List<List<Long>> result = new ArrayList<>(blocks.size());
+        for (PrestoThriftBlock block : blocks) {
+            checkArgument(block.getBigintData() != null || block.getIntegerData() != null, "only bigint and integer are supported");
+            result.add(numericBlockAsList(block, begin, end));
+        }
+        return result;
+    }
+
+    private static List<Long> numericBlockAsList(PrestoThriftBlock block, int begin, int end)
+    {
+        List<Long> result = new ArrayList<>(end - begin);
+        if (block.getBigintData() != null) {
+            boolean[] nulls = block.getBigintData().getNulls();
+            long[] longs = block.getBigintData().getLongs();
+            for (int index = begin; index < end; index++) {
+                if (nulls != null && nulls[index]) {
+                    result.add(null);
+                }
+                else {
+                    checkArgument(longs != null, "block structure is incorrect");
+                    result.add(longs[index]);
+                }
+            }
+        }
+        else if (block.getIntegerData() != null) {
+            boolean[] nulls = block.getIntegerData().getNulls();
+            int[] ints = block.getIntegerData().getInts();
+            for (int index = begin; index < end; index++) {
+                if (nulls != null && nulls[index]) {
+                    result.add(null);
+                }
+                else {
+                    checkArgument(ints != null, "block structure is incorrect");
+                    result.add((long) ints[index]);
+                }
+            }
+        }
+        else {
+            throw new IllegalArgumentException("Only bigint and integer blocks are supported");
+        }
+        return result;
     }
 
     private static List<Type> types(String tableName, List<String> columnNames)

@@ -38,7 +38,7 @@ public final class SplitInfo
             @JsonProperty("partNumber") int partNumber,
             @JsonProperty("totalParts") int totalParts,
             @JsonProperty("indexSplit") boolean indexSplit,
-            @JsonProperty("indexSplit") List<String> lookupColumnNames,
+            @JsonProperty("lookupColumnNames") List<String> lookupColumnNames,
             @JsonProperty("keys") List<List<Long>> keys)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
@@ -86,6 +86,7 @@ public final class SplitInfo
         return lookupColumnNames;
     }
 
+    @JsonProperty
     public List<List<Long>> getKeys()
     {
         return keys;
