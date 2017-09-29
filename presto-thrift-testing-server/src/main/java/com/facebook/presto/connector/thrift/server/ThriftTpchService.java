@@ -42,7 +42,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.primitives.Ints;
 import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.ListeningExecutorService;
 import io.airlift.json.JsonCodec;
 import io.airlift.tpch.TpchColumn;
 import io.airlift.tpch.TpchColumnType;
@@ -50,7 +49,6 @@ import io.airlift.tpch.TpchEntity;
 import io.airlift.tpch.TpchTable;
 
 import javax.annotation.Nullable;
-import javax.annotation.PreDestroy;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -65,11 +63,9 @@ import static com.facebook.presto.tpch.TpchMetadata.getPrestoType;
 import static com.facebook.presto.tpch.TpchRecordSet.createTpchRecordSet;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
-import static com.google.common.util.concurrent.MoreExecutors.listeningDecorator;
-import static io.airlift.concurrent.Threads.threadsNamed;
+import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static io.airlift.json.JsonCodec.jsonCodec;
 import static java.lang.Math.min;
-import static java.util.concurrent.Executors.newCachedThreadPool;
 import static java.util.stream.Collectors.toList;
 
 public class ThriftTpchService
@@ -80,8 +76,6 @@ public class ThriftTpchService
     private static final List<String> SCHEMAS = ImmutableList.of("tiny", "sf1");
     private static final JsonCodec<SplitInfo> SPLIT_INFO_CODEC = jsonCodec(SplitInfo.class);
 
-    private final ListeningExecutorService executor =
-            listeningDecorator(newCachedThreadPool(threadsNamed("tpch-service-%s")));
     private final TpchIndexedData indexedData = new TpchIndexedData("tpchindexed", INDEX_SPEC);
 
     @Override
@@ -142,17 +136,9 @@ public class ThriftTpchService
             PrestoThriftNullableToken nextToken)
             throws PrestoThriftServiceException
     {
-        return executor.submit(() -> getSplitsInternal(schemaTableName, maxSplitCount, nextToken.getToken()));
-    }
-
-    private static PrestoThriftSplitBatch getSplitsInternal(
-            PrestoThriftSchemaTableName schemaTableName,
-            int maxSplitCount,
-            @Nullable PrestoThriftId nextToken)
-    {
         int totalParts = DEFAULT_NUMBER_OF_SPLITS;
         // last sent part
-        int partNumber = nextToken == null ? 0 : Ints.fromByteArray(nextToken.getId());
+        int partNumber = nextToken.getToken() == null ? 0 : Ints.fromByteArray(nextToken.getToken().getId());
         int numberOfSplits = min(maxSplitCount, totalParts - partNumber);
 
         List<PrestoThriftSplit> splits = new ArrayList<>(numberOfSplits);
@@ -166,7 +152,7 @@ public class ThriftTpchService
             partNumber++;
         }
         PrestoThriftId newNextToken = partNumber < totalParts ? new PrestoThriftId(Ints.toByteArray(partNumber)) : null;
-        return new PrestoThriftSplitBatch(splits, newNextToken);
+        return immediateFuture(new PrestoThriftSplitBatch(splits, newNextToken));
     }
 
     @Override
@@ -181,15 +167,6 @@ public class ThriftTpchService
             throws PrestoThriftServiceException
     {
         checkArgument(NUMBER_OF_INDEX_SPLITS <= maxSplitCount, "maxSplitCount for lookup splits is too low");
-        return executor.submit(() -> getLookupSplitsInternal(schemaTableName, lookupColumnNames, keys, nextToken.getToken()));
-    }
-
-    private PrestoThriftSplitBatch getLookupSplitsInternal(
-            PrestoThriftSchemaTableName schemaTableName,
-            List<String> lookupColumnNames,
-            PrestoThriftPageResult keys,
-            @Nullable PrestoThriftId token)
-    {
         throw new UnsupportedOperationException();
     }
 
@@ -204,19 +181,19 @@ public class ThriftTpchService
         checkArgument(maxBytes >= DEFAULT_MAX_PAGE_SIZE_IN_BYTES, "requested maxBytes is too small");
         ConnectorPageSource pageSource;
         if (!splitInfo.isIndexSplit()) {
+            // normal scan
             pageSource = createPageSource(splitInfo, outputColumns);
         }
         else {
+            // index lookup
             pageSource = createLookupPageSource(splitInfo, outputColumns);
         }
-        return executor.submit(() -> getRowsInternal(pageSource, splitInfo.getTableName(), outputColumns, nextToken.getToken()));
+        return immediateFuture(getRowsInternal(pageSource, splitInfo.getTableName(), outputColumns, nextToken.getToken()));
     }
 
-    @PreDestroy
     @Override
     public void close()
     {
-        executor.shutdownNow();
     }
 
     private static PrestoThriftPageResult getRowsInternal(ConnectorPageSource pageSource, String tableName, List<String> columnNames, @Nullable PrestoThriftId nextToken)
