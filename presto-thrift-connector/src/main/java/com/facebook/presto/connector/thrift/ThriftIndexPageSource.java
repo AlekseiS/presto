@@ -36,7 +36,12 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
@@ -76,10 +81,9 @@ public class ThriftIndexPageSource
     private int splitIndex;
     private boolean haveSplits;
     private PrestoThriftService splitsClient;
-    private int lastFoundPosition = -1;
 
-    private final List<ListenableFuture<PrestoThriftPageResult>> dataRequests = new ArrayList<>(CONCURRENT_SPLITS);
-    private final List<RunningSplitContext> contexts = new ArrayList<>(CONCURRENT_SPLITS);
+    private final Queue<ListenableFuture<PrestoThriftPageResult>> dataRequests = new LinkedList<>();
+    private final Map<ListenableFuture<PrestoThriftPageResult>, RunningSplitContext> contexts = new HashMap<>(CONCURRENT_SPLITS);
 
     private boolean finished;
 
@@ -186,8 +190,7 @@ public class ThriftIndexPageSource
                 PrestoThriftSplit split = splits.get(splitIndex);
                 splitIndex++;
                 RunningSplitContext context = new RunningSplitContext(openClient(split), split);
-                contexts.add(context);
-                dataRequests.add(sendDataRequest(context, null));
+                sendDataRequest(context, null);
             }
             dataSignalFuture = whenAnyComplete(dataRequests);
             statusFuture = toCompletableFuture(dataSignalFuture);
@@ -199,21 +202,21 @@ public class ThriftIndexPageSource
         }
 
         // at least one of data requests completed
-        int index = nextCompletedRequest();
-        PrestoThriftPageResult pageResult = getFutureValue(dataRequests.get(index));
+        ListenableFuture<PrestoThriftPageResult> resultFuture = getAndRemoveNextCompletedRequest();
+        RunningSplitContext resultContext = contexts.remove(resultFuture);
+        checkState(resultContext != null, "no associated context for the request");
+        PrestoThriftPageResult pageResult = getFutureValue(resultFuture);
         Page page = pageResult.toPage(outputColumnTypes);
         if (pageResult.getNextToken() != null) {
             // can get more data
-            dataRequests.set(index, sendDataRequest(contexts.get(index), pageResult.getNextToken()));
+            sendDataRequest(resultContext, pageResult.getNextToken());
             dataSignalFuture = whenAnyComplete(dataRequests);
             statusFuture = toCompletableFuture(dataSignalFuture);
             return page;
         }
 
-        // split finished, closing the client, cleaning up context and completed future
-        contexts.get(index).close();
-        contexts.set(index, null);
-        dataRequests.set(index, null);
+        // split finished, closing the client
+        resultContext.close();
 
         // are there more splits available
         if (splitIndex < splits.size()) {
@@ -221,8 +224,7 @@ public class ThriftIndexPageSource
             PrestoThriftSplit split = splits.get(splitIndex);
             splitIndex++;
             RunningSplitContext context = new RunningSplitContext(openClient(split), split);
-            contexts.set(index, context);
-            dataRequests.set(index, sendDataRequest(context, null));
+            sendDataRequest(context, null);
             dataSignalFuture = whenAnyComplete(dataRequests);
             statusFuture = toCompletableFuture(dataSignalFuture);
         }
@@ -245,9 +247,12 @@ public class ThriftIndexPageSource
         return client.getLookupSplits(schemaTableName, lookupColumnNames, outputColumnNames, keys, outputConstraint, MAX_SPLIT_COUNT, new PrestoThriftNullableToken(nextToken));
     }
 
-    private ListenableFuture<PrestoThriftPageResult> sendDataRequest(RunningSplitContext context, @Nullable PrestoThriftId nextToken)
+    private void sendDataRequest(RunningSplitContext context, @Nullable PrestoThriftId nextToken)
     {
-        return context.getClient().getRows(context.getSplit().getSplitId(), outputColumnNames, MAX_BYTES, new PrestoThriftNullableToken(nextToken));
+        ListenableFuture<PrestoThriftPageResult> future = context.getClient().getRows(
+                context.getSplit().getSplitId(), outputColumnNames, MAX_BYTES, new PrestoThriftNullableToken(nextToken));
+        dataRequests.add(future);
+        contexts.put(future, context);
     }
 
     private PrestoThriftService openClient(PrestoThriftSplit split)
@@ -275,7 +280,7 @@ public class ThriftIndexPageSource
         cancel(splitFuture);
         dataRequests.forEach(ThriftIndexPageSource::cancel);
         // close clients if available
-        contexts.forEach(ThriftIndexPageSource::closeQuietly);
+        contexts.values().forEach(ThriftIndexPageSource::closeQuietly);
     }
 
     @Override
@@ -284,14 +289,14 @@ public class ThriftIndexPageSource
         return statusFuture == null ? NOT_BLOCKED : statusFuture;
     }
 
-    private int nextCompletedRequest()
+    private ListenableFuture<PrestoThriftPageResult> getAndRemoveNextCompletedRequest()
     {
-        // simulate round robin checking in the list of running requests
-        // next time the search will continue from the position right after the last found one
-        for (int i = 0; i < dataRequests.size(); i++) {
-            lastFoundPosition = (lastFoundPosition + 1) % dataRequests.size();
-            if (dataRequests.get(lastFoundPosition) != null && dataRequests.get(lastFoundPosition).isDone()) {
-                return lastFoundPosition;
+        Iterator<ListenableFuture<PrestoThriftPageResult>> iterator = dataRequests.iterator();
+        while (iterator.hasNext()) {
+            ListenableFuture<PrestoThriftPageResult> future = iterator.next();
+            if (future.isDone()) {
+                iterator.remove();
+                return future;
             }
         }
         throw new IllegalStateException("No completed splits in the queue");
