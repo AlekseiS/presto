@@ -15,6 +15,9 @@ package com.facebook.presto.connector.thrift.server;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.google.common.collect.ImmutableList;
+
+import java.util.List;
 
 import static java.util.Objects.requireNonNull;
 
@@ -24,18 +27,27 @@ public final class SplitInfo
     private final String tableName;
     private final int partNumber;
     private final int totalParts;
+    private final boolean indexSplit;
+    private final List<String> lookupColumnNames;
+    private final List<List<Long>> keys;
 
     @JsonCreator
     public SplitInfo(
             @JsonProperty("schemaName") String schemaName,
             @JsonProperty("tableName") String tableName,
             @JsonProperty("partNumber") int partNumber,
-            @JsonProperty("totalParts") int totalParts)
+            @JsonProperty("totalParts") int totalParts,
+            @JsonProperty("indexSplit") boolean indexSplit,
+            @JsonProperty("indexSplit") List<String> lookupColumnNames,
+            @JsonProperty("keys") List<List<Long>> keys)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
         this.partNumber = partNumber;
         this.totalParts = totalParts;
+        this.indexSplit = indexSplit;
+        this.lookupColumnNames = requireNonNull(lookupColumnNames, "lookupColumnNames is null");
+        this.keys = requireNonNull(keys, "keys is null");
     }
 
     @JsonProperty
@@ -60,5 +72,32 @@ public final class SplitInfo
     public int getTotalParts()
     {
         return totalParts;
+    }
+
+    @JsonProperty
+    public boolean isIndexSplit()
+    {
+        return indexSplit;
+    }
+
+    @JsonProperty
+    public List<String> getLookupColumnNames()
+    {
+        return lookupColumnNames;
+    }
+
+    public List<List<Long>> getKeys()
+    {
+        return keys;
+    }
+
+    public static SplitInfo normalSplit(String schemaName, String tableName, int partNumber, int totalParts)
+    {
+        return new SplitInfo(schemaName, tableName, partNumber, totalParts, false, ImmutableList.of(), ImmutableList.of());
+    }
+
+    public static SplitInfo indexSplit(String schemaName, String tableName, List<String> lookupColumnNames, List<List<Long>> keys)
+    {
+        return new SplitInfo(schemaName, tableName, 0, 0, true, lookupColumnNames, keys);
     }
 }
