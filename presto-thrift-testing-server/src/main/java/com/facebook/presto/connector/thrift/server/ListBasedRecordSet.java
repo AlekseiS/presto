@@ -17,6 +17,7 @@ import com.facebook.presto.spi.RecordCursor;
 import com.facebook.presto.spi.RecordSet;
 import com.facebook.presto.spi.type.Type;
 import io.airlift.slice.Slice;
+import io.airlift.slice.Slices;
 
 import java.util.List;
 
@@ -27,10 +28,10 @@ public class ListBasedRecordSet
         implements RecordSet
 {
     private final List<Type> types;
-    private final List<List<Long>> keys;
+    private final List<List<String>> keys;
     private final int totalRecords;
 
-    public ListBasedRecordSet(List<List<Long>> keys, List<Type> types)
+    public ListBasedRecordSet(List<List<String>> keys, List<Type> types)
     {
         this.types = requireNonNull(types, "types is null");
         this.keys = requireNonNull(keys, "types is null");
@@ -65,7 +66,13 @@ public class ListBasedRecordSet
         @Override
         public long getLong(int field)
         {
-            return keys.get(field).get(position);
+            return Long.parseLong(keys.get(field).get(position));
+        }
+
+        @Override
+        public Slice getSlice(int field)
+        {
+            return Slices.utf8Slice(keys.get(field).get(position));
         }
 
         @Override
@@ -110,12 +117,6 @@ public class ListBasedRecordSet
 
         @Override
         public double getDouble(int field)
-        {
-            throw new UnsupportedOperationException("invalid type");
-        }
-
-        @Override
-        public Slice getSlice(int field)
         {
             throw new UnsupportedOperationException("invalid type");
         }

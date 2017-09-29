@@ -187,7 +187,7 @@ public class ThriftTpchService
                     schemaTableName.getSchemaName(),
                     schemaTableName.getTableName(),
                     lookupColumnNames,
-                    thriftPageToLongList(keys, begin, end));
+                    thriftPageToList(keys, begin, end));
             splits.add(new PrestoThriftSplit(new PrestoThriftId(SPLIT_INFO_CODEC.toJsonBytes(splitInfo)), ImmutableList.of()));
         }
         return immediateFuture(new PrestoThriftSplitBatch(splits, null));
@@ -313,7 +313,7 @@ public class ThriftTpchService
                 Optional.empty()));
     }
 
-    private static List<List<Long>> thriftPageToLongList(PrestoThriftPageResult page, int begin, int end)
+    private static List<List<String>> thriftPageToList(PrestoThriftPageResult page, int begin, int end)
     {
         checkArgument(begin <= end, "invalid interval");
         if (begin == end) {
@@ -321,17 +321,16 @@ public class ThriftTpchService
             return ImmutableList.of();
         }
         List<PrestoThriftBlock> blocks = page.getColumnBlocks();
-        List<List<Long>> result = new ArrayList<>(blocks.size());
+        List<List<String>> result = new ArrayList<>(blocks.size());
         for (PrestoThriftBlock block : blocks) {
-            checkArgument(block.getBigintData() != null || block.getIntegerData() != null, "only bigint and integer are supported");
-            result.add(numericBlockAsList(block, begin, end));
+            result.add(blockAsList(block, begin, end));
         }
         return result;
     }
 
-    private static List<Long> numericBlockAsList(PrestoThriftBlock block, int begin, int end)
+    private static List<String> blockAsList(PrestoThriftBlock block, int begin, int end)
     {
-        List<Long> result = new ArrayList<>(end - begin);
+        List<String> result = new ArrayList<>(end - begin);
         if (block.getBigintData() != null) {
             boolean[] nulls = block.getBigintData().getNulls();
             long[] longs = block.getBigintData().getLongs();
@@ -341,7 +340,7 @@ public class ThriftTpchService
                 }
                 else {
                     checkArgument(longs != null, "block structure is incorrect");
-                    result.add(longs[index]);
+                    result.add(String.valueOf(longs[index]));
                 }
             }
         }
@@ -354,12 +353,42 @@ public class ThriftTpchService
                 }
                 else {
                     checkArgument(ints != null, "block structure is incorrect");
-                    result.add((long) ints[index]);
+                    result.add(String.valueOf(ints[index]));
+                }
+            }
+        }
+        else if (block.getVarcharData() != null) {
+            boolean[] nulls = block.getVarcharData().getNulls();
+            int[] sizes = block.getVarcharData().getSizes();
+            byte[] bytes = block.getVarcharData().getBytes();
+            int startOffset = 0;
+            // calculate cumulative offset before the starting position
+            if (sizes != null) {
+                for (int index = 0; index < begin; index++) {
+                    if (nulls == null || !nulls[index]) {
+                        startOffset += sizes[index];
+                    }
+                }
+            }
+            for (int index = begin; index < end; index++) {
+                if (nulls != null && nulls[index]) {
+                    result.add(null);
+                }
+                else {
+                    checkArgument(sizes != null, "block structure is incorrect");
+                    if (sizes[index] == 0) {
+                        result.add("");
+                    }
+                    else {
+                        checkArgument(bytes != null);
+                        result.add(new String(bytes, startOffset, sizes[index]));
+                        startOffset += sizes[index];
+                    }
                 }
             }
         }
         else {
-            throw new IllegalArgumentException("Only bigint and integer blocks are supported");
+            throw new IllegalArgumentException("Only bigint, integer and varchar blocks are supported");
         }
         return result;
     }

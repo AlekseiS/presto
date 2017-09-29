@@ -29,7 +29,7 @@ public final class SplitInfo
     private final int totalParts;
     private final boolean indexSplit;
     private final List<String> lookupColumnNames;
-    private final List<List<Long>> keys;
+    private final List<List<String>> keys;
 
     @JsonCreator
     public SplitInfo(
@@ -39,7 +39,7 @@ public final class SplitInfo
             @JsonProperty("totalParts") int totalParts,
             @JsonProperty("indexSplit") boolean indexSplit,
             @JsonProperty("lookupColumnNames") List<String> lookupColumnNames,
-            @JsonProperty("keys") List<List<Long>> keys)
+            @JsonProperty("keys") List<List<String>> keys)
     {
         this.schemaName = requireNonNull(schemaName, "schemaName is null");
         this.tableName = requireNonNull(tableName, "tableName is null");
@@ -87,7 +87,7 @@ public final class SplitInfo
     }
 
     @JsonProperty
-    public List<List<Long>> getKeys()
+    public List<List<String>> getKeys()
     {
         return keys;
     }
@@ -97,7 +97,7 @@ public final class SplitInfo
         return new SplitInfo(schemaName, tableName, partNumber, totalParts, false, ImmutableList.of(), ImmutableList.of());
     }
 
-    public static SplitInfo indexSplit(String schemaName, String tableName, List<String> lookupColumnNames, List<List<Long>> keys)
+    public static SplitInfo indexSplit(String schemaName, String tableName, List<String> lookupColumnNames, List<List<String>> keys)
     {
         return new SplitInfo(schemaName, tableName, 0, 0, true, lookupColumnNames, keys);
     }

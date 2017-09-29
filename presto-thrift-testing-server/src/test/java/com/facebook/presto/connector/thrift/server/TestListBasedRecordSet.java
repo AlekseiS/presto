@@ -15,10 +15,14 @@ package com.facebook.presto.connector.thrift.server;
 
 import com.facebook.presto.spi.RecordCursor;
 import com.google.common.collect.ImmutableList;
+import io.airlift.slice.Slices;
 import org.testng.annotations.Test;
+
+import java.util.Arrays;
 
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.IntegerType.INTEGER;
+import static com.facebook.presto.spi.type.VarcharType.VARCHAR;
 import static org.testng.Assert.assertEquals;
 import static org.testng.Assert.assertFalse;
 import static org.testng.Assert.assertThrows;
@@ -42,23 +46,23 @@ public class TestListBasedRecordSet
     {
         ListBasedRecordSet recordSet = new ListBasedRecordSet(
                 ImmutableList.of(
-                        ImmutableList.of(1L, 2L, 3L),
-                        ImmutableList.of(10L, 20L, 30L)),
-                ImmutableList.of(BIGINT, INTEGER));
-        assertEquals(recordSet.getColumnTypes(), ImmutableList.of(BIGINT, INTEGER));
+                        Arrays.asList("1", null, "3"),
+                        Arrays.asList("ab", "c", null)),
+                ImmutableList.of(BIGINT, VARCHAR));
+        assertEquals(recordSet.getColumnTypes(), ImmutableList.of(BIGINT, VARCHAR));
         RecordCursor cursor = recordSet.cursor();
         assertTrue(cursor.advanceNextPosition());
         assertEquals(cursor.getType(0), BIGINT);
-        assertEquals(cursor.getType(1), INTEGER);
+        assertEquals(cursor.getType(1), VARCHAR);
         assertThrows(IndexOutOfBoundsException.class, () -> cursor.getLong(2));
         assertEquals(cursor.getLong(0), 1L);
-        assertEquals(cursor.getLong(1), 10L);
+        assertEquals(cursor.getSlice(1), Slices.utf8Slice("ab"));
         assertTrue(cursor.advanceNextPosition());
-        assertEquals(cursor.getLong(0), 2L);
-        assertEquals(cursor.getLong(1), 20L);
+        assertTrue(cursor.isNull(0));
+        assertEquals(cursor.getSlice(1), Slices.utf8Slice("c"));
         assertTrue(cursor.advanceNextPosition());
         assertEquals(cursor.getLong(0), 3L);
-        assertEquals(cursor.getLong(1), 30L);
+        assertTrue(cursor.isNull(1));
         assertFalse(cursor.advanceNextPosition());
         assertThrows(IndexOutOfBoundsException.class, () -> cursor.getLong(0));
     }
