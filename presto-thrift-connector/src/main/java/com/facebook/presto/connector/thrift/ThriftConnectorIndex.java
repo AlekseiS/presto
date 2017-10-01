@@ -30,22 +30,28 @@ public class ThriftConnectorIndex
     private final ThriftIndexHandle indexHandle;
     private final List<ColumnHandle> lookupColumns;
     private final List<ColumnHandle> outputColumns;
+    private final long maxBytesPerResponse;
+    private final int lookupRequestsConcurrency;
 
     public ThriftConnectorIndex(
             PrestoThriftServiceProvider clientProvider,
             ThriftIndexHandle indexHandle,
             List<ColumnHandle> lookupColumns,
-            List<ColumnHandle> outputColumns)
+            List<ColumnHandle> outputColumns,
+            long maxBytesPerResponse,
+            int lookupRequestsConcurrency)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
         this.indexHandle = requireNonNull(indexHandle, "indexHandle is null");
         this.lookupColumns = requireNonNull(lookupColumns, "lookupColumns is null");
         this.outputColumns = requireNonNull(outputColumns, "outputColumns is null");
+        this.maxBytesPerResponse = maxBytesPerResponse;
+        this.lookupRequestsConcurrency = lookupRequestsConcurrency;
     }
 
     @Override
     public ConnectorPageSource lookup(RecordSet recordSet)
     {
-        return new ThriftIndexPageSource(clientProvider, indexHandle, lookupColumns, outputColumns, recordSet);
+        return new ThriftIndexPageSource(clientProvider, indexHandle, lookupColumns, outputColumns, recordSet, maxBytesPerResponse, lookupRequestsConcurrency);
     }
 }

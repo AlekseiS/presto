@@ -107,7 +107,8 @@ public final class ThriftQueryRunner
         queryRunner.installPlugin(new ThriftPlugin());
         Map<String, String> connectorProperties = ImmutableMap.of(
                 "static-location.hosts", hosts.stringValue(),
-                "PrestoThriftService.thrift.client.connect-timeout", "30s");
+                "PrestoThriftService.thrift.client.connect-timeout", "30s",
+                "presto-thrift.lookup-requests-concurrency", "2");
         queryRunner.createCatalog("thrift", "presto-thrift", connectorProperties);
         return queryRunner;
     }

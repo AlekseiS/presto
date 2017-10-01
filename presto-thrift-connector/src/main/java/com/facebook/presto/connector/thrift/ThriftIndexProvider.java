@@ -31,11 +31,16 @@ public class ThriftIndexProvider
         implements ConnectorIndexProvider
 {
     private final PrestoThriftServiceProvider clientProvider;
+    private final long maxBytesPerResponse;
+    private final int lookupRequestsConcurrency;
 
     @Inject
-    public ThriftIndexProvider(PrestoThriftServiceProvider clientProvider)
+    public ThriftIndexProvider(PrestoThriftServiceProvider clientProvider, ThriftConnectorConfig config)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
+        requireNonNull(config, "config is null");
+        this.maxBytesPerResponse = config.getMaxResponseSize().toBytes();
+        this.lookupRequestsConcurrency = config.getLookupRequestsConcurrency();
     }
 
     @Override
@@ -47,6 +52,6 @@ public class ThriftIndexProvider
             List<ColumnHandle> outputSchema)
     {
         ThriftIndexHandle thriftIndexHandle = (ThriftIndexHandle) indexHandle;
-        return new ThriftConnectorIndex(clientProvider, thriftIndexHandle, lookupSchema, outputSchema);
+        return new ThriftConnectorIndex(clientProvider, thriftIndexHandle, lookupSchema, outputSchema, maxBytesPerResponse, lookupRequestsConcurrency);
     }
 }

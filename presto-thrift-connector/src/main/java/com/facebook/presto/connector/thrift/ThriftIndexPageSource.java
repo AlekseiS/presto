@@ -49,6 +49,7 @@ import java.util.concurrent.Future;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftHostAddress.toHostAddressList;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftPage.fromRecordSet;
 import static com.facebook.presto.connector.thrift.util.TupleDomainConversion.tupleDomainToThriftTupleDomain;
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static io.airlift.concurrent.MoreFutures.getFutureValue;
@@ -62,30 +63,28 @@ public class ThriftIndexPageSource
 {
     private static final Logger log = Logger.get(ThriftIndexPageSource.class);
     private static final int MAX_SPLIT_COUNT = 10_000_000;
-    private static final int CONCURRENT_SPLITS = 2;
-    // TODO: read from config
-    private static final long MAX_BYTES = 16_000_000;
 
     private final PrestoThriftServiceProvider clientProvider;
     private final PrestoThriftSchemaTableName schemaTableName;
     private final List<String> lookupColumnNames;
     private final List<String> outputColumnNames;
     private final List<Type> outputColumnTypes;
-    private final PrestoThriftPage keys;
     private final PrestoThriftTupleDomain outputConstraint;
+    private final PrestoThriftPage keys;
+    private final long maxBytesPerResponse;
+    private final int lookupRequestsConcurrency;
 
     private CompletableFuture<?> statusFuture;
     private ListenableFuture<PrestoThriftSplitBatch> splitFuture;
     private ListenableFuture<PrestoThriftPageResult> dataSignalFuture;
 
     private final List<PrestoThriftSplit> splits = new ArrayList<>();
+    private final Queue<ListenableFuture<PrestoThriftPageResult>> dataRequests = new LinkedList<>();
+    private final Map<ListenableFuture<PrestoThriftPageResult>, RunningSplitContext> contexts;
+
+    private PrestoThriftService splitsClient;
     private int splitIndex;
     private boolean haveSplits;
-    private PrestoThriftService splitsClient;
-
-    private final Queue<ListenableFuture<PrestoThriftPageResult>> dataRequests = new LinkedList<>();
-    private final Map<ListenableFuture<PrestoThriftPageResult>, RunningSplitContext> contexts = new HashMap<>(CONCURRENT_SPLITS);
-
     private boolean finished;
 
     public ThriftIndexPageSource(
@@ -93,7 +92,9 @@ public class ThriftIndexPageSource
             ThriftIndexHandle indexHandle,
             List<ColumnHandle> lookupColumns,
             List<ColumnHandle> outputColumns,
-            RecordSet keys)
+            RecordSet keys,
+            long maxBytesPerResponse,
+            int lookupRequestsConcurrency)
     {
         this.clientProvider = requireNonNull(clientProvider, "clientProvider is null");
 
@@ -119,6 +120,13 @@ public class ThriftIndexPageSource
         this.outputColumnTypes = outputColumnTypes.build();
 
         this.keys = fromRecordSet(requireNonNull(keys, "keys is null"));
+
+        checkArgument(maxBytesPerResponse > 0, "maxBytesPerResponse is zero or negative");
+        this.maxBytesPerResponse = maxBytesPerResponse;
+        checkArgument(lookupRequestsConcurrency >= 1, "lookupRequestsConcurrency is less than one");
+        this.lookupRequestsConcurrency = lookupRequestsConcurrency;
+
+        this.contexts = new HashMap<>(lookupRequestsConcurrency);
     }
 
     @Override
@@ -187,7 +195,7 @@ public class ThriftIndexPageSource
                 finished = true;
                 return null;
             }
-            for (int i = 0; i < min(CONCURRENT_SPLITS, splits.size()); i++) {
+            for (int i = 0; i < min(lookupRequestsConcurrency, splits.size()); i++) {
                 PrestoThriftSplit split = splits.get(splitIndex);
                 splitIndex++;
                 RunningSplitContext context = new RunningSplitContext(openClient(split), split);
@@ -251,7 +259,7 @@ public class ThriftIndexPageSource
     private void sendDataRequest(RunningSplitContext context, @Nullable PrestoThriftId nextToken)
     {
         ListenableFuture<PrestoThriftPageResult> future = context.getClient().getRows(
-                context.getSplit().getSplitId(), outputColumnNames, MAX_BYTES, new PrestoThriftNullableToken(nextToken));
+                context.getSplit().getSplitId(), outputColumnNames, maxBytesPerResponse, new PrestoThriftNullableToken(nextToken));
         dataRequests.add(future);
         contexts.put(future, context);
     }
