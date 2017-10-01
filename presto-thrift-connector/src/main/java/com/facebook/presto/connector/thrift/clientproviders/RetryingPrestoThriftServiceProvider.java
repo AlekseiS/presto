@@ -20,6 +20,7 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
+import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftPageResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
@@ -135,7 +136,7 @@ public class RetryingPrestoThriftServiceProvider
                 PrestoThriftSchemaTableName schemaTableName,
                 List<String> lookupColumnNames,
                 List<String> outputColumnNames,
-                PrestoThriftPageResult keys,
+                PrestoThriftPage keys,
                 PrestoThriftTupleDomain outputConstraint,
                 int maxSplitCount,
                 PrestoThriftNullableToken nextToken)

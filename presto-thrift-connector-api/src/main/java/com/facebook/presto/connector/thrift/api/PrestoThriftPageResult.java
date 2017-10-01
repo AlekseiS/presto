@@ -13,85 +13,42 @@
  */
 package com.facebook.presto.connector.thrift.api;
 
-import com.facebook.presto.spi.Page;
-import com.facebook.presto.spi.RecordCursor;
-import com.facebook.presto.spi.RecordSet;
-import com.facebook.presto.spi.block.Block;
-import com.facebook.presto.spi.type.Type;
 import com.facebook.swift.codec.ThriftConstructor;
 import com.facebook.swift.codec.ThriftField;
 import com.facebook.swift.codec.ThriftStruct;
-import com.google.common.collect.ImmutableList;
 
 import javax.annotation.Nullable;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Objects;
 
-import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromRecordSetColumn;
 import static com.facebook.swift.codec.ThriftField.Requiredness.OPTIONAL;
 import static com.google.common.base.MoreObjects.toStringHelper;
-import static com.google.common.base.Preconditions.checkArgument;
 import static java.util.Objects.requireNonNull;
 
 @ThriftStruct
 public final class PrestoThriftPageResult
 {
-    private final List<PrestoThriftBlock> columnBlocks;
-    private final int rowCount;
+    private final PrestoThriftPage page;
     private final PrestoThriftId nextToken;
 
     @ThriftConstructor
-    public PrestoThriftPageResult(List<PrestoThriftBlock> columnBlocks, int rowCount, @Nullable PrestoThriftId nextToken)
+    public PrestoThriftPageResult(PrestoThriftPage page, @Nullable PrestoThriftId nextToken)
     {
-        this.columnBlocks = requireNonNull(columnBlocks, "columnBlocks is null");
-        checkArgument(rowCount >= 0, "rowCount is negative");
-        checkAllColumnsAreOfExpectedSize(columnBlocks, rowCount);
-        this.rowCount = rowCount;
+        this.page = requireNonNull(page, "page is null");
         this.nextToken = nextToken;
     }
 
-    /**
-     * Returns data in a columnar format.
-     * Columns in this list must be in the order they were requested by the engine.
-     */
     @ThriftField(1)
-    public List<PrestoThriftBlock> getColumnBlocks()
+    public PrestoThriftPage getPage()
     {
-        return columnBlocks;
-    }
-
-    @ThriftField(2)
-    public int getRowCount()
-    {
-        return rowCount;
+        return page;
     }
 
     @Nullable
-    @ThriftField(value = 3, requiredness = OPTIONAL)
+    @ThriftField(value = 2, requiredness = OPTIONAL)
     public PrestoThriftId getNextToken()
     {
         return nextToken;
-    }
-
-    @Nullable
-    public Page toPage(List<Type> columnTypes)
-    {
-        if (rowCount == 0) {
-            return null;
-        }
-        checkArgument(columnBlocks.size() == columnTypes.size(), "columns and types have different sizes");
-        int numberOfColumns = columnBlocks.size();
-        if (numberOfColumns == 0) {
-            // request/response with no columns, used for queries like "select count star"
-            return new Page(rowCount);
-        }
-        Block[] blocks = new Block[numberOfColumns];
-        for (int i = 0; i < numberOfColumns; i++) {
-            blocks[i] = columnBlocks.get(i).toBlock(columnTypes.get(i));
-        }
-        return new Page(blocks);
     }
 
     @Override
@@ -104,58 +61,22 @@ public final class PrestoThriftPageResult
             return false;
         }
         PrestoThriftPageResult other = (PrestoThriftPageResult) obj;
-        return Objects.equals(this.columnBlocks, other.columnBlocks) &&
-                this.rowCount == other.rowCount &&
+        return Objects.equals(this.page, other.page) &&
                 Objects.equals(this.nextToken, other.nextToken);
     }
 
     @Override
     public int hashCode()
     {
-        return Objects.hash(columnBlocks, rowCount, nextToken);
+        return Objects.hash(page, nextToken);
     }
 
     @Override
     public String toString()
     {
         return toStringHelper(this)
-                .add("columnBlocks", columnBlocks)
-                .add("rowCount", rowCount)
+                .add("page", page)
                 .add("nextToken", nextToken)
                 .toString();
-    }
-
-    public static PrestoThriftPageResult fromRecordSet(RecordSet recordSet)
-    {
-        List<Type> types = recordSet.getColumnTypes();
-        int numberOfColumns = types.size();
-        int positions = totalRecords(recordSet);
-        if (numberOfColumns == 0) {
-            return new PrestoThriftPageResult(ImmutableList.of(), positions, null);
-        }
-        List<PrestoThriftBlock> thriftBlocks = new ArrayList<>(numberOfColumns);
-        for (int columnIndex = 0; columnIndex < numberOfColumns; columnIndex++) {
-            thriftBlocks.add(fromRecordSetColumn(recordSet, columnIndex, positions));
-        }
-        return new PrestoThriftPageResult(thriftBlocks, positions, null);
-    }
-
-    private static void checkAllColumnsAreOfExpectedSize(List<PrestoThriftBlock> columnBlocks, int expectedNumberOfRows)
-    {
-        for (int i = 0; i < columnBlocks.size(); i++) {
-            checkArgument(columnBlocks.get(i).numberOfRecords() == expectedNumberOfRows,
-                    "Incorrect number of records for column with index %s: expected %s, got %s",
-                    i, expectedNumberOfRows, columnBlocks.get(i).numberOfRecords());
-        }
-    }
-
-    private static int totalRecords(RecordSet recordSet)
-    {
-        RecordCursor cursor = recordSet.cursor();
-        int result = 0;
-        while (cursor.advanceNextPosition()) {
-            result++;
-        }
-        return result;
     }
 }

@@ -34,7 +34,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftBlock.fromBlock;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftPageResult.fromRecordSet;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftPage.fromRecordSet;
 import static com.facebook.presto.spi.type.BigintType.BIGINT;
 import static com.facebook.presto.spi.type.BooleanType.BOOLEAN;
 import static com.facebook.presto.spi.type.DateType.DATE;
@@ -131,7 +131,7 @@ public class TestReadWrite
             for (int i = 0; i < columns.size(); i++) {
                 columnBlocks.add(fromBlock(blocks.get(i), columns.get(i).getType()));
             }
-            return new PrestoThriftPageResult(columnBlocks, records, null);
+            return new PrestoThriftPage(columnBlocks, records);
         });
     }
 
@@ -145,7 +145,7 @@ public class TestReadWrite
     }
 
     private void testReadWrite(Random random, int records,
-            Function<List<Block>, PrestoThriftPageResult> convert)
+            Function<List<Block>, PrestoThriftPage> convert)
     {
         // generate columns data
         List<Block> inputBlocks = new ArrayList<>(columns.size());
@@ -154,7 +154,7 @@ public class TestReadWrite
         }
 
         // convert column data to thrift ("write step")
-        PrestoThriftPageResult batch = convert.apply(inputBlocks);
+        PrestoThriftPage batch = convert.apply(inputBlocks);
 
         // convert thrift data to page/blocks ("read step")
         Page page = batch.toPage(columns.stream().map(ColumnDefinition::getType).collect(toImmutableList()));

@@ -20,6 +20,7 @@ import com.facebook.presto.connector.thrift.api.PrestoThriftNullableColumnSet;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableSchemaName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableTableMetadata;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
+import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftPageResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
@@ -161,7 +162,7 @@ public class ThriftTpchService
             PrestoThriftSchemaTableName schemaTableName,
             List<String> lookupColumnNames,
             List<String> outputColumnNames,
-            PrestoThriftPageResult keys,
+            PrestoThriftPage keys,
             PrestoThriftTupleDomain outputConstraint,
             int maxSplitCount,
             PrestoThriftNullableToken nextToken)
@@ -262,7 +263,7 @@ public class ThriftTpchService
     {
         if (page == null) {
             checkState(nextToken == null, "there must be no more data when page is null");
-            return new PrestoThriftPageResult(ImmutableList.of(), 0, null);
+            return new PrestoThriftPageResult(new PrestoThriftPage(ImmutableList.of(), 0), null);
         }
         checkState(page.getChannelCount() == columnTypes.size(), "number of columns in a page doesn't match the one in requested types");
         int numberOfColumns = columnTypes.size();
@@ -270,7 +271,7 @@ public class ThriftTpchService
         for (int i = 0; i < numberOfColumns; i++) {
             columnBlocks.add(fromBlock(page.getBlock(i), columnTypes.get(i)));
         }
-        return new PrestoThriftPageResult(columnBlocks, page.getPositionCount(), nextToken);
+        return new PrestoThriftPageResult(new PrestoThriftPage(columnBlocks, page.getPositionCount()), nextToken);
     }
 
     private static void skipPages(ConnectorPageSource pageSource, int skipPages)
@@ -313,7 +314,7 @@ public class ThriftTpchService
                 Optional.empty()));
     }
 
-    private static List<List<String>> thriftPageToList(PrestoThriftPageResult page, int begin, int end)
+    private static List<List<String>> thriftPageToList(PrestoThriftPage page, int begin, int end)
     {
         checkArgument(begin <= end, "invalid interval");
         if (begin == end) {

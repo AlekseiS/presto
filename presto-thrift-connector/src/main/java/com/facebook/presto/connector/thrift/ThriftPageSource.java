@@ -161,11 +161,11 @@ public class ThriftPageSource
         return toCompletableFuture(nonCancellationPropagating(rowsBatchFuture));
     }
 
-    private Page processBatch(PrestoThriftPageResult rowsBatch)
+    private Page processBatch(PrestoThriftPageResult pageResult)
     {
         firstCall = false;
-        nextToken = rowsBatch.getNextToken();
-        Page page = rowsBatch.toPage(columnTypes);
+        nextToken = pageResult.getNextToken();
+        Page page = pageResult.getPage().toPage(columnTypes);
         if (page != null) {
             completedBytes += page.getSizeInBytes();
         }

@@ -96,7 +96,7 @@ public interface PrestoThriftService
             @ThriftField(name = "schemaTableName") PrestoThriftSchemaTableName schemaTableName,
             @ThriftField(name = "lookupColumnNames") List<String> lookupColumnNames,
             @ThriftField(name = "outputColumnNames") List<String> outputColumnNames,
-            @ThriftField(name = "keys") PrestoThriftPageResult keys,
+            @ThriftField(name = "keys") PrestoThriftPage keys,
             @ThriftField(name = "outputConstraint") PrestoThriftTupleDomain outputConstraint,
             @ThriftField(name = "maxSplitCount") int maxSplitCount,
             @ThriftField(name = "nextToken") PrestoThriftNullableToken nextToken)

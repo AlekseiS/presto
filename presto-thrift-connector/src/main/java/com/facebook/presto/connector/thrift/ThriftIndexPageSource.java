@@ -15,6 +15,7 @@ package com.facebook.presto.connector.thrift;
 
 import com.facebook.presto.connector.thrift.api.PrestoThriftId;
 import com.facebook.presto.connector.thrift.api.PrestoThriftNullableToken;
+import com.facebook.presto.connector.thrift.api.PrestoThriftPage;
 import com.facebook.presto.connector.thrift.api.PrestoThriftPageResult;
 import com.facebook.presto.connector.thrift.api.PrestoThriftSchemaTableName;
 import com.facebook.presto.connector.thrift.api.PrestoThriftService;
@@ -46,7 +47,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftHostAddress.toHostAddressList;
-import static com.facebook.presto.connector.thrift.api.PrestoThriftPageResult.fromRecordSet;
+import static com.facebook.presto.connector.thrift.api.PrestoThriftPage.fromRecordSet;
 import static com.facebook.presto.connector.thrift.util.TupleDomainConversion.tupleDomainToThriftTupleDomain;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
@@ -70,7 +71,7 @@ public class ThriftIndexPageSource
     private final List<String> lookupColumnNames;
     private final List<String> outputColumnNames;
     private final List<Type> outputColumnTypes;
-    private final PrestoThriftPageResult keys;
+    private final PrestoThriftPage keys;
     private final PrestoThriftTupleDomain outputConstraint;
 
     private CompletableFuture<?> statusFuture;
@@ -206,7 +207,7 @@ public class ThriftIndexPageSource
         RunningSplitContext resultContext = contexts.remove(resultFuture);
         checkState(resultContext != null, "no associated context for the request");
         PrestoThriftPageResult pageResult = getFutureValue(resultFuture);
-        Page page = pageResult.toPage(outputColumnTypes);
+        Page page = pageResult.getPage().toPage(outputColumnTypes);
         if (pageResult.getNextToken() != null) {
             // can get more data
             sendDataRequest(resultContext, pageResult.getNextToken());
