@@ -43,7 +43,7 @@ public class ThriftTableMetadata
         this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
         this.columns = requireNonNull(columns, "columns is null");
         this.comment = requireNonNull(comment, "comment is null");
-        this.indexableKeys = deepImmutableCopy(requireNonNull(indexableKeys, "indexableKeys is null"));
+        this.indexableKeys = requireNonNull(indexableKeys, "indexableKeys is null");
     }
 
     public ThriftTableMetadata(PrestoThriftTableMetadata thriftTableMetadata, TypeManager typeManager)
@@ -51,7 +51,7 @@ public class ThriftTableMetadata
         this(thriftTableMetadata.getSchemaTableName().toSchemaTableName(),
                 columnMetadata(thriftTableMetadata.getColumns(), typeManager),
                 Optional.ofNullable(thriftTableMetadata.getComment()),
-                thriftTableMetadata.getIndexableKeys() != null ? thriftTableMetadata.getIndexableKeys() : ImmutableSet.of());
+                thriftTableMetadata.getIndexableKeys() != null ? ImmutableSet.copyOf(thriftTableMetadata.getIndexableKeys()) : ImmutableSet.of());
     }
 
     public SchemaTableName getSchemaTableName()
@@ -87,13 +87,5 @@ public class ThriftTableMetadata
         return columns.stream()
                 .map(column -> column.toColumnMetadata(typeManager))
                 .collect(toImmutableList());
-    }
-
-    private static Set<Set<String>> deepImmutableCopy(Set<Set<String>> set)
-    {
-        if (set.isEmpty()) {
-            return ImmutableSet.of();
-        }
-        return set.stream().map(ImmutableSet::copyOf).collect(toImmutableSet());
     }
 }

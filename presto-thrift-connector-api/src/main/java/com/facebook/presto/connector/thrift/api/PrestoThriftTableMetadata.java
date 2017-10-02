@@ -33,14 +33,14 @@ public final class PrestoThriftTableMetadata
     private final PrestoThriftSchemaTableName schemaTableName;
     private final List<PrestoThriftColumnMetadata> columns;
     private final String comment;
-    private final Set<Set<String>> indexableKeys;
+    private final List<Set<String>> indexableKeys;
 
     @ThriftConstructor
     public PrestoThriftTableMetadata(
             @ThriftField(name = "schemaTableName") PrestoThriftSchemaTableName schemaTableName,
             @ThriftField(name = "columns") List<PrestoThriftColumnMetadata> columns,
             @ThriftField(name = "comment") @Nullable String comment,
-            @ThriftField(name = "indexableKeys") @Nullable Set<Set<String>> indexableKeys)
+            @ThriftField(name = "indexableKeys") @Nullable List<Set<String>> indexableKeys)
     {
         this.schemaTableName = requireNonNull(schemaTableName, "schemaTableName is null");
         this.columns = requireNonNull(columns, "columns is null");
@@ -69,7 +69,7 @@ public final class PrestoThriftTableMetadata
 
     @Nullable
     @ThriftField(value = 4, requiredness = OPTIONAL)
-    public Set<Set<String>> getIndexableKeys()
+    public List<Set<String>> getIndexableKeys()
     {
         return indexableKeys;
     }

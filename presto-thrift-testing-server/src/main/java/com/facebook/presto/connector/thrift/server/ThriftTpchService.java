@@ -125,7 +125,7 @@ public class ThriftTpchService
             columns.add(new PrestoThriftColumnMetadata(column.getSimplifiedColumnName(), getTypeString(column.getType()), null, false));
         }
         TpchScaledTable tpchScaledTable = new TpchScaledTable(tableName, schemaNameToScaleFactor(schemaName));
-        Set<Set<String>> indexableKeys = ImmutableSet.copyOf(INDEX_SPEC.getColumnIndexes(tpchScaledTable));
+        List<Set<String>> indexableKeys = ImmutableList.copyOf(INDEX_SPEC.getColumnIndexes(tpchScaledTable));
         return new PrestoThriftNullableTableMetadata(new PrestoThriftTableMetadata(schemaTableName, columns, null, !indexableKeys.isEmpty() ? indexableKeys : null));
     }
 
