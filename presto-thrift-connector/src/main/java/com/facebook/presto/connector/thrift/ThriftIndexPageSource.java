@@ -45,6 +45,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static com.facebook.presto.connector.thrift.api.PrestoThriftHostAddress.toHostAddressList;
 import static com.facebook.presto.connector.thrift.api.PrestoThriftPage.fromRecordSet;
@@ -52,6 +53,8 @@ import static com.facebook.presto.connector.thrift.util.TupleDomainConversion.tu
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.util.concurrent.Futures.nonCancellationPropagating;
+import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static io.airlift.concurrent.MoreFutures.getFutureValue;
 import static io.airlift.concurrent.MoreFutures.toCompletableFuture;
 import static io.airlift.concurrent.MoreFutures.whenAnyComplete;
@@ -73,6 +76,9 @@ public class ThriftIndexPageSource
     private final PrestoThriftPage keys;
     private final long maxBytesPerResponse;
     private final int lookupRequestsConcurrency;
+
+    private final AtomicLong readTimeNanos = new AtomicLong(0);
+    private long completedBytes;
 
     private CompletableFuture<?> statusFuture;
     private ListenableFuture<PrestoThriftSplitBatch> splitFuture;
@@ -132,13 +138,13 @@ public class ThriftIndexPageSource
     @Override
     public long getCompletedBytes()
     {
-        return 0;
+        return completedBytes;
     }
 
     @Override
     public long getReadTimeNanos()
     {
-        return 0;
+        return readTimeNanos.get();
     }
 
     @Override
@@ -159,7 +165,7 @@ public class ThriftIndexPageSource
                 // didn't start fetching splits, send the first request now
                 splitsClient = clientProvider.anyHostClient();
                 splitFuture = sendSplitRequest(splitsClient, null);
-                statusFuture = toCompletableFuture(splitFuture);
+                statusFuture = toCompletableFuture(nonCancellationPropagating(splitFuture));
             }
             if (!splitFuture.isDone()) {
                 // split request is in progress
@@ -172,7 +178,7 @@ public class ThriftIndexPageSource
             if (batch.getNextToken() != null) {
                 // can get more splits, send request
                 splitFuture = sendSplitRequest(splitsClient, batch.getNextToken());
-                statusFuture = toCompletableFuture(splitFuture);
+                statusFuture = toCompletableFuture(nonCancellationPropagating(splitFuture));
                 return null;
             }
             else {
@@ -202,7 +208,7 @@ public class ThriftIndexPageSource
                 sendDataRequest(context, null);
             }
             dataSignalFuture = whenAnyComplete(dataRequests);
-            statusFuture = toCompletableFuture(dataSignalFuture);
+            statusFuture = toCompletableFuture(nonCancellationPropagating(dataSignalFuture));
         }
         // check if any data request is finished
         if (!dataSignalFuture.isDone()) {
@@ -216,11 +222,14 @@ public class ThriftIndexPageSource
         checkState(resultContext != null, "no associated context for the request");
         PrestoThriftPageResult pageResult = getFutureValue(resultFuture);
         Page page = pageResult.getPage().toPage(outputColumnTypes);
+        if (page != null) {
+            completedBytes += page.getSizeInBytes();
+        }
         if (pageResult.getNextToken() != null) {
             // can get more data
             sendDataRequest(resultContext, pageResult.getNextToken());
             dataSignalFuture = whenAnyComplete(dataRequests);
-            statusFuture = toCompletableFuture(dataSignalFuture);
+            statusFuture = toCompletableFuture(nonCancellationPropagating(dataSignalFuture));
             return page;
         }
 
@@ -235,12 +244,12 @@ public class ThriftIndexPageSource
             RunningSplitContext context = new RunningSplitContext(openClient(split), split);
             sendDataRequest(context, null);
             dataSignalFuture = whenAnyComplete(dataRequests);
-            statusFuture = toCompletableFuture(dataSignalFuture);
+            statusFuture = toCompletableFuture(nonCancellationPropagating(dataSignalFuture));
         }
         else if (!dataRequests.isEmpty()) {
             // no more new splits, but some requests are still in progress, wait for them
             dataSignalFuture = whenAnyComplete(dataRequests);
-            statusFuture = toCompletableFuture(dataSignalFuture);
+            statusFuture = toCompletableFuture(nonCancellationPropagating(dataSignalFuture));
         }
         else {
             // all done: no more new splits, no requests in progress
@@ -253,13 +262,19 @@ public class ThriftIndexPageSource
 
     private ListenableFuture<PrestoThriftSplitBatch> sendSplitRequest(PrestoThriftService client, @Nullable PrestoThriftId nextToken)
     {
-        return client.getLookupSplits(schemaTableName, lookupColumnNames, outputColumnNames, keys, outputConstraint, MAX_SPLIT_COUNT, new PrestoThriftNullableToken(nextToken));
+        long start = System.nanoTime();
+        ListenableFuture<PrestoThriftSplitBatch> future = client.getLookupSplits(
+                schemaTableName, lookupColumnNames, outputColumnNames, keys, outputConstraint, MAX_SPLIT_COUNT, new PrestoThriftNullableToken(nextToken));
+        future.addListener(() -> readTimeNanos.addAndGet(System.nanoTime() - start), directExecutor());
+        return future;
     }
 
     private void sendDataRequest(RunningSplitContext context, @Nullable PrestoThriftId nextToken)
     {
+        long start = System.nanoTime();
         ListenableFuture<PrestoThriftPageResult> future = context.getClient().getRows(
                 context.getSplit().getSplitId(), outputColumnNames, maxBytesPerResponse, new PrestoThriftNullableToken(nextToken));
+        future.addListener(() -> readTimeNanos.addAndGet(System.nanoTime() - start), directExecutor());
         dataRequests.add(future);
         contexts.put(future, context);
     }
@@ -285,7 +300,6 @@ public class ThriftIndexPageSource
             throws IOException
     {
         // cancel futures if available
-        cancel(statusFuture);
         cancel(splitFuture);
         dataRequests.forEach(ThriftIndexPageSource::cancel);
         // close clients if available
