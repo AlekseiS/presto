@@ -78,7 +78,6 @@ public class ListBasedRecordSet
         @Override
         public boolean advanceNextPosition()
         {
-
             if (position >= totalRecords) {
                 return false;
             }
