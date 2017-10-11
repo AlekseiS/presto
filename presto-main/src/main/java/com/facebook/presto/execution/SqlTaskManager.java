@@ -20,6 +20,7 @@ import com.facebook.presto.TaskSource;
 import com.facebook.presto.event.query.QueryMonitor;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
+import com.facebook.presto.execution.buffer.PagesSerde;
 import com.facebook.presto.execution.executor.TaskExecutor;
 import com.facebook.presto.memory.LocalMemoryManager;
 import com.facebook.presto.memory.MemoryPoolAssignment;
@@ -28,6 +29,8 @@ import com.facebook.presto.memory.NodeMemoryConfig;
 import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.QueryId;
+import com.facebook.presto.spi.block.BlockEncodingSerde;
+import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spiller.LocalSpillManager;
 import com.facebook.presto.spiller.NodeSpillConfig;
 import com.facebook.presto.sql.planner.LocalExecutionPlanner;
@@ -94,6 +97,8 @@ public class SqlTaskManager
     private final SqlTaskIoStats cachedStats = new SqlTaskIoStats();
     private final SqlTaskIoStats finishedTaskStats = new SqlTaskIoStats();
 
+    private final BlockEncodingSerde blockEncodingSerde;
+
     @GuardedBy("this")
     private long currentMemoryPoolAssignmentVersion;
     @GuardedBy("this")
@@ -111,7 +116,8 @@ public class SqlTaskManager
             TaskManagerConfig config,
             NodeMemoryConfig nodeMemoryConfig,
             LocalSpillManager localSpillManager,
-            NodeSpillConfig nodeSpillConfig)
+            NodeSpillConfig nodeSpillConfig,
+            BlockEncodingSerde blockEncodingSerde)
     {
         requireNonNull(nodeInfo, "nodeInfo is null");
         requireNonNull(config, "config is null");
@@ -132,6 +138,8 @@ public class SqlTaskManager
         DataSize maxQueryMemoryPerNode = nodeMemoryConfig.getMaxQueryMemoryPerNode();
 
         DataSize maxQuerySpillPerNode = nodeSpillConfig.getQueryMaxSpillPerNode();
+
+        this.blockEncodingSerde = requireNonNull(blockEncodingSerde, "blockEncodingSerde is null");
 
         queryContexts = CacheBuilder.newBuilder().weakValues().build(CacheLoader.from(
                 queryId -> new QueryContext(
@@ -318,7 +326,7 @@ public class SqlTaskManager
 
         SqlTask sqlTask = tasks.getUnchecked(taskId);
         sqlTask.recordHeartbeat();
-        return sqlTask.updateTask(session, fragment, sources, outputBuffers);
+        return sqlTask.updateTask(session, fragment, sources, outputBuffers, blockEncodingSerde);
     }
 
     @Override
@@ -422,5 +430,19 @@ public class SqlTaskManager
     {
         requireNonNull(taskId, "taskId is null");
         tasks.getUnchecked(taskId).addStateChangeListener(stateChangeListener);
+    }
+
+    @Override
+    public Optional<List<Type>> getTaskOutputTypes(TaskId taskId)
+    {
+        requireNonNull(taskId, "taskId is null");
+        return tasks.getUnchecked(taskId).getTypes();
+    }
+
+    @Override
+    public Optional<PagesSerde> getTaskPagesSerde(TaskId taskId)
+    {
+        requireNonNull(taskId, "taskId is null");
+        return tasks.getUnchecked(taskId).getPagesSerde();
     }
 }

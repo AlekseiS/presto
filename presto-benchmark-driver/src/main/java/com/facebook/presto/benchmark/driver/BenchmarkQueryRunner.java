@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 import static com.facebook.presto.benchmark.driver.BenchmarkQueryResult.failResult;
 import static com.facebook.presto.benchmark.driver.BenchmarkQueryResult.passResult;
 import static com.facebook.presto.client.OkHttpUtil.setupSocksProxy;
+import static com.facebook.presto.client.StatementClientFactory.newStatementClient;
 import static com.google.common.base.Preconditions.checkArgument;
 import static io.airlift.http.client.HttpUriBuilder.uriBuilderFrom;
 import static io.airlift.http.client.JsonResponseHandler.createJsonResponseHandler;
@@ -151,7 +152,7 @@ public class BenchmarkQueryRunner
         failures = 0;
         while (true) {
             // start query
-            StatementClient client = new StatementClient(okHttpClient, session, "show schemas");
+            StatementClient client = newStatementClient(okHttpClient, session, "show schemas");
 
             // read query output
             ImmutableList.Builder<String> schemas = ImmutableList.builder();
@@ -192,7 +193,7 @@ public class BenchmarkQueryRunner
     private StatementStats execute(ClientSession session, String name, String query)
     {
         // start query
-        StatementClient client = new StatementClient(okHttpClient, session, query);
+        StatementClient client = newStatementClient(okHttpClient, session, query);
 
         // read query output
         while (client.isValid() && client.advance()) {
