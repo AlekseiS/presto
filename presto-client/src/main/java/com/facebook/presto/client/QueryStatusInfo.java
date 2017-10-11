@@ -24,6 +24,7 @@ public interface QueryStatusInfo
 
     URI getPartialCancelUri();
 
+    // TODO: think about removing it from this interface
     URI getNextUri();
 
     List<Column> getColumns();

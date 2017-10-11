@@ -16,38 +16,55 @@ package com.facebook.presto.server;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.transaction.TransactionId;
 
+import javax.annotation.Nullable;
+import javax.validation.constraints.NotNull;
+
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 public interface SessionContext
 {
+    @NotNull
     Identity getIdentity();
 
+    @Nullable
     String getCatalog();
 
+    @Nullable
     String getSchema();
 
+    @Nullable
     String getSource();
 
+    @NotNull
     String getRemoteUserAddress();
 
+    @Nullable
     String getUserAgent();
 
+    @Nullable
     String getClientInfo();
 
+    @NotNull
     Set<String> getClientTags();
 
+    @Nullable
     String getTimeZoneId();
 
+    @Nullable
     String getLanguage();
 
+    @NotNull
     Map<String, String> getSystemProperties();
 
+    @NotNull
     Map<String, Map<String, String>> getCatalogSessionProperties();
 
+    @NotNull
     Map<String, String> getPreparedStatements();
 
+    @NotNull
     Optional<TransactionId> getTransactionId();
 
     boolean supportClientTransaction();

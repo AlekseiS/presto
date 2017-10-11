@@ -13,16 +13,16 @@
  */
 package com.facebook.presto.server.protocol;
 
-import com.facebook.presto.client.QueryActions;
+import com.facebook.presto.client.CreateQueryRequest;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.execution.QueryManager;
 import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
-import com.facebook.presto.server.HttpRequestSessionContext;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
+import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -32,6 +32,7 @@ import io.airlift.units.Duration;
 import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
+import javax.ws.rs.Consumes;
 import javax.ws.rs.DELETE;
 import javax.ws.rs.GET;
 import javax.ws.rs.POST;
@@ -48,23 +49,11 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
-import java.io.UnsupportedEncodingException;
-import java.net.URLEncoder;
-import java.util.Map;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ScheduledExecutorService;
 
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_ADDED_PREPARE;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_SESSION;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_TRANSACTION_ID;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_DEALLOCATED_PREPARE;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_CATALOG;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SCHEMA;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SESSION;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_STARTED_TRANSACTION_ID;
-import static com.google.common.base.Strings.isNullOrEmpty;
 import static io.airlift.concurrent.Threads.threadsNamed;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
 import static java.util.Objects.requireNonNull;
@@ -72,10 +61,10 @@ import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
-@Path("/v1/statement")
-public class StatementResource
+@Path("/v2/statement")
+public class StatementResourceV2
 {
-    private static final Duration MAX_WAIT_TIME = new Duration(1, SECONDS);
+    private static final Duration MAX_WAIT_TIME = new Duration(5, SECONDS);
     private static final Ordering<Comparable<Duration>> WAIT_ORDERING = Ordering.natural().nullsLast();
 
     private final QueryManager queryManager;
@@ -86,10 +75,10 @@ public class StatementResource
     private final ScheduledExecutorService timeoutExecutor;
 
     private final ConcurrentMap<QueryId, Query> queries = new ConcurrentHashMap<>();
-    private final ScheduledExecutorService queryPurger = newSingleThreadScheduledExecutor(threadsNamed("query-purger"));
+    private final ScheduledExecutorService queryPurger = newSingleThreadScheduledExecutor(threadsNamed("query-purger-v2"));
 
     @Inject
-    public StatementResource(
+    public StatementResourceV2(
             QueryManager queryManager,
             SessionPropertyManager sessionPropertyManager,
             ExchangeClientSupplier exchangeClientSupplier,
@@ -114,31 +103,28 @@ public class StatementResource
     }
 
     @POST
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public void createQuery(
-            String statement,
+            CreateQueryRequest createQueryRequest,
             @Context HttpServletRequest servletRequest,
             @Context UriInfo uriInfo,
             @Suspended AsyncResponse asyncResponse)
             throws InterruptedException
     {
-        if (isNullOrEmpty(statement)) {
+        if (createQueryRequest == null) {
             throw new WebApplicationException(Response
                     .status(Status.BAD_REQUEST)
-                    .type(MediaType.TEXT_PLAIN)
-                    .entity("SQL statement is empty")
+                    .entity(ImmutableMap.of("error", "Cannot parse create query request"))
                     .build());
         }
-        SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
-        Query query = Query.createV1(
+        SessionContext sessionContext = new QueryRequestSessionContext(createQueryRequest.getSession(), servletRequest);
+        Query query = Query.createV2(
                 sessionContext,
-                statement,
+                createQueryRequest.getQuery(),
                 queryManager,
-                sessionPropertyManager,
-                exchangeClientSupplier,
                 responseExecutor,
-                timeoutExecutor,
-                blockEncodingSerde);
+                timeoutExecutor);
         queries.put(query.getQueryId(), query);
 
         asyncQueryResults(query, OptionalLong.empty(), new Duration(1, MILLISECONDS), uriInfo, asyncResponse);
@@ -163,80 +149,11 @@ public class StatementResource
         asyncQueryResults(query, OptionalLong.of(token), maxWait, uriInfo, asyncResponse);
     }
 
-    private void asyncQueryResults(Query query, OptionalLong token, Duration maxWait, UriInfo uriInfo, AsyncResponse asyncResponse)
-    {
-        Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
-        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, wait);
-
-        ListenableFuture<Response> response = Futures.transform(queryResultsFuture, StatementResource::toResponse);
-
-        bindAsyncResponse(asyncResponse, response, responseExecutor);
-    }
-
-    private static Response toResponse(QueryResults queryResults)
-    {
-        // TODO: think if it's fine to keep this section for V1 protocol
-        QueryResults withoutActions = queryResults.clearActions();
-        Response.ResponseBuilder response = Response.ok(withoutActions);
-
-        QueryActions actions = queryResults.getActions();
-        if (actions == null) {
-            return response.build();
-        }
-
-        // add set catalog and schema
-        if (actions.getSetCatalog() != null) {
-            response.header(PRESTO_SET_CATALOG, actions.getSetCatalog());
-        }
-        if (actions.getSetSchema() != null) {
-            response.header(PRESTO_SET_SCHEMA, actions.getSetSchema());
-        }
-
-        // add set session properties
-        if (actions.getSetSessionProperties() != null) {
-            actions.getSetSessionProperties().entrySet()
-                    .forEach(entry -> response.header(PRESTO_SET_SESSION, entry.getKey() + '=' + entry.getValue()));
-        }
-
-        // add clear session properties
-        if (actions.getClearSessionProperties() != null) {
-            actions.getClearSessionProperties()
-                    .forEach(name -> response.header(PRESTO_CLEAR_SESSION, name));
-        }
-
-        // add added prepare statements
-        if (actions.getAddedPreparedStatements() != null) {
-            for (Map.Entry<String, String> entry : actions.getAddedPreparedStatements().entrySet()) {
-                String encodedKey = urlEncode(entry.getKey());
-                String encodedValue = urlEncode(entry.getValue());
-                response.header(PRESTO_ADDED_PREPARE, encodedKey + '=' + encodedValue);
-            }
-        }
-
-        // add deallocated prepare statements
-        if (actions.getDeallocatedPreparedStatements() != null) {
-            for (String name : actions.getDeallocatedPreparedStatements()) {
-                response.header(PRESTO_DEALLOCATED_PREPARE, urlEncode(name));
-            }
-        }
-
-        // add new transaction ID
-        if (actions.getStartedTransactionId() != null) {
-            response.header(PRESTO_STARTED_TRANSACTION_ID, actions.getStartedTransactionId());
-        }
-
-        // add clear transaction ID directive
-        if (actions.isClearTransactionId() != null && actions.isClearTransactionId()) {
-            response.header(PRESTO_CLEAR_TRANSACTION_ID, true);
-        }
-
-        return response.build();
-    }
-
     @DELETE
     @Path("{queryId}/{token}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response cancelQuery(@PathParam("queryId") QueryId queryId,
+    public Response cancelQuery(
+            @PathParam("queryId") QueryId queryId,
             @PathParam("token") long token)
     {
         Query query = queries.get(queryId);
@@ -247,13 +164,18 @@ public class StatementResource
         return Response.noContent().build();
     }
 
-    private static String urlEncode(String value)
+    private void asyncQueryResults(Query query, OptionalLong token, Duration maxWait, UriInfo uriInfo, AsyncResponse asyncResponse)
     {
-        try {
-            return URLEncoder.encode(value, "UTF-8");
-        }
-        catch (UnsupportedEncodingException e) {
-            throw new AssertionError(e);
-        }
+        Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
+        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, wait);
+
+        ListenableFuture<Response> response = Futures.transform(queryResultsFuture, StatementResourceV2::toResponse);
+
+        bindAsyncResponse(asyncResponse, response, responseExecutor);
+    }
+
+    private static Response toResponse(QueryResults queryResults)
+    {
+        return Response.ok(queryResults).build();
     }
 }

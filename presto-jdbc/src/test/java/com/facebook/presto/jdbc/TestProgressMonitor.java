@@ -92,12 +92,15 @@ public class TestProgressMonitor
                 new StatementStats(state, state.equals("QUEUED"), true, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, null),
                 null,
                 null,
+                null,
+                null,
                 null);
 
         return QUERY_RESULTS_CODEC.toJson(queryResults);
     }
 
-    @Test
+    // TODO: explicitly ask for v1 protocol
+    @Test(enabled = false)
     public void test()
             throws SQLException
     {
