@@ -154,14 +154,12 @@ public class StatementResourceHelper
 
     public void createQuery(String statement, SessionContext sessionContext, UriInfo uriInfo, AsyncResponse asyncResponse)
     {
-        ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
-        });
         Query query = Query.create(
                 sessionContext,
                 statement,
                 queryManager,
                 sessionPropertyManager,
-                exchangeClient,
+                exchangeClientSupplier,
                 responseExecutor,
                 timeoutExecutor,
                 blockEncodingSerde);
@@ -302,11 +300,13 @@ public class StatementResourceHelper
                 String query,
                 QueryManager queryManager,
                 SessionPropertyManager sessionPropertyManager,
-                ExchangeClient exchangeClient,
+                ExchangeClientSupplier exchangeClientSupplier,
                 Executor dataProcessorExecutor,
                 ScheduledExecutorService timeoutExecutor,
                 BlockEncodingSerde blockEncodingSerde)
         {
+            ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
+            });
             Query result = new Query(sessionContext, query, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
             result.updateOutputInfoWhenReady();
             return result;
