@@ -11,8 +11,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.server;
+package com.facebook.presto.server.protocol;
 
+import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.transaction.TransactionId;
 import com.google.common.collect.ImmutableMap;

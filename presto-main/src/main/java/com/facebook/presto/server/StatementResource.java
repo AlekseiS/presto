@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.server;
 
+import com.facebook.presto.server.protocol.StatementResourceHelper;
 import com.facebook.presto.spi.QueryId;
 import io.airlift.units.Duration;
 
