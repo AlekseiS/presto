@@ -88,7 +88,7 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 @ThreadSafe
-class ActiveQuery
+abstract class ActiveQuery
 {
     private static final Logger log = Logger.get(ActiveQuery.class);
     private static final long DESIRED_RESULT_BYTES = new DataSize(1, MEGABYTE).toBytes();
@@ -141,7 +141,7 @@ class ActiveQuery
     @GuardedBy("this")
     private Long updateCount;
 
-    public static ActiveQuery create(
+    public static ActiveQuery createV1(
             SessionContext sessionContext,
             String query,
             QueryManager queryManager,
@@ -151,16 +151,44 @@ class ActiveQuery
             ScheduledExecutorService timeoutExecutor,
             BlockEncodingSerde blockEncodingSerde)
     {
+        QueryInfo queryInfo = queryManager.createQuery(sessionContext, query);
         ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
         });
-        ActiveQuery result = new ActiveQuery(sessionContext, query, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        ActiveQuery result = new ActiveQueryV1(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
         result.updateOutputInfoWhenReady();
         return result;
     }
 
-    private ActiveQuery(
+    public static ActiveQuery createV2(
             SessionContext sessionContext,
             String query,
+            QueryManager queryManager,
+            SessionPropertyManager sessionPropertyManager,
+            ExchangeClientSupplier exchangeClientSupplier,
+            Executor dataProcessorExecutor,
+            ScheduledExecutorService timeoutExecutor,
+            BlockEncodingSerde blockEncodingSerde)
+    {
+        QueryInfo queryInfo = queryManager.createQuery(sessionContext, query);
+        ActiveQuery result;
+        if (queryInfo.getUpdateType() != null) {
+            // update query: insert, delete: DDL
+            ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
+            });
+            result = new ActiveQueryUpdate(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        }
+        else {
+            // TODO: remove exchange client, pass only necessary arguments
+            ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
+            });
+            result = new ActiveQueryStatusOnly(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        }
+        result.updateOutputInfoWhenReady();
+        return result;
+    }
+
+    ActiveQuery(
+            QueryInfo queryInfo,
             QueryManager queryManager,
             SessionPropertyManager sessionPropertyManager,
             ExchangeClient exchangeClient,
@@ -168,8 +196,6 @@ class ActiveQuery
             ScheduledExecutorService timeoutExecutor,
             BlockEncodingSerde blockEncodingSerde)
     {
-        requireNonNull(sessionContext, "sessionContext is null");
-        requireNonNull(query, "query is null");
         requireNonNull(queryManager, "queryManager is null");
         requireNonNull(exchangeClient, "exchangeClient is null");
         requireNonNull(resultsProcessorExecutor, "resultsProcessorExecutor is null");
@@ -177,7 +203,6 @@ class ActiveQuery
 
         this.queryManager = queryManager;
 
-        QueryInfo queryInfo = queryManager.createQuery(sessionContext, query);
         queryId = queryInfo.getQueryId();
         session = queryInfo.getSession().toSession(sessionPropertyManager);
         this.exchangeClient = exchangeClient;

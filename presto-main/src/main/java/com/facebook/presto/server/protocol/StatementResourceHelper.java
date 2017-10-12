@@ -102,9 +102,26 @@ public class StatementResourceHelper
         queryPurger.shutdownNow();
     }
 
-    public void createQuery(String statement, SessionContext sessionContext, UriInfo uriInfo, AsyncResponse asyncResponse)
+    // TODO: create query factory and pass it here
+    public void createQueryV1(String statement, SessionContext sessionContext, UriInfo uriInfo, AsyncResponse asyncResponse)
     {
-        ActiveQuery query = ActiveQuery.create(
+        ActiveQuery query = ActiveQuery.createV1(
+                sessionContext,
+                statement,
+                queryManager,
+                sessionPropertyManager,
+                exchangeClientSupplier,
+                responseExecutor,
+                timeoutExecutor,
+                blockEncodingSerde);
+        queries.put(query.getQueryId(), query);
+
+        asyncQueryResults(query, OptionalLong.empty(), new Duration(1, MILLISECONDS), uriInfo, asyncResponse);
+    }
+
+    public void createQueryV2(String statement, SessionContext sessionContext, UriInfo uriInfo, AsyncResponse asyncResponse)
+    {
+        ActiveQuery query = ActiveQuery.createV2(
                 sessionContext,
                 statement,
                 queryManager,

@@ -66,7 +66,7 @@ public class StatementResource
                     .build());
         }
         SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
-        statementResourceHelper.createQuery(statement, sessionContext, uriInfo, asyncResponse);
+        statementResourceHelper.createQueryV1(statement, sessionContext, uriInfo, asyncResponse);
     }
 
     @GET

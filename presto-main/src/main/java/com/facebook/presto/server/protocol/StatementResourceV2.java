@@ -69,7 +69,7 @@ public class StatementResourceV2
                     .build());
         }
         SessionContext sessionContext = new JsonBasedSessionContext(queryInfo, Optional.ofNullable(servletRequest.getUserPrincipal()));
-        statementResourceHelper.createQuery(queryInfo.getStatement(), sessionContext, uriInfo, asyncResponse);
+        statementResourceHelper.createQueryV2(queryInfo.getStatement(), sessionContext, uriInfo, asyncResponse);
     }
 
     @GET
