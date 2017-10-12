@@ -27,7 +27,7 @@ import java.util.Set;
 public final class JsonBasedSessionContext
         implements SessionContext
 {
-    public JsonBasedSessionContext(CreateQueryInfo queryInfo, Optional<Principal> userPrincipal)
+    public JsonBasedSessionContext(CreateQueryRequest queryInfo, Optional<Principal> userPrincipal)
     {
 
     }

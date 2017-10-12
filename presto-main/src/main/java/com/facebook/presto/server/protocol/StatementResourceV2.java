@@ -56,7 +56,7 @@ public class StatementResourceV2
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public void createQuery(
-            CreateQueryInfo queryInfo,
+            CreateQueryRequest queryInfo,
             @Context HttpServletRequest servletRequest,
             @Context UriInfo uriInfo,
             @Suspended AsyncResponse asyncResponse)
@@ -69,7 +69,7 @@ public class StatementResourceV2
                     .build());
         }
         SessionContext sessionContext = new JsonBasedSessionContext(queryInfo, Optional.ofNullable(servletRequest.getUserPrincipal()));
-        statementResourceHelper.createQueryV2(queryInfo.getStatement(), sessionContext, uriInfo, asyncResponse);
+        statementResourceHelper.createQueryV2(queryInfo.getQuery(), sessionContext, uriInfo, asyncResponse);
     }
 
     @GET

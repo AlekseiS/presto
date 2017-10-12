@@ -19,21 +19,22 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
 
-public class CreateQueryInfo
+public class CreateQueryRequest
 {
-    private final String statement;
+    private final String query;
 
     @JsonCreator
-    public CreateQueryInfo(
-            @JsonProperty("statement") String statement)
+    public CreateQueryRequest(
+            @JsonProperty("query") String query)
     {
-        checkArgument(!isNullOrEmpty(statement), "statement is null or empty");
-        this.statement = statement;
+        // TODO: add a methdo to throw web exception
+        checkArgument(!isNullOrEmpty(query), "query is null or empty");
+        this.query = query;
     }
 
     @JsonProperty
-    public String getStatement()
+    public String getQuery()
     {
-        return statement;
+        return query;
     }
 }
