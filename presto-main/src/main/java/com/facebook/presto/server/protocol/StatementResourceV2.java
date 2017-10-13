@@ -13,7 +13,6 @@
  */
 package com.facebook.presto.server.protocol;
 
-import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.QueryId;
 import com.google.common.collect.ImmutableMap;
 import io.airlift.units.Duration;
@@ -37,8 +36,6 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
-import java.util.Optional;
-
 import static java.util.Objects.requireNonNull;
 
 @Path("/v2/statement")
@@ -56,20 +53,19 @@ public class StatementResourceV2
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public void createQuery(
-            CreateQueryRequest queryInfo,
+            CreateQueryRequest createQueryRequest,
             @Context HttpServletRequest servletRequest,
             @Context UriInfo uriInfo,
             @Suspended AsyncResponse asyncResponse)
             throws InterruptedException
     {
-        if (queryInfo == null) {
+        if (createQueryRequest == null) {
             throw new WebApplicationException(Response
                     .status(Status.BAD_REQUEST)
                     .entity(ImmutableMap.of("error", "Cannot parse create query request"))
                     .build());
         }
-        SessionContext sessionContext = new JsonBasedSessionContext(queryInfo, Optional.ofNullable(servletRequest.getUserPrincipal()));
-        statementResourceHelper.createQueryV2(queryInfo.getQuery(), sessionContext, uriInfo, asyncResponse);
+        statementResourceHelper.createQueryV2(createQueryRequest.getQuery(), createQueryRequest.getSession(), uriInfo, asyncResponse);
     }
 
     @GET

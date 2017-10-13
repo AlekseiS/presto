@@ -83,7 +83,7 @@ public class TestMetadataManager
             throws Exception
     {
         QueryManager queryManager = queryRunner.getCoordinator().getQueryManager();
-        QueryId queryId = queryManager.createQuery(new TestingSessionContext(TEST_SESSION),
+        QueryId queryId = queryManager.createQuery(TestingSessionContext.fromSession(TEST_SESSION),
                 "SELECT * FROM lineitem").getQueryId();
 
         // wait until query starts running

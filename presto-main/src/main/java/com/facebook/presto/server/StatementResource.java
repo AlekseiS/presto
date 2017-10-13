@@ -35,6 +35,7 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
+import static com.facebook.presto.server.HttpRequestSessionContext.fromHttpRequest;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.Objects.requireNonNull;
 
@@ -65,7 +66,7 @@ public class StatementResource
                     .entity("SQL statement is empty")
                     .build());
         }
-        SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
+        SessionContext sessionContext = fromHttpRequest(servletRequest);
         statementResourceHelper.createQueryV1(statement, sessionContext, uriInfo, asyncResponse);
     }
 

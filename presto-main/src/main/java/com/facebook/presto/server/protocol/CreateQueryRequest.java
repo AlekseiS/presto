@@ -13,28 +13,64 @@
  */
 package com.facebook.presto.server.protocol;
 
+import com.facebook.presto.server.SessionContext;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
-import static com.google.common.base.Preconditions.checkArgument;
+import javax.ws.rs.WebApplicationException;
+import javax.ws.rs.core.MediaType;
+import javax.ws.rs.core.Response;
+
 import static com.google.common.base.Strings.isNullOrEmpty;
 
 public class CreateQueryRequest
 {
+    private final SessionContext session;
     private final String query;
 
     @JsonCreator
     public CreateQueryRequest(
+            @JsonProperty("session") SessionContext session,
             @JsonProperty("query") String query)
     {
-        // TODO: add a methdo to throw web exception
-        checkArgument(!isNullOrEmpty(query), "query is null or empty");
+        assertRequest(!isNullOrEmpty(query), "query is null or empty");
         this.query = query;
+        this.session = assertNotNull(session, "session is null");
     }
 
     @JsonProperty
     public String getQuery()
     {
         return query;
+    }
+
+    @JsonProperty
+    public SessionContext getSession()
+    {
+        return session;
+    }
+
+    private static void assertRequest(boolean expression, String message)
+    {
+        if (!expression) {
+            throw badRequest(message);
+        }
+    }
+
+    private static <T> T assertNotNull(T reference, String message)
+    {
+        if (reference == null) {
+            throw badRequest(message);
+        }
+        return reference;
+    }
+
+    private static WebApplicationException badRequest(String message)
+    {
+        throw new WebApplicationException(Response
+                .status(Response.Status.BAD_REQUEST)
+                .type(MediaType.TEXT_PLAIN)
+                .entity(message)
+                .build());
     }
 }

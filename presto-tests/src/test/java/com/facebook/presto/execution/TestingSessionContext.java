@@ -16,118 +16,44 @@ package com.facebook.presto.execution;
 import com.facebook.presto.Session;
 import com.facebook.presto.connector.ConnectorId;
 import com.facebook.presto.server.SessionContext;
-import com.facebook.presto.spi.security.Identity;
-import com.facebook.presto.transaction.TransactionId;
 import com.google.common.collect.ImmutableMap;
 
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
 
 import static java.util.Map.Entry;
 import static java.util.Objects.requireNonNull;
 
-public class TestingSessionContext
-        implements SessionContext
+public final class TestingSessionContext
 {
-    private final Session session;
+    private TestingSessionContext() {}
 
-    public TestingSessionContext(Session session)
+    public static SessionContext fromSession(Session session)
     {
-        this.session = requireNonNull(session, "session is null");
+        requireNonNull(session, "session is null");
+        return new SessionContext(
+                session.getCatalog().orElse(null),
+                session.getSchema().orElse(null),
+                session.getIdentity(),
+                session.getSource().orElse(null),
+                session.getUserAgent().orElse(null),
+                session.getRemoteUserAddress().orElse(null),
+                session.getTimeZoneKey().getId(),
+                session.getLocale().getLanguage(),
+                session.getClientTags(),
+                session.getSystemProperties(),
+                getCatalogSessionProperties(session),
+                session.getPreparedStatements(),
+                session.getTransactionId(),
+                session.isClientTransactionSupport(),
+                session.getClientInfo().orElse(null));
     }
 
-    @Override
-    public Identity getIdentity()
-    {
-        return session.getIdentity();
-    }
-
-    @Override
-    public String getCatalog()
-    {
-        return session.getCatalog().orElse(null);
-    }
-
-    @Override
-    public String getSchema()
-    {
-        return session.getSchema().orElse(null);
-    }
-
-    @Override
-    public String getSource()
-    {
-        return session.getSource().orElse(null);
-    }
-
-    @Override
-    public String getRemoteUserAddress()
-    {
-        return session.getRemoteUserAddress().orElse(null);
-    }
-
-    @Override
-    public String getUserAgent()
-    {
-        return session.getUserAgent().orElse(null);
-    }
-
-    @Override
-    public String getClientInfo()
-    {
-        return session.getClientInfo().orElse(null);
-    }
-
-    @Override
-    public Set<String> getClientTags()
-    {
-        return session.getClientTags();
-    }
-
-    @Override
-    public String getTimeZoneId()
-    {
-        return session.getTimeZoneKey().getId();
-    }
-
-    @Override
-    public String getLanguage()
-    {
-        return session.getLocale().getLanguage();
-    }
-
-    @Override
-    public Map<String, String> getSystemProperties()
-    {
-        return session.getSystemProperties();
-    }
-
-    @Override
-    public Map<String, Map<String, String>> getCatalogSessionProperties()
+    private static Map<String, Map<String, String>> getCatalogSessionProperties(Session session)
     {
         ImmutableMap.Builder<String, Map<String, String>> catalogSessionProperties = ImmutableMap.builder();
         for (Entry<ConnectorId, Map<String, String>> entry : session.getConnectorProperties().entrySet()) {
             catalogSessionProperties.put(entry.getKey().getCatalogName(), entry.getValue());
         }
         return catalogSessionProperties.build();
-    }
-
-    @Override
-    public Map<String, String> getPreparedStatements()
-    {
-        return session.getPreparedStatements();
-    }
-
-    @Override
-    public Optional<TransactionId> getTransactionId()
-    {
-        return session.getTransactionId();
-    }
-
-    @Override
-    public boolean supportClientTransaction()
-    {
-        return session.isClientTransactionSupport();
     }
 }
