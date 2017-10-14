@@ -73,6 +73,7 @@ public class QueryResults
     private final URI partialCancelUri;
     private final URI nextUri;
     private final List<Column> columns;
+    // TODO: remove data after fully migrated to V2 protocol
     private final Iterable<List<Object>> data;
     private final StatementStats stats;
     private final QueryError error;
