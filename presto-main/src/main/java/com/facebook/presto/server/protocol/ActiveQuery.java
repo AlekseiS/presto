@@ -70,7 +70,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
@@ -120,24 +119,6 @@ abstract class ActiveQuery
 
     @GuardedBy("this")
     private List<Type> types;
-
-    @GuardedBy("this")
-    private Map<String, String> setSessionProperties;
-
-    @GuardedBy("this")
-    private Set<String> resetSessionProperties;
-
-    @GuardedBy("this")
-    private Map<String, String> addedPreparedStatements;
-
-    @GuardedBy("this")
-    private Set<String> deallocatedPreparedStatements;
-
-    @GuardedBy("this")
-    private Optional<TransactionId> startedTransactionId;
-
-    @GuardedBy("this")
-    private boolean clearTransactionId;
 
     @GuardedBy("this")
     private Long updateCount;
@@ -246,36 +227,6 @@ abstract class ActiveQuery
     public QueryId getQueryId()
     {
         return queryId;
-    }
-
-    public synchronized Map<String, String> getSetSessionProperties()
-    {
-        return setSessionProperties;
-    }
-
-    public synchronized Set<String> getResetSessionProperties()
-    {
-        return resetSessionProperties;
-    }
-
-    public synchronized Map<String, String> getAddedPreparedStatements()
-    {
-        return addedPreparedStatements;
-    }
-
-    public synchronized Set<String> getDeallocatedPreparedStatements()
-    {
-        return deallocatedPreparedStatements;
-    }
-
-    public synchronized Optional<TransactionId> getStartedTransactionId()
-    {
-        return startedTransactionId;
-    }
-
-    public synchronized boolean isClearTransactionId()
-    {
-        return clearTransactionId;
     }
 
     public synchronized ListenableFuture<QueryResults> waitForResults(OptionalLong token, UriInfo uriInfo, Duration wait)
@@ -408,18 +359,6 @@ abstract class ActiveQuery
         if (!queryInfo.isFinalQueryInfo() || !exchangeClient.isClosed()) {
             nextResultsUri = createNextResultsUri(uriInfo);
         }
-
-        // update setSessionProperties
-        setSessionProperties = queryInfo.getSetSessionProperties();
-        resetSessionProperties = queryInfo.getResetSessionProperties();
-
-        // update preparedStatements
-        addedPreparedStatements = queryInfo.getAddedPreparedStatements();
-        deallocatedPreparedStatements = queryInfo.getDeallocatedPreparedStatements();
-
-        // update startedTransactionId
-        startedTransactionId = queryInfo.getStartedTransactionId();
-        clearTransactionId = queryInfo.isClearTransactionId();
 
         QueryActions actions = QueryActions.createIfNecessary(
                 queryInfo.getSetSessionProperties(),

@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.server.protocol;
 
+import com.facebook.presto.client.QueryActions;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.execution.QueryManager;
 import com.facebook.presto.execution.QueryState;
@@ -150,41 +151,57 @@ public class StatementResourceHelper
         Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
         ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, wait);
 
-        ListenableFuture<Response> response = Futures.transform(queryResultsFuture, queryResults -> toResponse(query, queryResults));
+        ListenableFuture<Response> response = Futures.transform(queryResultsFuture, StatementResourceHelper::toResponse);
 
         bindAsyncResponse(asyncResponse, response, responseExecutor);
     }
 
-    private static Response toResponse(ActiveQuery query, QueryResults queryResults)
+    private static Response toResponse(QueryResults queryResults)
     {
-        ResponseBuilder response = Response.ok(queryResults);
+        // TODO: think if it's fine to keep this section for V1 protocol
+        QueryResults withoutActions = queryResults.clearActions();
+        ResponseBuilder response = Response.ok(withoutActions);
+
+        QueryActions actions = queryResults.getActions();
+        if (actions == null) {
+            return response.build();
+        }
 
         // add set session properties
-        query.getSetSessionProperties().entrySet()
-                .forEach(entry -> response.header(PRESTO_SET_SESSION, entry.getKey() + '=' + entry.getValue()));
+        if (actions.getSetSessionProperties() != null) {
+            actions.getSetSessionProperties().entrySet()
+                    .forEach(entry -> response.header(PRESTO_SET_SESSION, entry.getKey() + '=' + entry.getValue()));
+        }
 
         // add clear session properties
-        query.getResetSessionProperties()
-                .forEach(name -> response.header(PRESTO_CLEAR_SESSION, name));
+        if (actions.getClearSessionProperties() != null) {
+            actions.getClearSessionProperties()
+                    .forEach(name -> response.header(PRESTO_CLEAR_SESSION, name));
+        }
 
         // add added prepare statements
-        for (Entry<String, String> entry : query.getAddedPreparedStatements().entrySet()) {
-            String encodedKey = urlEncode(entry.getKey());
-            String encodedValue = urlEncode(entry.getValue());
-            response.header(PRESTO_ADDED_PREPARE, encodedKey + '=' + encodedValue);
+        if (actions.getAddedPreparedStatements() != null) {
+            for (Entry<String, String> entry : actions.getAddedPreparedStatements().entrySet()) {
+                String encodedKey = urlEncode(entry.getKey());
+                String encodedValue = urlEncode(entry.getValue());
+                response.header(PRESTO_ADDED_PREPARE, encodedKey + '=' + encodedValue);
+            }
         }
 
         // add deallocated prepare statements
-        for (String name : query.getDeallocatedPreparedStatements()) {
-            response.header(PRESTO_DEALLOCATED_PREPARE, urlEncode(name));
+        if (actions.getDeallocatedPreparedStatements() != null) {
+            for (String name : actions.getDeallocatedPreparedStatements()) {
+                response.header(PRESTO_DEALLOCATED_PREPARE, urlEncode(name));
+            }
         }
 
         // add new transaction ID
-        query.getStartedTransactionId()
-                .ifPresent(transactionId -> response.header(PRESTO_STARTED_TRANSACTION_ID, transactionId));
+        if (actions.getStartedTransactionId() != null) {
+            response.header(PRESTO_STARTED_TRANSACTION_ID, actions.getStartedTransactionId());
+        }
 
         // add clear transaction ID directive
-        if (query.isClearTransactionId()) {
+        if (actions.isClearTransactionId() != null && actions.isClearTransactionId()) {
             response.header(PRESTO_CLEAR_TRANSACTION_ID, true);
         }
 
