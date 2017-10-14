@@ -16,19 +16,16 @@ package com.facebook.presto.server.protocol;
 import com.facebook.presto.client.QueryActions;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.execution.QueryManager;
-import com.facebook.presto.execution.QueryState;
 import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.concurrent.BoundedExecutor;
-import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
 import javax.annotation.PreDestroy;
@@ -42,7 +39,6 @@ import javax.ws.rs.core.UriInfo;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.util.Map.Entry;
-import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
@@ -63,8 +59,6 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 
 public class StatementResourceHelper
 {
-    private static final Logger log = Logger.get(StatementResourceHelper.class);
-
     private static final Duration MAX_WAIT_TIME = new Duration(1, SECONDS);
     private static final Ordering<Comparable<Duration>> WAIT_ORDERING = Ordering.natural().nullsLast();
 
@@ -225,48 +219,6 @@ public class StatementResourceHelper
         }
         catch (UnsupportedEncodingException e) {
             throw new AssertionError(e);
-        }
-    }
-
-    private static class PurgeQueriesRunnable
-            implements Runnable
-    {
-        private final ConcurrentMap<QueryId, ActiveQuery> queries;
-        private final QueryManager queryManager;
-
-        public PurgeQueriesRunnable(ConcurrentMap<QueryId, ActiveQuery> queries, QueryManager queryManager)
-        {
-            this.queries = queries;
-            this.queryManager = queryManager;
-        }
-
-        @Override
-        public void run()
-        {
-            try {
-                // Queries are added to the query manager before being recorded in queryIds set.
-                // Therefore, we take a snapshot if queryIds before getting the live queries
-                // from the query manager.  Then we remove only the queries in the snapshot and
-                // not live queries set.  If we did this in the other order, a query could be
-                // registered between fetching the live queries and inspecting the queryIds set.
-                for (QueryId queryId : ImmutableSet.copyOf(queries.keySet())) {
-                    ActiveQuery query = queries.get(queryId);
-                    Optional<QueryState> state = queryManager.getQueryState(queryId);
-
-                    // free up resources if the query completed
-                    if (!state.isPresent() || state.get() == QueryState.FAILED) {
-                        query.dispose();
-                    }
-
-                    // forget about this query if the query manager is no longer tracking it
-                    if (!state.isPresent()) {
-                        queries.remove(queryId);
-                    }
-                }
-            }
-            catch (Throwable e) {
-                log.warn(e, "Error removing old queries");
-            }
         }
     }
 }
