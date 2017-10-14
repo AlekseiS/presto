@@ -78,6 +78,7 @@ public class QueryResults
     private final QueryError error;
     private final String updateType;
     private final Long updateCount;
+    private final QueryActions actions;
 
     @JsonCreator
     public QueryResults(
@@ -90,9 +91,10 @@ public class QueryResults
             @JsonProperty("stats") StatementStats stats,
             @JsonProperty("error") QueryError error,
             @JsonProperty("updateType") String updateType,
-            @JsonProperty("updateCount") Long updateCount)
+            @JsonProperty("updateCount") Long updateCount,
+            @JsonProperty("actions") QueryActions actions)
     {
-        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount);
+        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount, actions);
     }
 
     public QueryResults(
@@ -105,7 +107,8 @@ public class QueryResults
             StatementStats stats,
             QueryError error,
             String updateType,
-            Long updateCount)
+            Long updateCount,
+            QueryActions actions)
     {
         this.id = requireNonNull(id, "id is null");
         this.infoUri = requireNonNull(infoUri, "infoUri is null");
@@ -118,6 +121,7 @@ public class QueryResults
         this.error = error;
         this.updateType = updateType;
         this.updateCount = updateCount;
+        this.actions = actions;
     }
 
     @NotNull
@@ -190,6 +194,21 @@ public class QueryResults
         return updateCount;
     }
 
+    @Nullable
+    @JsonProperty
+    public QueryActions getActions()
+    {
+        return actions;
+    }
+
+    public QueryResults clearActions()
+    {
+        if (actions == null) {
+            return this;
+        }
+        return new QueryResults(id, infoUri, partialCancelUri, nextUri, columns, data, stats, error, updateType, updateCount, null);
+    }
+
     @Override
     public String toString()
     {
@@ -204,6 +223,7 @@ public class QueryResults
                 .add("error", error)
                 .add("updateType", updateType)
                 .add("updateCount", updateCount)
+                .add("actions", actions)
                 .toString();
     }
 

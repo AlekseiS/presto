@@ -17,6 +17,7 @@ import com.facebook.presto.Session;
 import com.facebook.presto.client.ClientTypeSignature;
 import com.facebook.presto.client.Column;
 import com.facebook.presto.client.FailureInfo;
+import com.facebook.presto.client.QueryActions;
 import com.facebook.presto.client.QueryError;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.StageStats;
@@ -420,6 +421,14 @@ abstract class ActiveQuery
         startedTransactionId = queryInfo.getStartedTransactionId();
         clearTransactionId = queryInfo.isClearTransactionId();
 
+        QueryActions actions = QueryActions.createIfNecessary(
+                queryInfo.getSetSessionProperties(),
+                queryInfo.getResetSessionProperties(),
+                queryInfo.getAddedPreparedStatements(),
+                queryInfo.getDeallocatedPreparedStatements(),
+                queryInfo.getStartedTransactionId().map(TransactionId::toString),
+                queryInfo.isClearTransactionId());
+
         // first time through, self is null
         QueryResults queryResults = new QueryResults(
                 queryId.toString(),
@@ -431,7 +440,8 @@ abstract class ActiveQuery
                 toStatementStats(queryInfo),
                 toQueryError(queryInfo),
                 queryInfo.getUpdateType(),
-                updateCount);
+                updateCount,
+                actions);
 
         // cache the last results
         if (lastResult != null && lastResult.getNextUri() != null) {
