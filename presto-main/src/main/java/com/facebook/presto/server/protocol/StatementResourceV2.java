@@ -13,10 +13,21 @@
  */
 package com.facebook.presto.server.protocol;
 
+import com.facebook.presto.client.QueryResults;
+import com.facebook.presto.execution.QueryManager;
+import com.facebook.presto.metadata.SessionPropertyManager;
+import com.facebook.presto.operator.ExchangeClientSupplier;
+import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.spi.QueryId;
+import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Ordering;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import io.airlift.concurrent.BoundedExecutor;
 import io.airlift.units.Duration;
 
+import javax.annotation.PreDestroy;
 import javax.inject.Inject;
 import javax.servlet.http.HttpServletRequest;
 import javax.ws.rs.Consumes;
@@ -36,17 +47,57 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
+import java.util.OptionalLong;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.ScheduledExecutorService;
+
+import static io.airlift.concurrent.Threads.threadsNamed;
+import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
 import static java.util.Objects.requireNonNull;
+import static java.util.concurrent.Executors.newSingleThreadScheduledExecutor;
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 @Path("/v2/statement")
 public class StatementResourceV2
 {
-    private final StatementResourceHelper statementResourceHelper;
+    private static final Duration MAX_WAIT_TIME = new Duration(1, SECONDS);
+    private static final Ordering<Comparable<Duration>> WAIT_ORDERING = Ordering.natural().nullsLast();
+
+    private final QueryManager queryManager;
+    private final SessionPropertyManager sessionPropertyManager;
+    private final ExchangeClientSupplier exchangeClientSupplier;
+    private final BlockEncodingSerde blockEncodingSerde;
+    private final BoundedExecutor responseExecutor;
+    private final ScheduledExecutorService timeoutExecutor;
+
+    private final ConcurrentMap<QueryId, ActiveQuery> queries = new ConcurrentHashMap<>();
+    private final ScheduledExecutorService queryPurger = newSingleThreadScheduledExecutor(threadsNamed("query-purger-v2"));
 
     @Inject
-    public StatementResourceV2(StatementResourceHelper statementResourceHelper)
+    public StatementResourceV2(
+            QueryManager queryManager,
+            SessionPropertyManager sessionPropertyManager,
+            ExchangeClientSupplier exchangeClientSupplier,
+            BlockEncodingSerde blockEncodingSerde,
+            @ForStatementResource BoundedExecutor responseExecutor,
+            @ForStatementResource ScheduledExecutorService timeoutExecutor)
     {
-        this.statementResourceHelper = requireNonNull(statementResourceHelper, "statementResourceHelper is null");
+        this.queryManager = requireNonNull(queryManager, "queryManager is null");
+        this.sessionPropertyManager = requireNonNull(sessionPropertyManager, "sessionPropertyManager is null");
+        this.exchangeClientSupplier = requireNonNull(exchangeClientSupplier, "exchangeClientSupplier is null");
+        this.blockEncodingSerde = requireNonNull(blockEncodingSerde, "blockEncodingSerde is null");
+        this.responseExecutor = requireNonNull(responseExecutor, "responseExecutor is null");
+        this.timeoutExecutor = requireNonNull(timeoutExecutor, "timeoutExecutor is null");
+
+        queryPurger.scheduleWithFixedDelay(new PurgeQueriesRunnable(queries, queryManager), 200, 200, MILLISECONDS);
+    }
+
+    @PreDestroy
+    public void stop()
+    {
+        queryPurger.shutdownNow();
     }
 
     @POST
@@ -65,7 +116,18 @@ public class StatementResourceV2
                     .entity(ImmutableMap.of("error", "Cannot parse create query request"))
                     .build());
         }
-        statementResourceHelper.createQueryV2(createQueryRequest.getQuery(), createQueryRequest.getSession(), uriInfo, asyncResponse);
+        ActiveQuery query = ActiveQuery.createV2(
+                createQueryRequest.getSession(),
+                createQueryRequest.getQuery(),
+                queryManager,
+                sessionPropertyManager,
+                exchangeClientSupplier,
+                responseExecutor,
+                timeoutExecutor,
+                blockEncodingSerde);
+        queries.put(query.getQueryId(), query);
+
+        asyncQueryResults(query, OptionalLong.empty(), new Duration(1, MILLISECONDS), uriInfo, asyncResponse);
     }
 
     @GET
@@ -79,15 +141,41 @@ public class StatementResourceV2
             @Suspended AsyncResponse asyncResponse)
             throws InterruptedException
     {
-        statementResourceHelper.asyncQueryResults(queryId, token, maxWait, uriInfo, asyncResponse);
+        ActiveQuery query = queries.get(queryId);
+        if (query == null) {
+            asyncResponse.resume(Response.status(Status.NOT_FOUND).build());
+            return;
+        }
+        asyncQueryResults(query, OptionalLong.of(token), maxWait, uriInfo, asyncResponse);
     }
 
     @DELETE
     @Path("{queryId}/{token}")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response cancelQuery(@PathParam("queryId") QueryId queryId,
+    public Response cancelQuery(
+            @PathParam("queryId") QueryId queryId,
             @PathParam("token") long token)
     {
-        return statementResourceHelper.cancelQuery(queryId);
+        ActiveQuery query = queries.get(queryId);
+        if (query == null) {
+            return Response.status(Status.NOT_FOUND).build();
+        }
+        query.cancel();
+        return Response.noContent().build();
+    }
+
+    private void asyncQueryResults(ActiveQuery query, OptionalLong token, Duration maxWait, UriInfo uriInfo, AsyncResponse asyncResponse)
+    {
+        Duration wait = WAIT_ORDERING.min(MAX_WAIT_TIME, maxWait);
+        ListenableFuture<QueryResults> queryResultsFuture = query.waitForResults(token, uriInfo, wait);
+
+        ListenableFuture<Response> response = Futures.transform(queryResultsFuture, StatementResourceV2::toResponse);
+
+        bindAsyncResponse(asyncResponse, response, responseExecutor);
+    }
+
+    private static Response toResponse(QueryResults queryResults)
+    {
+        return Response.ok(queryResults).build();
     }
 }

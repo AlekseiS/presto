@@ -59,7 +59,7 @@ import com.facebook.presto.execution.scheduler.SplitSchedulerStats;
 import com.facebook.presto.memory.ClusterMemoryManager;
 import com.facebook.presto.memory.ForMemoryManager;
 import com.facebook.presto.operator.ForScheduler;
-import com.facebook.presto.server.protocol.StatementResourceHelper;
+import com.facebook.presto.server.protocol.StatementResourceV2;
 import com.facebook.presto.server.remotetask.RemoteTaskStats;
 import com.facebook.presto.spi.memory.ClusterMemoryPoolManager;
 import com.facebook.presto.sql.analyzer.FeaturesConfig;
@@ -148,8 +148,8 @@ public class CoordinatorModule
         jsonCodecBinder(binder).bindJsonCodec(QueryInfo.class);
         jsonCodecBinder(binder).bindJsonCodec(TaskInfo.class);
         jsonCodecBinder(binder).bindJsonCodec(QueryResults.class);
-        binder.bind(StatementResourceHelper.class);
         jaxrsBinder(binder).bind(StatementResource.class);
+        jaxrsBinder(binder).bind(StatementResourceV2.class);
 
         // query execution visualizer
         jaxrsBinder(binder).bind(QueryExecutionResource.class);

@@ -9,7 +9,7 @@ import io.airlift.log.Logger;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentMap;
 
-class PurgeQueriesRunnable
+public class PurgeQueriesRunnable
         implements Runnable
 {
     private static final Logger log = Logger.get(PurgeQueriesRunnable.class);

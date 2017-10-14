@@ -88,7 +88,7 @@ import static java.lang.String.format;
 import static java.util.Objects.requireNonNull;
 
 @ThreadSafe
-abstract class ActiveQuery
+public abstract class ActiveQuery
 {
     private static final Logger log = Logger.get(ActiveQuery.class);
     private static final long DESIRED_RESULT_BYTES = new DataSize(1, MEGABYTE).toBytes();
