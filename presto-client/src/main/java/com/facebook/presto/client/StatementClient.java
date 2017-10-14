@@ -16,8 +16,6 @@ package com.facebook.presto.client;
 import com.facebook.presto.client.OkHttpUtil.NullCallback;
 import com.facebook.presto.spi.type.TimeZoneKey;
 import com.google.common.base.Splitter;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Sets;
 import io.airlift.json.JsonCodec;
 import okhttp3.Headers;
@@ -67,6 +65,8 @@ import static java.lang.String.format;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static java.net.HttpURLConnection.HTTP_UNAUTHORIZED;
 import static java.net.HttpURLConnection.HTTP_UNAVAILABLE;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
@@ -215,22 +215,22 @@ public class StatementClient
 
     public Map<String, String> getSetSessionProperties()
     {
-        return ImmutableMap.copyOf(setSessionProperties);
+        return unmodifiableMap(setSessionProperties);
     }
 
     public Set<String> getResetSessionProperties()
     {
-        return ImmutableSet.copyOf(resetSessionProperties);
+        return unmodifiableSet(resetSessionProperties);
     }
 
     public Map<String, String> getAddedPreparedStatements()
     {
-        return ImmutableMap.copyOf(addedPreparedStatements);
+        return unmodifiableMap(addedPreparedStatements);
     }
 
     public Set<String> getDeallocatedPreparedStatements()
     {
-        return ImmutableSet.copyOf(deallocatedPreparedStatements);
+        return unmodifiableSet(deallocatedPreparedStatements);
     }
 
     public String getStartedtransactionId()
