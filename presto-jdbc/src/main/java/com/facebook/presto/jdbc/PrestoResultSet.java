@@ -17,7 +17,6 @@ import com.facebook.presto.client.Column;
 import com.facebook.presto.client.IntervalDayTime;
 import com.facebook.presto.client.IntervalYearMonth;
 import com.facebook.presto.client.QueryError;
-import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.client.StatementClient;
 import com.facebook.presto.jdbc.ColumnInfo.Nullable;
@@ -1741,7 +1740,7 @@ public class PrestoResultSet
             client.advance();
         }
 
-        QueryResults results = client.finalResults();
+        QueryStatusInfo results = client.finalStatusInfo();
         if (!client.isFailed()) {
             throw new SQLException(format("Query has no columns (#%s)", results.getId()));
         }
@@ -1775,27 +1774,27 @@ public class PrestoResultSet
                     throw propagate(new SQLException("ResultSet thread was interrupted"));
                 }
 
-                QueryResults results = client.current();
-                progressCallback.accept(QueryStats.create(results.getId(), results.getStats()));
-                Iterable<List<Object>> data = results.getData();
+                QueryStatusInfo statusInfo = client.currentStatusInfo();
+                progressCallback.accept(QueryStats.create(statusInfo.getId(), statusInfo.getStats()));
+                Iterable<List<Object>> data = client.currentData().getData();
                 client.advance();
                 if (data != null) {
                     return data;
                 }
             }
 
-            QueryResults results = client.finalResults();
+            QueryStatusInfo results = client.finalStatusInfo();
             progressCallback.accept(QueryStats.create(results.getId(), results.getStats()));
 
             if (client.isFailed()) {
-                throw propagate(resultsException(client.finalResults()));
+                throw propagate(resultsException(results));
             }
 
             return endOfData();
         }
     }
 
-    static SQLException resultsException(QueryResults results)
+    static SQLException resultsException(QueryStatusInfo results)
     {
         QueryError error = requireNonNull(results.getError());
         String message = format("Query failed (#%s): %s", results.getId(), error.getMessage());

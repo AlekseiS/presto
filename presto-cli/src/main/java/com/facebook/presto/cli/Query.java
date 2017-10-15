@@ -17,7 +17,6 @@ import com.facebook.presto.cli.ClientOptions.OutputFormat;
 import com.facebook.presto.client.Column;
 import com.facebook.presto.client.ErrorLocation;
 import com.facebook.presto.client.QueryError;
-import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.client.StatementClient;
 import com.google.common.base.Splitter;
@@ -158,7 +157,7 @@ public class Query
 
     private void waitForData()
     {
-        while (client.isValid() && (client.current().getData() == null)) {
+        while (client.isValid() && (client.currentData().getData() == null)) {
             client.advance();
         }
     }
@@ -285,7 +284,7 @@ public class Query
 
     public void renderFailure(PrintStream out)
     {
-        QueryResults results = client.finalResults();
+        QueryStatusInfo results = client.finalStatusInfo();
         QueryError error = results.getError();
         checkState(error != null);
 

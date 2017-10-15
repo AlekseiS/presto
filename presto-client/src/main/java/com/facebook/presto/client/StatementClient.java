@@ -208,19 +208,13 @@ public class StatementClient
         return currentResults.get();
     }
 
-    public QueryResults current()
+    public QueryData currentData()
     {
         checkState(isValid(), "current position is not valid (cursor past end)");
         return currentResults.get();
     }
 
     public QueryStatusInfo finalStatusInfo()
-    {
-        checkState((!isValid()) || isFailed(), "current position is still valid");
-        return currentResults.get();
-    }
-
-    public QueryResults finalResults()
     {
         checkState((!isValid()) || isFailed(), "current position is still valid");
         return currentResults.get();

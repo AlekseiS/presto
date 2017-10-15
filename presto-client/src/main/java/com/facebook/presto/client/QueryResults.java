@@ -67,7 +67,7 @@ import static java.util.stream.Collectors.toList;
 
 @Immutable
 public class QueryResults
-        implements QueryStatusInfo
+        implements QueryStatusInfo, QueryData
 {
     private final String id;
     private final URI infoUri;
@@ -168,6 +168,7 @@ public class QueryResults
 
     @Nullable
     @JsonProperty
+    @Override
     public Iterable<List<Object>> getData()
     {
         return data;
