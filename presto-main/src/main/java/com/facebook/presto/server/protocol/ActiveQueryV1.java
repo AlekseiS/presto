@@ -25,8 +25,8 @@ import java.util.concurrent.ScheduledExecutorService;
 class ActiveQueryV1
         extends ActiveQuery
 {
-    ActiveQueryV1(QueryInfo queryInfo, QueryManager queryManager, SessionPropertyManager sessionPropertyManager, ExchangeClient exchangeClient, Executor resultsProcessorExecutor, ScheduledExecutorService timeoutExecutor, BlockEncodingSerde blockEncodingSerde)
+    ActiveQueryV1(QueryInfo queryInfo, QueryManager queryManager, SessionPropertyManager sessionPropertyManager, ExchangeClient exchangeClient, Executor resultsProcessorExecutor, ScheduledExecutorService timeoutExecutor, BlockEncodingSerde blockEncodingSerde, String statementPath)
     {
-        super(queryInfo, queryManager, sessionPropertyManager, exchangeClient, resultsProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        super(queryInfo, queryManager, sessionPropertyManager, exchangeClient, resultsProcessorExecutor, timeoutExecutor, blockEncodingSerde, statementPath);
     }
 }

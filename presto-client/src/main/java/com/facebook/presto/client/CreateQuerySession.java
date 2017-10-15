@@ -41,9 +41,7 @@ public class CreateQuerySession
     private final String language;
     private final Set<String> clientTags;
 
-    private final Map<String, String> systemProperties;
-    private final Map<String, Map<String, String>> catalogSessionProperties;
-
+    private final Map<String, String> properties;
     private final Map<String, String> preparedStatements;
 
     private final String transactionId;
@@ -60,8 +58,7 @@ public class CreateQuerySession
             @JsonProperty("timeZoneId") String timeZoneId,
             @JsonProperty("language") String language,
             @JsonProperty("clientTags") Set<String> clientTags,
-            @JsonProperty("systemProperties") Map<String, String> systemProperties,
-            @JsonProperty("catalogSessionProperties") Map<String, Map<String, String>> catalogSessionProperties,
+            @JsonProperty("properties") Map<String, String> properties,
             @JsonProperty("preparedStatements") Map<String, String> preparedStatements,
             @JsonProperty("transactionId") String transactionId,
             @JsonProperty("clientTransactionSupport") boolean clientTransactionSupport,
@@ -77,9 +74,7 @@ public class CreateQuerySession
         this.timeZoneId = timeZoneId;
         this.language = language;
         this.clientTags = clientTags == null ? null : ImmutableSet.copyOf(clientTags);
-        this.systemProperties = systemProperties == null ? null : ImmutableMap.copyOf(systemProperties);
-        // TODO: deep copy
-        this.catalogSessionProperties = catalogSessionProperties == null ? null : ImmutableMap.copyOf(catalogSessionProperties);
+        this.properties = properties == null ? null : ImmutableMap.copyOf(properties);
         this.preparedStatements = preparedStatements == null ? null : ImmutableMap.copyOf(preparedStatements);
         this.transactionId = transactionId;
         this.clientTransactionSupport = clientTransactionSupport;
@@ -150,16 +145,9 @@ public class CreateQuerySession
 
     @Nullable
     @JsonProperty
-    public Map<String, String> getSystemProperties()
+    public Map<String, String> getProperties()
     {
-        return systemProperties;
-    }
-
-    @Nullable
-    @JsonProperty
-    public Map<String, Map<String, String>> getCatalogSessionProperties()
-    {
-        return catalogSessionProperties;
+        return properties;
     }
 
     @Nullable

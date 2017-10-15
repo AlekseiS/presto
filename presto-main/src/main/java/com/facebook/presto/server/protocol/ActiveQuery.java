@@ -92,6 +92,8 @@ public abstract class ActiveQuery
 {
     private static final Logger log = Logger.get(ActiveQuery.class);
     private static final long DESIRED_RESULT_BYTES = new DataSize(1, MEGABYTE).toBytes();
+    private static final String STATEMENT_PATH_V1 = "/v1/statement";
+    private static final String STATEMENT_PATH_V2 = "/v2/statement";
 
     private final QueryManager queryManager;
     private final QueryId queryId;
@@ -107,6 +109,8 @@ public abstract class ActiveQuery
 
     private final AtomicLong resultId = new AtomicLong();
     private final Session session;
+
+    private final String statementPath;
 
     @GuardedBy("this")
     private QueryResults lastResult;
@@ -136,7 +140,7 @@ public abstract class ActiveQuery
         QueryInfo queryInfo = queryManager.createQuery(sessionContext, query);
         ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
         });
-        ActiveQuery result = new ActiveQueryV1(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        ActiveQuery result = new ActiveQueryV1(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde, STATEMENT_PATH_V1);
         result.updateOutputInfoWhenReady();
         return result;
     }
@@ -157,13 +161,13 @@ public abstract class ActiveQuery
             // update query: insert, delete: DDL
             ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
             });
-            result = new ActiveQueryUpdate(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+            result = new ActiveQueryUpdate(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde, STATEMENT_PATH_V2);
         }
         else {
             // TODO: remove exchange client, pass only necessary arguments
             ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {
             });
-            result = new ActiveQueryStatusOnly(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+            result = new ActiveQueryStatusOnly(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde, STATEMENT_PATH_V2);
         }
         result.updateOutputInfoWhenReady();
         return result;
@@ -176,7 +180,8 @@ public abstract class ActiveQuery
             ExchangeClient exchangeClient,
             Executor resultsProcessorExecutor,
             ScheduledExecutorService timeoutExecutor,
-            BlockEncodingSerde blockEncodingSerde)
+            BlockEncodingSerde blockEncodingSerde,
+            String statementPath)
     {
         requireNonNull(queryManager, "queryManager is null");
         requireNonNull(exchangeClient, "exchangeClient is null");
@@ -192,6 +197,8 @@ public abstract class ActiveQuery
         this.timeoutExecutor = timeoutExecutor;
         requireNonNull(blockEncodingSerde, "serde is null");
         this.serde = new PagesSerdeFactory(blockEncodingSerde, isExchangeCompressionEnabled(session)).createPagesSerde();
+
+        this.statementPath = requireNonNull(statementPath, "statementPath is null");
     }
 
     private void updateOutputInfoWhenReady()
@@ -427,9 +434,9 @@ public abstract class ActiveQuery
         return Futures.transformAsync(queryManager.getStateChange(queryId, currentState), this::queryDoneFuture);
     }
 
-    private synchronized URI createNextResultsUri(UriInfo uriInfo)
+    private URI createNextResultsUri(UriInfo uriInfo)
     {
-        return uriInfo.getBaseUriBuilder().replacePath("/v1/statement").path(queryId.toString()).path(String.valueOf(resultId.incrementAndGet())).replaceQuery("").build();
+        return uriInfo.getBaseUriBuilder().replacePath(statementPath).path(queryId.toString()).path(String.valueOf(resultId.incrementAndGet())).replaceQuery("").build();
     }
 
     private static StatementStats toStatementStats(QueryInfo queryInfo)

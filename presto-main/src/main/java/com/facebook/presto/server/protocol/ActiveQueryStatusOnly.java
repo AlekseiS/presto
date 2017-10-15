@@ -25,8 +25,8 @@ import java.util.concurrent.ScheduledExecutorService;
 class ActiveQueryStatusOnly
         extends ActiveQuery
 {
-    ActiveQueryStatusOnly(QueryInfo queryInfo, QueryManager queryManager, SessionPropertyManager sessionPropertyManager, ExchangeClient exchangeClient, Executor resultsProcessorExecutor, ScheduledExecutorService timeoutExecutor, BlockEncodingSerde blockEncodingSerde)
+    ActiveQueryStatusOnly(QueryInfo queryInfo, QueryManager queryManager, SessionPropertyManager sessionPropertyManager, ExchangeClient exchangeClient, Executor resultsProcessorExecutor, ScheduledExecutorService timeoutExecutor, BlockEncodingSerde blockEncodingSerde, String statementPath)
     {
-        super(queryInfo, queryManager, sessionPropertyManager, exchangeClient, resultsProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        super(queryInfo, queryManager, sessionPropertyManager, exchangeClient, resultsProcessorExecutor, timeoutExecutor, blockEncodingSerde, statementPath);
     }
 }

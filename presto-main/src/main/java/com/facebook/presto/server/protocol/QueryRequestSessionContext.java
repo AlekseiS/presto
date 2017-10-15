@@ -17,24 +17,33 @@ import com.facebook.presto.client.CreateQuerySession;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.transaction.TransactionId;
+import com.google.common.base.Splitter;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
 
 import javax.servlet.http.HttpServletRequest;
-import javax.validation.constraints.NotNull;
 
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Strings.isNullOrEmpty;
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static java.util.Objects.requireNonNull;
 
 public final class QueryRequestSessionContext
         implements SessionContext
 {
+    private static final Splitter PROPERTY_NAME_SPLITTER = Splitter.on('.');
+
     private final CreateQuerySession createQuerySession;
     private final Identity identity;
     private final String remoteUserAddress;
+    private final Map<String, String> systemProperties;
+    private final Map<String, Map<String, String>> catalogSessionProperties;
 
     public QueryRequestSessionContext(CreateQuerySession createQuerySession, HttpServletRequest servletRequest)
     {
@@ -43,9 +52,46 @@ public final class QueryRequestSessionContext
         checkArgument(!isNullOrEmpty(createQuerySession.getUser()), "User must be set");
         this.identity = new Identity(createQuerySession.getUser(), Optional.ofNullable(servletRequest.getUserPrincipal()));
         this.remoteUserAddress = servletRequest.getRemoteAddr();
+
+        // parse session properties
+        ImmutableMap.Builder<String, String> systemProperties = ImmutableMap.builder();
+        Map<String, ImmutableMap.Builder<String, String>> catalogSessionProperties = new HashMap<>();
+        if (createQuerySession.getProperties() != null && !createQuerySession.getProperties().isEmpty()) {
+            for (Map.Entry<String, String> entry : createQuerySession.getProperties().entrySet()) {
+                String fullPropertyName = entry.getKey();
+                String propertyValue = entry.getValue();
+                List<String> nameParts = PROPERTY_NAME_SPLITTER.splitToList(fullPropertyName);
+                if (nameParts.size() == 1) {
+                    String propertyName = nameParts.get(0);
+
+                    // TODO: throw web exception
+                    checkArgument(!propertyName.isEmpty(), "propertyName is empty");
+
+                    // catalog session properties can not be validated until the transaction has stated, so we delay system property validation also
+                    systemProperties.put(propertyName, propertyValue);
+                }
+                else if (nameParts.size() == 2) {
+                    String catalogName = nameParts.get(0);
+                    String propertyName = nameParts.get(1);
+
+                    // TODO: throw web exception
+                    checkArgument(!catalogName.isEmpty(), "catalogName is empty");
+                    checkArgument(!propertyName.isEmpty(), "propertyName is empty");
+
+                    // catalog session properties can not be validated until the transaction has stated
+                    catalogSessionProperties.computeIfAbsent(catalogName, id -> ImmutableMap.builder()).put(propertyName, propertyValue);
+                }
+                else {
+                    // TODO: throw web exception
+                    throw new IllegalArgumentException("Invalid property name: " + fullPropertyName);
+                }
+            }
+        }
+        this.systemProperties = systemProperties.build();
+        this.catalogSessionProperties = catalogSessionProperties.entrySet().stream()
+                .collect(toImmutableMap(Map.Entry::getKey, entry -> entry.getValue().build()));
     }
 
-    @NotNull
     @Override
     public Identity getIdentity()
     {
@@ -70,7 +116,6 @@ public final class QueryRequestSessionContext
         return createQuerySession.getSource();
     }
 
-    @NotNull
     @Override
     public String getRemoteUserAddress()
     {
@@ -92,7 +137,7 @@ public final class QueryRequestSessionContext
     @Override
     public Set<String> getClientTags()
     {
-        return createQuerySession.getClientTags();
+        return createQuerySession.getClientTags() == null ? ImmutableSet.of() : createQuerySession.getClientTags();
     }
 
     @Override
@@ -110,19 +155,19 @@ public final class QueryRequestSessionContext
     @Override
     public Map<String, String> getSystemProperties()
     {
-        return createQuerySession.getSystemProperties();
+        return systemProperties;
     }
 
     @Override
     public Map<String, Map<String, String>> getCatalogSessionProperties()
     {
-        return createQuerySession.getCatalogSessionProperties();
+        return catalogSessionProperties;
     }
 
     @Override
     public Map<String, String> getPreparedStatements()
     {
-        return createQuerySession.getPreparedStatements();
+        return createQuerySession.getPreparedStatements() == null ? ImmutableMap.of() : createQuerySession.getPreparedStatements();
     }
 
     @Override

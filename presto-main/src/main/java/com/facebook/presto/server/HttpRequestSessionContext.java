@@ -265,6 +265,7 @@ public final class HttpRequestSessionContext
 
     private static Map<String, String> parsePreparedStatementsHeaders(HttpServletRequest servletRequest)
     {
+        // TODO: build immutable map
         Map<String, String> preparedStatements = new HashMap<>();
         for (String header : splitSessionHeader(servletRequest.getHeaders(PRESTO_PREPARED_STATEMENT))) {
             List<String> nameValue = Splitter.on('=').limit(2).trimResults().splitToList(header);
