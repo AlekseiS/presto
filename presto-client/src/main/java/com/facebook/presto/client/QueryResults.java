@@ -67,6 +67,7 @@ import static java.util.stream.Collectors.toList;
 
 @Immutable
 public class QueryResults
+        implements QueryStatusInfo
 {
     private final String id;
     private final URI infoUri;
@@ -127,6 +128,7 @@ public class QueryResults
 
     @NotNull
     @JsonProperty
+    @Override
     public String getId()
     {
         return id;
@@ -134,6 +136,7 @@ public class QueryResults
 
     @NotNull
     @JsonProperty
+    @Override
     public URI getInfoUri()
     {
         return infoUri;
@@ -141,6 +144,7 @@ public class QueryResults
 
     @Nullable
     @JsonProperty
+    @Override
     public URI getPartialCancelUri()
     {
         return partialCancelUri;
@@ -148,6 +152,7 @@ public class QueryResults
 
     @Nullable
     @JsonProperty
+    @Override
     public URI getNextUri()
     {
         return nextUri;
@@ -155,6 +160,7 @@ public class QueryResults
 
     @Nullable
     @JsonProperty
+    @Override
     public List<Column> getColumns()
     {
         return columns;
@@ -169,6 +175,7 @@ public class QueryResults
 
     @NotNull
     @JsonProperty
+    @Override
     public StatementStats getStats()
     {
         return stats;
@@ -176,6 +183,7 @@ public class QueryResults
 
     @Nullable
     @JsonProperty
+    @Override
     public QueryError getError()
     {
         return error;
@@ -183,6 +191,7 @@ public class QueryResults
 
     @Nullable
     @JsonProperty
+    @Override
     public String getUpdateType()
     {
         return updateType;
@@ -190,6 +199,7 @@ public class QueryResults
 
     @Nullable
     @JsonProperty
+    @Override
     public Long getUpdateCount()
     {
         return updateCount;

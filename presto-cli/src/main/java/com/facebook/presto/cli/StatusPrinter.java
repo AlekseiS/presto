@@ -14,6 +14,7 @@
 package com.facebook.presto.cli;
 
 import com.facebook.presto.client.QueryResults;
+import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.client.StageStats;
 import com.facebook.presto.client.StatementClient;
 import com.facebook.presto.client.StatementStats;
@@ -137,7 +138,7 @@ Parallelism: 2.5
     private void updateScreen()
     {
         console.repositionCursor();
-        printQueryInfo(client.current());
+        printQueryInfo(client.currentStatusInfo());
     }
 
     public void printFinalInfo()
@@ -210,7 +211,7 @@ Parallelism: 2.5
         out.println();
     }
 
-    private void printQueryInfo(QueryResults results)
+    private void printQueryInfo(QueryStatusInfo results)
     {
         StatementStats stats = results.getStats();
         Duration wallTime = nanosSince(start);

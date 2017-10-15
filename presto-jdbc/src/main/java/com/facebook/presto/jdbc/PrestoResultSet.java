@@ -18,6 +18,7 @@ import com.facebook.presto.client.IntervalDayTime;
 import com.facebook.presto.client.IntervalYearMonth;
 import com.facebook.presto.client.QueryError;
 import com.facebook.presto.client.QueryResults;
+import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.client.StatementClient;
 import com.facebook.presto.jdbc.ColumnInfo.Nullable;
 import com.google.common.collect.AbstractIterator;
@@ -120,7 +121,7 @@ public class PrestoResultSet
         requireNonNull(progressCallback, "progressCallback is null");
 
         this.sessionTimeZone = DateTimeZone.forID(client.getTimeZone().getId());
-        this.queryId = client.current().getId();
+        this.queryId = client.currentStatusInfo().getId();
 
         List<Column> columns = getColumns(client, progressCallback);
         this.fieldMap = getFieldMap(columns);
@@ -1731,7 +1732,7 @@ public class PrestoResultSet
             throws SQLException
     {
         while (client.isValid()) {
-            QueryResults results = client.current();
+            QueryStatusInfo results = client.currentStatusInfo();
             progressCallback.accept(QueryStats.create(results.getId(), results.getStats()));
             List<Column> columns = results.getColumns();
             if (columns != null) {

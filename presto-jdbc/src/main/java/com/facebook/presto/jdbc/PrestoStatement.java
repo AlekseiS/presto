@@ -230,7 +230,7 @@ public class PrestoStatement
             checkSetOrResetSession(client);
 
             // check if this is a query
-            if (client.current().getUpdateType() == null) {
+            if (client.currentStatusInfo().getUpdateType() == null) {
                 currentResult.set(resultSet);
                 return true;
             }

@@ -202,9 +202,21 @@ public class StatementClient
         return currentResults.get().getStats();
     }
 
+    public QueryStatusInfo currentStatusInfo()
+    {
+        checkState(isValid(), "current position is not valid (cursor past end)");
+        return currentResults.get();
+    }
+
     public QueryResults current()
     {
         checkState(isValid(), "current position is not valid (cursor past end)");
+        return currentResults.get();
+    }
+
+    public QueryStatusInfo finalStatusInfo()
+    {
+        checkState((!isValid()) || isFailed(), "current position is still valid");
         return currentResults.get();
     }
 
@@ -260,7 +272,7 @@ public class StatementClient
 
     public boolean advance()
     {
-        URI nextUri = current().getNextUri();
+        URI nextUri = currentStatusInfo().getNextUri();
         if (isClosed() || (nextUri == null)) {
             valid.set(false);
             return false;
@@ -368,7 +380,7 @@ public class StatementClient
     {
         checkState(!isClosed(), "client is closed");
 
-        URI uri = current().getPartialCancelUri();
+        URI uri = currentStatusInfo().getPartialCancelUri();
         if (uri != null) {
             httpDelete(uri);
         }
