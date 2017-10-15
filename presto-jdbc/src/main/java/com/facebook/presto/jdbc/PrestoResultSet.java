@@ -137,7 +137,7 @@ public class PrestoResultSet
 
     public QueryStats getStats()
     {
-        return QueryStats.create(queryId, client.getStats());
+        return QueryStats.create(queryId, client.currentStatusInfo().getStats());
     }
 
     @Override
