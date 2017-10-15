@@ -101,7 +101,7 @@ public class StatementClient
     private final long requestTimeoutNanos;
     private final String user;
 
-    public StatementClient(OkHttpClient httpClient, ClientSession session, String query)
+    StatementClient(OkHttpClient httpClient, ClientSession session, String query)
     {
         requireNonNull(httpClient, "httpClient is null");
         requireNonNull(session, "session is null");
