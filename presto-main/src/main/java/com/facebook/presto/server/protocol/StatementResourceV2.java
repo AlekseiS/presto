@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.server.protocol;
 
+import com.facebook.presto.client.CreateQueryRequest;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.execution.QueryManager;
 import com.facebook.presto.metadata.SessionPropertyManager;
@@ -116,8 +117,10 @@ public class StatementResourceV2
                     .entity(ImmutableMap.of("error", "Cannot parse create query request"))
                     .build());
         }
+//        createQueryRequest.getSession();
         ActiveQuery query = ActiveQuery.createV2(
-                createQueryRequest.getSession(),
+                // TODO: populate
+                null,
                 createQueryRequest.getQuery(),
                 queryManager,
                 sessionPropertyManager,
