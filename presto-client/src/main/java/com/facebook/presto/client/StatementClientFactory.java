@@ -21,6 +21,6 @@ public final class StatementClientFactory
 
     public static StatementClient newStatementClient(OkHttpClient httpClient, ClientSession session, String query)
     {
-        return new StatementClient(httpClient, session, query);
+        return new StatementClientV1(httpClient, session, query);
     }
 }
