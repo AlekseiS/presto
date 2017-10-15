@@ -66,7 +66,7 @@ public class TestQuerySessionSupplier
                         .build(),
                 "testRemote");
 
-        SessionContext context = HttpRequestSessionContext.fromHttpRequest(request);
+        HttpRequestSessionContext context = new HttpRequestSessionContext(request);
         QuerySessionSupplier sessionSupplier = new QuerySessionSupplier(
                 createTestTransactionManager(),
                 new AllowAllAccessControl(),
@@ -102,7 +102,7 @@ public class TestQuerySessionSupplier
                         .put(PRESTO_USER, "testUser")
                         .build(),
                 "remoteAddress");
-        SessionContext context1 = HttpRequestSessionContext.fromHttpRequest(request1);
+        HttpRequestSessionContext context1 = new HttpRequestSessionContext(request1);
         assertEquals(context1.getClientTags(), ImmutableSet.of());
 
         HttpServletRequest request2 = new MockHttpServletRequest(
@@ -111,7 +111,7 @@ public class TestQuerySessionSupplier
                         .put(PRESTO_CLIENT_TAGS, "")
                         .build(),
                 "remoteAddress");
-        SessionContext context2 = HttpRequestSessionContext.fromHttpRequest(request2);
+        HttpRequestSessionContext context2 = new HttpRequestSessionContext(request2);
         assertEquals(context2.getClientTags(), ImmutableSet.of());
     }
 
@@ -125,7 +125,7 @@ public class TestQuerySessionSupplier
                         .put(PRESTO_TIME_ZONE, "unknown_timezone")
                         .build(),
                 "testRemote");
-        SessionContext context = HttpRequestSessionContext.fromHttpRequest(request);
+        HttpRequestSessionContext context = new HttpRequestSessionContext(request);
         QuerySessionSupplier sessionSupplier = new QuerySessionSupplier(
                 createTestTransactionManager(),
                 new AllowAllAccessControl(),

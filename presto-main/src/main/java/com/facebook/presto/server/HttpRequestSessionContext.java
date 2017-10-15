@@ -53,31 +53,52 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_USER;
 import static com.google.common.base.Strings.emptyToNull;
 import static com.google.common.base.Strings.nullToEmpty;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.collect.ImmutableMap.toImmutableMap;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
 import static java.lang.String.format;
 
 public final class HttpRequestSessionContext
+        implements SessionContext
 {
-    private HttpRequestSessionContext() {}
+    private final String catalog;
+    private final String schema;
 
-    public static SessionContext fromHttpRequest(HttpServletRequest servletRequest)
+    private final Identity identity;
+
+    private final String source;
+    private final String userAgent;
+    private final String remoteUserAddress;
+    private final String timeZoneId;
+    private final String language;
+    private final Set<String> clientTags;
+
+    private final Map<String, String> systemProperties;
+    private final Map<String, Map<String, String>> catalogSessionProperties;
+
+    private final Map<String, String> preparedStatements;
+
+    private final Optional<TransactionId> transactionId;
+    private final boolean clientTransactionSupport;
+    private final String clientInfo;
+
+    public HttpRequestSessionContext(HttpServletRequest servletRequest)
             throws WebApplicationException
     {
-        String catalog = trimEmptyToNull(servletRequest.getHeader(PRESTO_CATALOG));
-        String schema = trimEmptyToNull(servletRequest.getHeader(PRESTO_SCHEMA));
+        catalog = trimEmptyToNull(servletRequest.getHeader(PRESTO_CATALOG));
+        schema = trimEmptyToNull(servletRequest.getHeader(PRESTO_SCHEMA));
         assertRequest((catalog != null) || (schema == null), "Schema is set but catalog is not");
 
         String user = trimEmptyToNull(servletRequest.getHeader(PRESTO_USER));
         assertRequest(user != null, "User must be set");
-        Identity identity = new Identity(user, Optional.ofNullable(servletRequest.getUserPrincipal()));
+        identity = new Identity(user, Optional.ofNullable(servletRequest.getUserPrincipal()));
 
-        String source = servletRequest.getHeader(PRESTO_SOURCE);
-        String userAgent = servletRequest.getHeader(USER_AGENT);
-        String remoteUserAddress = servletRequest.getRemoteAddr();
-        String timeZoneId = servletRequest.getHeader(PRESTO_TIME_ZONE);
-        String language = servletRequest.getHeader(PRESTO_LANGUAGE);
-        String clientInfo = servletRequest.getHeader(PRESTO_CLIENT_INFO);
-        Set<String> clientTags = parseClientTags(servletRequest);
+        source = servletRequest.getHeader(PRESTO_SOURCE);
+        userAgent = servletRequest.getHeader(USER_AGENT);
+        remoteUserAddress = servletRequest.getRemoteAddr();
+        timeZoneId = servletRequest.getHeader(PRESTO_TIME_ZONE);
+        language = servletRequest.getHeader(PRESTO_LANGUAGE);
+        clientInfo = servletRequest.getHeader(PRESTO_CLIENT_INFO);
+        clientTags = parseClientTags(servletRequest);
 
         // parse session properties
         ImmutableMap.Builder<String, String> systemProperties = ImmutableMap.builder();
@@ -108,12 +129,105 @@ public final class HttpRequestSessionContext
                 throw badRequest(format("Invalid %s header", PRESTO_SESSION));
             }
         }
-        Map<String, String> preparedStatements = parsePreparedStatementsHeaders(servletRequest);
+        this.systemProperties = systemProperties.build();
+        this.catalogSessionProperties = catalogSessionProperties.entrySet().stream()
+                .collect(toImmutableMap(Entry::getKey, entry -> ImmutableMap.copyOf(entry.getValue())));
+
+        preparedStatements = parsePreparedStatementsHeaders(servletRequest);
 
         String transactionIdHeader = servletRequest.getHeader(PRESTO_TRANSACTION_ID);
-        boolean clientTransactionSupport = transactionIdHeader != null;
-        Optional<TransactionId> transactionId = parseTransactionId(transactionIdHeader);
-        return new SessionContext(catalog, schema, identity, source, userAgent, remoteUserAddress, timeZoneId, language, clientTags, systemProperties.build(), catalogSessionProperties, preparedStatements, transactionId, clientTransactionSupport, clientInfo);
+        clientTransactionSupport = transactionIdHeader != null;
+        transactionId = parseTransactionId(transactionIdHeader);
+    }
+
+    @Override
+    public Identity getIdentity()
+    {
+        return identity;
+    }
+
+    @Override
+    public String getCatalog()
+    {
+        return catalog;
+    }
+
+    @Override
+    public String getSchema()
+    {
+        return schema;
+    }
+
+    @Override
+    public String getSource()
+    {
+        return source;
+    }
+
+    @Override
+    public String getRemoteUserAddress()
+    {
+        return remoteUserAddress;
+    }
+
+    @Override
+    public String getUserAgent()
+    {
+        return userAgent;
+    }
+
+    @Override
+    public String getClientInfo()
+    {
+        return clientInfo;
+    }
+
+    @Override
+    public Set<String> getClientTags()
+    {
+        return clientTags;
+    }
+
+    @Override
+    public String getTimeZoneId()
+    {
+        return timeZoneId;
+    }
+
+    @Override
+    public String getLanguage()
+    {
+        return language;
+    }
+
+    @Override
+    public Map<String, String> getSystemProperties()
+    {
+        return systemProperties;
+    }
+
+    @Override
+    public Map<String, Map<String, String>> getCatalogSessionProperties()
+    {
+        return catalogSessionProperties;
+    }
+
+    @Override
+    public Map<String, String> getPreparedStatements()
+    {
+        return preparedStatements;
+    }
+
+    @Override
+    public Optional<TransactionId> getTransactionId()
+    {
+        return transactionId;
+    }
+
+    @Override
+    public boolean supportClientTransaction()
+    {
+        return clientTransactionSupport;
     }
 
     private static List<String> splitSessionHeader(Enumeration<String> headers)
@@ -136,7 +250,7 @@ public final class HttpRequestSessionContext
         return sessionProperties;
     }
 
-    private static Set<String> parseClientTags(HttpServletRequest servletRequest)
+    private Set<String> parseClientTags(HttpServletRequest servletRequest)
     {
         Splitter splitter = Splitter.on(',').trimResults().omitEmptyStrings();
         return ImmutableSet.copyOf(splitter.split(nullToEmpty(servletRequest.getHeader(PRESTO_CLIENT_TAGS))));

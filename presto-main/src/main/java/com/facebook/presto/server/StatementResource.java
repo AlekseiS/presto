@@ -61,7 +61,6 @@ import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_TRANSACTION_
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_DEALLOCATED_PREPARE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SESSION;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_STARTED_TRANSACTION_ID;
-import static com.facebook.presto.server.HttpRequestSessionContext.fromHttpRequest;
 import static com.google.common.base.Strings.isNullOrEmpty;
 import static io.airlift.concurrent.Threads.threadsNamed;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
@@ -127,7 +126,7 @@ public class StatementResource
                     .entity("SQL statement is empty")
                     .build());
         }
-        SessionContext sessionContext = fromHttpRequest(servletRequest);
+        SessionContext sessionContext = new HttpRequestSessionContext(servletRequest);
         ActiveQuery query = ActiveQuery.createV1(
                 sessionContext,
                 statement,

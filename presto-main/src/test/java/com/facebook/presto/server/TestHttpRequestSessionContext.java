@@ -58,7 +58,7 @@ public class TestHttpRequestSessionContext
                         .build(),
                 "testRemote");
 
-        SessionContext context = HttpRequestSessionContext.fromHttpRequest(request);
+        HttpRequestSessionContext context = new HttpRequestSessionContext(request);
         assertEquals(context.getSource(), "testSource");
         assertEquals(context.getCatalog(), "testCatalog");
         assertEquals(context.getSchema(), "testSchema");
@@ -86,6 +86,6 @@ public class TestHttpRequestSessionContext
                         .put(PRESTO_PREPARED_STATEMENT, "query1=abcdefg")
                         .build(),
                 "testRemote");
-        HttpRequestSessionContext.fromHttpRequest(request);
+        new HttpRequestSessionContext(request);
     }
 }

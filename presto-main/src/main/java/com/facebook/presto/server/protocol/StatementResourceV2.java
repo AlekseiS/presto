@@ -19,6 +19,7 @@ import com.facebook.presto.execution.QueryManager;
 import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
+import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.google.common.collect.ImmutableMap;
@@ -117,10 +118,9 @@ public class StatementResourceV2
                     .entity(ImmutableMap.of("error", "Cannot parse create query request"))
                     .build());
         }
-//        createQueryRequest.getSession();
+        SessionContext sessionContext = new QueryRequestSessionContext(createQueryRequest.getSession(), servletRequest);
         ActiveQuery query = ActiveQuery.createV2(
-                // TODO: populate
-                null,
+                sessionContext,
                 createQueryRequest.getQuery(),
                 queryManager,
                 sessionPropertyManager,

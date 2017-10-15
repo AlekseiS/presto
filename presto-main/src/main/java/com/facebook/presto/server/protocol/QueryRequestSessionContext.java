@@ -11,123 +11,129 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.presto.execution;
+package com.facebook.presto.server.protocol;
 
-import com.facebook.presto.Session;
-import com.facebook.presto.connector.ConnectorId;
+import com.facebook.presto.client.CreateQuerySession;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.security.Identity;
 import com.facebook.presto.transaction.TransactionId;
-import com.google.common.collect.ImmutableMap;
+
+import javax.servlet.http.HttpServletRequest;
+import javax.validation.constraints.NotNull;
 
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
-import static java.util.Map.Entry;
+import static com.google.common.base.Preconditions.checkArgument;
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static java.util.Objects.requireNonNull;
 
-public class TestingSessionContext
+public final class QueryRequestSessionContext
         implements SessionContext
 {
-    private final Session session;
+    private final CreateQuerySession createQuerySession;
+    private final Identity identity;
+    private final String remoteUserAddress;
 
-    public TestingSessionContext(Session session)
+    public QueryRequestSessionContext(CreateQuerySession createQuerySession, HttpServletRequest servletRequest)
     {
-        this.session = requireNonNull(session, "session is null");
+        this.createQuerySession = requireNonNull(createQuerySession, "createQuerySession is null");
+        // TODO: throw web exception instead
+        checkArgument(!isNullOrEmpty(createQuerySession.getUser()), "User must be set");
+        this.identity = new Identity(createQuerySession.getUser(), Optional.ofNullable(servletRequest.getUserPrincipal()));
+        this.remoteUserAddress = servletRequest.getRemoteAddr();
     }
 
+    @NotNull
     @Override
     public Identity getIdentity()
     {
-        return session.getIdentity();
+        return identity;
     }
 
     @Override
     public String getCatalog()
     {
-        return session.getCatalog().orElse(null);
+        return createQuerySession.getCatalog();
     }
 
     @Override
     public String getSchema()
     {
-        return session.getSchema().orElse(null);
+        return createQuerySession.getSchema();
     }
 
     @Override
     public String getSource()
     {
-        return session.getSource().orElse(null);
+        return createQuerySession.getSource();
     }
 
+    @NotNull
     @Override
     public String getRemoteUserAddress()
     {
-        return session.getRemoteUserAddress().orElse(null);
+        return remoteUserAddress;
     }
 
     @Override
     public String getUserAgent()
     {
-        return session.getUserAgent().orElse(null);
+        return createQuerySession.getUserAgent();
     }
 
     @Override
     public String getClientInfo()
     {
-        return session.getClientInfo().orElse(null);
+        return createQuerySession.getClientInfo();
     }
 
     @Override
     public Set<String> getClientTags()
     {
-        return session.getClientTags();
+        return createQuerySession.getClientTags();
     }
 
     @Override
     public String getTimeZoneId()
     {
-        return session.getTimeZoneKey().getId();
+        return createQuerySession.getTimeZoneId();
     }
 
     @Override
     public String getLanguage()
     {
-        return session.getLocale().getLanguage();
+        return createQuerySession.getLanguage();
     }
 
     @Override
     public Map<String, String> getSystemProperties()
     {
-        return session.getSystemProperties();
+        return createQuerySession.getSystemProperties();
     }
 
     @Override
     public Map<String, Map<String, String>> getCatalogSessionProperties()
     {
-        ImmutableMap.Builder<String, Map<String, String>> catalogSessionProperties = ImmutableMap.builder();
-        for (Entry<ConnectorId, Map<String, String>> entry : session.getConnectorProperties().entrySet()) {
-            catalogSessionProperties.put(entry.getKey().getCatalogName(), entry.getValue());
-        }
-        return catalogSessionProperties.build();
+        return createQuerySession.getCatalogSessionProperties();
     }
 
     @Override
     public Map<String, String> getPreparedStatements()
     {
-        return session.getPreparedStatements();
+        return createQuerySession.getPreparedStatements();
     }
 
     @Override
     public Optional<TransactionId> getTransactionId()
     {
-        return session.getTransactionId();
+        return createQuerySession.getTransactionId() == null ? Optional.empty() : Optional.of(TransactionId.valueOf(createQuerySession.getTransactionId()));
     }
 
     @Override
     public boolean supportClientTransaction()
     {
-        return session.isClientTransactionSupport();
+        return createQuerySession.supportClientTransaction();
     }
 }
