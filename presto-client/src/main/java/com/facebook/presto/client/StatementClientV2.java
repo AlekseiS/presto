@@ -18,7 +18,6 @@ import com.facebook.presto.spi.type.TimeZoneKey;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
 import io.airlift.json.JsonCodec;
-import okhttp3.Headers;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -32,7 +31,6 @@ import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -40,12 +38,6 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_ADDED_PREPARE;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_SESSION;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_CLEAR_TRANSACTION_ID;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_DEALLOCATED_PREPARE;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_SET_SESSION;
-import static com.facebook.presto.client.PrestoHeaders.PRESTO_STARTED_TRANSACTION_ID;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_USER;
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkState;
@@ -111,7 +103,7 @@ class StatementClientV2
             throw requestFailedException("starting query", request, response);
         }
 
-        processResponse(response.getHeaders(), response.getValue());
+        processResponse(response.getValue());
     }
 
     private Request buildQueryRequest(ClientSession session, String query)
@@ -294,7 +286,7 @@ class StatementClientV2
             }
 
             if ((response.getStatusCode() == HTTP_OK) && response.hasValue()) {
-                processResponse(response.getHeaders(), response.getValue());
+                processResponse(response.getValue());
                 return true;
             }
 
@@ -308,36 +300,31 @@ class StatementClientV2
         throw new RuntimeException("Error fetching next", cause);
     }
 
-    private void processResponse(Headers headers, QueryResults results)
+    private void processResponse(QueryResults results)
     {
-        for (String setSession : headers.values(PRESTO_SET_SESSION)) {
-            List<String> keyValue = SESSION_HEADER_SPLITTER.splitToList(setSession);
-            if (keyValue.size() != 2) {
-                continue;
-            }
-            setSessionProperties.put(keyValue.get(0), keyValue.get(1));
+        QueryActions actions = results.getActions();
+        if (actions == null) {
+            currentResults.set(results);
+            return;
         }
-        resetSessionProperties.addAll(headers.values(PRESTO_CLEAR_SESSION));
-
-        for (String entry : headers.values(PRESTO_ADDED_PREPARE)) {
-            List<String> keyValue = SESSION_HEADER_SPLITTER.splitToList(entry);
-            if (keyValue.size() != 2) {
-                continue;
-            }
-            addedPreparedStatements.put(urlDecode(keyValue.get(0)), urlDecode(keyValue.get(1)));
+        if (actions.getSetSessionProperties() != null) {
+            setSessionProperties.putAll(actions.getSetSessionProperties());
         }
-        for (String entry : headers.values(PRESTO_DEALLOCATED_PREPARE)) {
-            deallocatedPreparedStatements.add(urlDecode(entry));
+        if (actions.getClearSessionProperties() != null) {
+            resetSessionProperties.addAll(actions.getClearSessionProperties());
         }
-
-        String startedTransactionId = headers.get(PRESTO_STARTED_TRANSACTION_ID);
-        if (startedTransactionId != null) {
-            this.startedTransactionId.set(startedTransactionId);
+        if (actions.getAddedPreparedStatements() != null) {
+            addedPreparedStatements.putAll(actions.getAddedPreparedStatements());
         }
-        if (headers.values(PRESTO_CLEAR_TRANSACTION_ID) != null) {
+        if (actions.getDeallocatedPreparedStatements() != null) {
+            deallocatedPreparedStatements.addAll(actions.getDeallocatedPreparedStatements());
+        }
+        if (actions.getStartedTransactionId() != null) {
+            startedTransactionId.set(actions.getStartedTransactionId());
+        }
+        if (actions.isClearTransactionId() != null && actions.isClearTransactionId()) {
             clearTransactionId.set(true);
         }
-
         currentResults.set(results);
     }
 
