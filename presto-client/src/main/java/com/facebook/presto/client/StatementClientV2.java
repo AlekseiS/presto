@@ -15,7 +15,6 @@ package com.facebook.presto.client;
 
 import com.facebook.presto.client.OkHttpUtil.NullCallback;
 import com.facebook.presto.spi.type.TimeZoneKey;
-import com.google.common.base.Splitter;
 import com.google.common.collect.Sets;
 import io.airlift.json.JsonCodec;
 import okhttp3.HttpUrl;
@@ -27,10 +26,7 @@ import okhttp3.RequestBody;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
-import java.net.URLDecoder;
-import java.net.URLEncoder;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -61,7 +57,6 @@ class StatementClientV2
     private static final JsonCodec<CreateQueryRequest> CREATE_QUERY_REQUEST_JSON_CODEC = jsonCodec(CreateQueryRequest.class);
     private static final JsonCodec<QueryResults> QUERY_RESULTS_CODEC = jsonCodec(QueryResults.class);
 
-    private static final Splitter SESSION_HEADER_SPLITTER = Splitter.on('=').limit(2).trimResults();
     private static final String USER_AGENT_VALUE = StatementClientV2.class.getSimpleName() +
             "/" +
             firstNonNull(StatementClientV2.class.getPackage().getImplementationVersion(), "unknown");
@@ -106,7 +101,7 @@ class StatementClientV2
         processResponse(response.getValue());
     }
 
-    private Request buildQueryRequest(ClientSession session, String query)
+    private static Request buildQueryRequest(ClientSession session, String query)
     {
         HttpUrl url = HttpUrl.get(session.getServer());
         if (url == null) {
@@ -130,7 +125,7 @@ class StatementClientV2
                         true,
                         session.getClientInfo()),
                 query);
-        return prepareRequest(url)
+        return prepareRequest(url, session.getUser())
                 .post(RequestBody.create(MEDIA_TYPE_JSON, CREATE_QUERY_REQUEST_JSON_CODEC.toJsonBytes(createQueryRequest)))
                 .build();
     }
@@ -235,8 +230,9 @@ class StatementClientV2
         return valid.get() && (!isGone()) && (!isClosed());
     }
 
-    private Request.Builder prepareRequest(HttpUrl url)
+    private static Request.Builder prepareRequest(HttpUrl url, String user)
     {
+        // TODO: find out if user header is required
         return new Request.Builder()
                 .addHeader(PRESTO_USER, user)
                 .addHeader(USER_AGENT, USER_AGENT_VALUE)
@@ -252,7 +248,7 @@ class StatementClientV2
             return false;
         }
 
-        Request request = prepareRequest(HttpUrl.get(nextUri)).build();
+        Request request = prepareRequest(HttpUrl.get(nextUri), user).build();
 
         Exception cause = null;
         long start = System.nanoTime();
@@ -369,29 +365,9 @@ class StatementClientV2
 
     private void httpDelete(URI uri)
     {
-        Request request = prepareRequest(HttpUrl.get(uri))
+        Request request = prepareRequest(HttpUrl.get(uri), user)
                 .delete()
                 .build();
         httpClient.newCall(request).enqueue(new NullCallback());
-    }
-
-    private static String urlEncode(String value)
-    {
-        try {
-            return URLEncoder.encode(value, "UTF-8");
-        }
-        catch (UnsupportedEncodingException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static String urlDecode(String value)
-    {
-        try {
-            return URLDecoder.decode(value, "UTF-8");
-        }
-        catch (UnsupportedEncodingException e) {
-            throw new AssertionError(e);
-        }
     }
 }
