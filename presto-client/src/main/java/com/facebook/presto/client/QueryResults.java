@@ -81,6 +81,7 @@ public class QueryResults
     private final String updateType;
     private final Long updateCount;
     private final QueryActions actions;
+    private final List<URI> dataUris;
 
     @JsonCreator
     public QueryResults(
@@ -94,9 +95,10 @@ public class QueryResults
             @JsonProperty("error") QueryError error,
             @JsonProperty("updateType") String updateType,
             @JsonProperty("updateCount") Long updateCount,
-            @JsonProperty("actions") QueryActions actions)
+            @JsonProperty("actions") QueryActions actions,
+            @JsonProperty("dataUris") List<URI> dataUris)
     {
-        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount, actions);
+        this(id, infoUri, partialCancelUri, nextUri, columns, fixData(columns, data), stats, error, updateType, updateCount, actions, dataUris);
     }
 
     public QueryResults(
@@ -110,7 +112,8 @@ public class QueryResults
             QueryError error,
             String updateType,
             Long updateCount,
-            QueryActions actions)
+            QueryActions actions,
+            List<URI> dataUris)
     {
         this.id = requireNonNull(id, "id is null");
         this.infoUri = requireNonNull(infoUri, "infoUri is null");
@@ -124,6 +127,7 @@ public class QueryResults
         this.updateType = updateType;
         this.updateCount = updateCount;
         this.actions = actions;
+        this.dataUris = dataUris != null ? ImmutableList.copyOf(dataUris) : null;
     }
 
     @NotNull
@@ -213,12 +217,19 @@ public class QueryResults
         return actions;
     }
 
+    @Nullable
+    @JsonProperty
+    public List<URI> getDataUris()
+    {
+        return dataUris;
+    }
+
     public QueryResults clearActions()
     {
         if (actions == null) {
             return this;
         }
-        return new QueryResults(id, infoUri, partialCancelUri, nextUri, columns, data, stats, error, updateType, updateCount, null);
+        return new QueryResults(id, infoUri, partialCancelUri, nextUri, columns, data, stats, error, updateType, updateCount, null, dataUris);
     }
 
     @Override

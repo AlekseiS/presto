@@ -123,11 +123,9 @@ public class StatementResourceV2
                 sessionContext,
                 createQueryRequest.getQuery(),
                 queryManager,
-                sessionPropertyManager,
-                exchangeClientSupplier,
                 responseExecutor,
-                timeoutExecutor,
-                blockEncodingSerde);
+                timeoutExecutor
+        );
         queries.put(query.getQueryId(), query);
 
         asyncQueryResults(query, OptionalLong.empty(), new Duration(1, MILLISECONDS), uriInfo, asyncResponse);
