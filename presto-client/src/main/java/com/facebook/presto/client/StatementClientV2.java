@@ -160,6 +160,9 @@ class StatementClientV2
         return gone.get();
     }
 
+    /**
+     * Means that query result has an error.
+     */
     @Override
     public boolean isFailed()
     {
@@ -224,6 +227,9 @@ class StatementClientV2
         return clearTransactionId.get();
     }
 
+    /**
+     * Means that it can get more data.
+     */
     @Override
     public boolean isValid()
     {
