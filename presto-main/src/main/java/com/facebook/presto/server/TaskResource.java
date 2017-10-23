@@ -15,16 +15,21 @@ package com.facebook.presto.server;
 
 import com.facebook.presto.OutputBuffers.OutputBufferId;
 import com.facebook.presto.Session;
+import com.facebook.presto.client.DataResults;
 import com.facebook.presto.execution.TaskId;
 import com.facebook.presto.execution.TaskInfo;
 import com.facebook.presto.execution.TaskManager;
 import com.facebook.presto.execution.TaskState;
 import com.facebook.presto.execution.TaskStatus;
 import com.facebook.presto.execution.buffer.BufferResult;
+import com.facebook.presto.execution.buffer.PagesSerde;
 import com.facebook.presto.execution.buffer.SerializedPage;
 import com.facebook.presto.metadata.SessionPropertyManager;
+import com.facebook.presto.server.protocol.RowIterable;
 import com.facebook.presto.spi.Page;
+import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.Iterables;
 import com.google.common.reflect.TypeToken;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -56,10 +61,12 @@ import javax.ws.rs.core.Response;
 import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.core.UriInfo;
 
+import java.net.URI;
 import java.util.List;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Function;
 
 import static com.facebook.presto.PrestoMediaTypes.PRESTO_PAGES;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_BUFFER_COMPLETE;
@@ -238,19 +245,7 @@ public class TaskResource
             @Suspended AsyncResponse asyncResponse)
             throws InterruptedException
     {
-        requireNonNull(taskId, "taskId is null");
-        requireNonNull(bufferId, "bufferId is null");
-
-        long start = System.nanoTime();
-        ListenableFuture<BufferResult> bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, maxSize);
-        Duration waitTime = randomizeWaitTime(DEFAULT_MAX_WAIT_TIME);
-        bufferResultFuture = addTimeout(
-                bufferResultFuture,
-                () -> BufferResult.emptyResults(taskManager.getTaskInstanceId(taskId), token, false),
-                waitTime,
-                timeoutExecutor);
-
-        ListenableFuture<Response> responseFuture = Futures.transform(bufferResultFuture, result -> {
+        getTaskResults(taskId, bufferId, token, maxSize, asyncResponse, result -> {
             List<SerializedPage> serializedPages = result.getSerializedPages();
 
             GenericEntity<?> entity = null;
@@ -271,6 +266,93 @@ public class TaskResource
                     .header(PRESTO_BUFFER_COMPLETE, result.isBufferComplete())
                     .build();
         });
+    }
+
+    // TODO: change path to 'downloads' to avoid names clashing
+    @GET
+    @Path("{taskId}/results/{bufferId}/{token}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public void getDownloadResults(@PathParam("taskId") TaskId taskId,
+            @PathParam("bufferId") OutputBufferId bufferId,
+            @PathParam("token") final long token,
+            @QueryParam("maxSize") DataSize maxSize,
+            @Suspended AsyncResponse asyncResponse,
+            @Context UriInfo uriInfo)
+            throws InterruptedException
+    {
+        getTaskResults(taskId, bufferId, token, maxSize, asyncResponse, result -> {
+            List<SerializedPage> serializedPages = result.getSerializedPages();
+            if (serializedPages.isEmpty()) {
+                URI nextUri = null;
+                if (!result.isBufferComplete()) {
+                    nextUri = uriInfo.getBaseUriBuilder()
+                            .replacePath("/v1/task")
+                            .path(taskId.toString())
+                            .path("results")
+                            .path(bufferId.toString())
+                            .path(String.valueOf(result.getNextToken()))
+                            .replaceQuery("")
+                            .build();
+                }
+                // TODO: think if it needs to be NO_CONTENT as with pages
+                return Response.status(Status.OK)
+                        .entity(new DataResults(nextUri, null))
+                        .build();
+            }
+
+            ImmutableList.Builder<RowIterable> pages = ImmutableList.builder();
+            List<Type> types = taskManager.getTaskOutputTypes(taskId).orElseThrow(() -> new IllegalStateException("types must be present"));
+            PagesSerde serde = taskManager.getTaskPagesSerde(taskId).orElseThrow(() -> new IllegalStateException("pages serde must be present"));
+            boolean hasRecords = false;
+            for (SerializedPage serializedPage : serializedPages) {
+                Page page = serde.deserialize(serializedPage);
+                hasRecords = hasRecords || page.getPositionCount() > 0;
+                // TODO: think how to substitute connector session
+                pages.add(new RowIterable(null, types, page));
+            }
+
+            // client implementations do not properly handle empty list of data
+            Iterable<List<Object>> data = !hasRecords ? null : Iterables.concat(pages.build());
+
+            URI nextUri = null;
+            if (!result.isBufferComplete()) {
+                nextUri = uriInfo.getBaseUriBuilder()
+                        .replacePath("/v1/task")
+                        .path(taskId.toString())
+                        .path("results")
+                        .path(bufferId.toString())
+                        .path(String.valueOf(result.getNextToken()))
+                        .replaceQuery("")
+                        .build();
+            }
+            return Response.status(Status.OK)
+                    .entity(new DataResults(nextUri, data))
+                    .build();
+        });
+    }
+
+    private void getTaskResults(TaskId taskId,
+            OutputBufferId bufferId,
+            final long token,
+            DataSize maxSize,
+            AsyncResponse asyncResponse,
+            Function<BufferResult, Response> responseCreator)
+            throws InterruptedException
+    {
+        requireNonNull(taskId, "taskId is null");
+        requireNonNull(bufferId, "bufferId is null");
+
+        long start = System.nanoTime();
+        ListenableFuture<BufferResult> bufferResultFuture = taskManager.getTaskResults(taskId, bufferId, token, maxSize);
+        Duration waitTime = randomizeWaitTime(DEFAULT_MAX_WAIT_TIME);
+        bufferResultFuture = addTimeout(
+                bufferResultFuture,
+                () -> BufferResult.emptyResults(taskManager.getTaskInstanceId(taskId), token, false),
+                waitTime,
+                timeoutExecutor);
+
+        // TODO: ideally, serialized page should be already in the necessary format to avoid serde
+        ListenableFuture<Response> responseFuture = Futures.transform(bufferResultFuture, responseCreator::apply);
 
         // For hard timeout, add an additional time to max wait for thread scheduling contention and GC
         Duration timeout = new Duration(waitTime.toMillis() + ADDITIONAL_WAIT_TIME.toMillis(), MILLISECONDS);
@@ -291,6 +373,18 @@ public class TaskResource
     @Path("{taskId}/results/{bufferId}")
     @Produces(MediaType.APPLICATION_JSON)
     public void abortResults(@PathParam("taskId") TaskId taskId, @PathParam("bufferId") OutputBufferId bufferId, @Context UriInfo uriInfo)
+    {
+        requireNonNull(taskId, "taskId is null");
+        requireNonNull(bufferId, "bufferId is null");
+
+        taskManager.abortTaskResults(taskId, bufferId);
+    }
+
+    // TODO: pass close url as part of data results, so that a client can close
+    @DELETE
+    @Path("{taskId}/results/{bufferId}/{token}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public void abortResults(@PathParam("taskId") TaskId taskId, @PathParam("bufferId") OutputBufferId bufferId, @PathParam("token") long token, @Context UriInfo uriInfo)
     {
         requireNonNull(taskId, "taskId is null");
         requireNonNull(bufferId, "bufferId is null");

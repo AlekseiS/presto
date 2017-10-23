@@ -25,6 +25,7 @@ import okhttp3.RequestBody;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
+import javax.ws.rs.core.UriBuilder;
 
 import java.net.URI;
 import java.util.LinkedList;
@@ -39,6 +40,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_USER;
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.net.HttpHeaders.ACCEPT;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
 import static io.airlift.json.JsonCodec.jsonCodec;
 import static java.lang.String.format;
@@ -108,7 +110,9 @@ class StatementClientV2
             if (isClosed() || nextUri.get() == null) {
                 return false;
             }
-            Request request = prepareRequest(HttpUrl.get(nextUri.get()), user).build();
+            // TODO: make maxSize in TaskResource nullable
+            URI uri = UriBuilder.fromUri(nextUri.get()).queryParam("maxSize", "1MB").build();
+            Request request = prepareRequest(HttpUrl.get(uri), user).build();
 
             Exception cause = null;
             long start = System.nanoTime();
@@ -345,6 +349,8 @@ class StatementClientV2
         return new Request.Builder()
                 .addHeader(PRESTO_USER, user)
                 .addHeader(USER_AGENT, USER_AGENT_VALUE)
+                // TODO: use a constant
+                .addHeader(ACCEPT, "application/json")
                 .url(url);
     }
 

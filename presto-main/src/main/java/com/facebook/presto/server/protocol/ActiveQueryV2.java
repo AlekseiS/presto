@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
 
 import javax.annotation.concurrent.GuardedBy;
+import javax.ws.rs.core.UriBuilder;
 import javax.ws.rs.core.UriInfo;
 
 import java.net.URI;
@@ -36,6 +37,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.collect.ImmutableList.toImmutableList;
 
 class ActiveQueryV2
         extends ActiveQuery
@@ -80,7 +82,9 @@ class ActiveQueryV2
         }
         columns = list.build();
 
-        dataUris = ImmutableList.copyOf(outputInfo.getBufferLocations().values());
+        dataUris = outputInfo.getBufferLocations().values().stream()
+                .map(uri -> UriBuilder.fromUri(uri).path("0").build())
+                .collect(toImmutableList());
     }
 
     @Override
