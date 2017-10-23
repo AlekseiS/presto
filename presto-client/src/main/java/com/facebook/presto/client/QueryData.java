@@ -13,10 +13,13 @@
  */
 package com.facebook.presto.client;
 
+import java.net.URI;
 import java.util.List;
 
 //TODO: this interface needs to be changed once we add columnar format
 public interface QueryData
 {
+    URI getNextUri();
+
     Iterable<List<Object>> getData();
 }

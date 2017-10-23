@@ -27,6 +27,8 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
 import java.net.URI;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -43,6 +45,7 @@ import static java.lang.String.format;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static java.net.HttpURLConnection.HTTP_UNAUTHORIZED;
 import static java.net.HttpURLConnection.HTTP_UNAVAILABLE;
+import static java.util.Collections.synchronizedList;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 import static java.util.Objects.requireNonNull;
@@ -56,6 +59,7 @@ class StatementClientV2
     private static final MediaType MEDIA_TYPE_JSON = MediaType.parse("application/json; charset=utf-8");
     private static final JsonCodec<CreateQueryRequest> CREATE_QUERY_REQUEST_JSON_CODEC = jsonCodec(CreateQueryRequest.class);
     private static final JsonCodec<QueryResults> QUERY_RESULTS_CODEC = jsonCodec(QueryResults.class);
+    private static final JsonCodec<DataResults> DATA_RESULTS_JSON_CODEC = jsonCodec(DataResults.class);
 
     private static final String USER_AGENT_VALUE = StatementClientV2.class.getSimpleName() +
             "/" +
@@ -64,7 +68,9 @@ class StatementClientV2
     private final OkHttpClient httpClient;
     private final boolean debug;
     private final String query;
-    private final AtomicReference<QueryResults> currentResults = new AtomicReference<>();
+    private final AtomicReference<QueryStatusInfo> currentStatus = new AtomicReference<>();
+    // initialize with null results because it's expected to never be null
+    private final AtomicReference<QueryData> currentData = new AtomicReference<>(new DataResults(null, null));
     private final Map<String, String> setSessionProperties = new ConcurrentHashMap<>();
     private final Set<String> resetSessionProperties = Sets.newConcurrentHashSet();
     private final Map<String, String> addedPreparedStatements = new ConcurrentHashMap<>();
@@ -77,6 +83,103 @@ class StatementClientV2
     private final TimeZoneKey timeZone;
     private final long requestTimeoutNanos;
     private final String user;
+    private final AtomicReference<List<Column>> columns = new AtomicReference<>();
+    private final List<DataClient> dataClients = synchronizedList(new LinkedList<>());
+    private final AtomicBoolean clientsCreated = new AtomicBoolean();
+
+    private class DataClient
+    {
+        private final AtomicReference<URI> lastUri = new AtomicReference<>();
+        private final AtomicReference<URI> nextUri;
+        private final AtomicBoolean closed = new AtomicBoolean();
+
+        public DataClient(URI nextUri)
+        {
+            this.nextUri = new AtomicReference<>(nextUri);
+        }
+
+        public boolean canAdvance()
+        {
+            return !isClosed() && nextUri.get() != null;
+        }
+
+        public boolean advanceData()
+        {
+            if (isClosed() || nextUri.get() == null) {
+                return false;
+            }
+            Request request = prepareRequest(HttpUrl.get(nextUri.get()), user).build();
+
+            Exception cause = null;
+            long start = System.nanoTime();
+            long attempts = 0;
+
+            do {
+                // back-off on retry
+                if (attempts > 0) {
+                    try {
+                        MILLISECONDS.sleep(attempts * 100);
+                    }
+                    catch (InterruptedException e) {
+                        try {
+                            close();
+                        }
+                        finally {
+                            Thread.currentThread().interrupt();
+                        }
+                        throw new RuntimeException("StatementClient data thread was interrupted");
+                    }
+                }
+                attempts++;
+
+                JsonResponse<DataResults> response;
+                try {
+                    response = JsonResponse.execute(DATA_RESULTS_JSON_CODEC, httpClient, request);
+                }
+                catch (RuntimeException e) {
+                    cause = e;
+                    continue;
+                }
+
+                if (response.getStatusCode() == HTTP_OK && response.hasValue()) {
+                    processDataResponse(response.getValue());
+                    return true;
+                }
+
+                if (response.getStatusCode() != HTTP_UNAVAILABLE) {
+                    throw requestFailedException("fetching next", request, response);
+                }
+            }
+            while (((System.nanoTime() - start) < requestTimeoutNanos) && !isClosed());
+
+            gone.set(true);
+            throw new RuntimeException("Error fetching next", cause);
+        }
+
+        private void processDataResponse(DataResults dataResults)
+        {
+            List<Column> resultColumns = columns.get();
+            checkState(resultColumns != null, "columns are not ready");
+            lastUri.set(nextUri.get());
+            nextUri.set(dataResults.getNextUri());
+            currentData.set(dataResults.withFixedData(resultColumns));
+        }
+
+        public void close()
+        {
+            if (!closed.getAndSet(true)) {
+                URI uri = nextUri.get() != null ? nextUri.get() : lastUri.get();
+                checkState(uri != null, "uri used to close data must be not null");
+                // TODO: make sure call goes through
+                httpDelete(uri);
+            }
+        }
+
+        private boolean isClosed()
+        {
+            return closed.get();
+        }
+    }
 
     public StatementClientV2(OkHttpClient httpClient, ClientSession session, String query)
     {
@@ -94,11 +197,11 @@ class StatementClientV2
         Request request = buildQueryRequest(session, query);
 
         JsonResponse<QueryResults> response = JsonResponse.execute(QUERY_RESULTS_CODEC, httpClient, request);
-        if ((response.getStatusCode() != HTTP_OK) || !response.hasValue()) {
+        if (response.getStatusCode() != HTTP_OK || !response.hasValue()) {
             throw requestFailedException("starting query", request, response);
         }
 
-        processResponse(response.getValue());
+        processStatusResponse(response.getValue());
     }
 
     private static Request buildQueryRequest(ClientSession session, String query)
@@ -166,28 +269,28 @@ class StatementClientV2
     @Override
     public boolean isFailed()
     {
-        return currentResults.get().getError() != null;
+        return currentStatus.get().getError() != null;
     }
 
     @Override
     public QueryStatusInfo currentStatusInfo()
     {
         checkState(isValid(), "current position is not valid (cursor past end)");
-        return currentResults.get();
+        return currentStatus.get();
     }
 
     @Override
     public QueryData currentData()
     {
         checkState(isValid(), "current position is not valid (cursor past end)");
-        return currentResults.get();
+        return currentData.get();
     }
 
     @Override
     public QueryStatusInfo finalStatusInfo()
     {
         checkState((!isValid()) || isFailed(), "current position is still valid");
-        return currentResults.get();
+        return currentStatus.get();
     }
 
     @Override
@@ -248,8 +351,29 @@ class StatementClientV2
     @Override
     public boolean advance()
     {
+        return advanceStatus() && advanceData();
+    }
+
+    private boolean advanceData()
+    {
+        while (!dataClients.isEmpty()) {
+            DataClient client = dataClients.remove(0);
+            if (!client.canAdvance()) {
+                client.close();
+            }
+            else {
+                boolean result = client.advanceData();
+                dataClients.add(client);
+                return result;
+            }
+        }
+        return false;
+    }
+
+    private boolean advanceStatus()
+    {
         URI nextUri = currentStatusInfo().getNextUri();
-        if (isClosed() || (nextUri == null)) {
+        if (isClosed() || nextUri == null) {
             valid.set(false);
             return false;
         }
@@ -287,8 +411,8 @@ class StatementClientV2
                 continue;
             }
 
-            if ((response.getStatusCode() == HTTP_OK) && response.hasValue()) {
-                processResponse(response.getValue());
+            if (response.getStatusCode() == HTTP_OK && response.hasValue()) {
+                processStatusResponse(response.getValue());
                 return true;
             }
 
@@ -302,11 +426,21 @@ class StatementClientV2
         throw new RuntimeException("Error fetching next", cause);
     }
 
-    private void processResponse(QueryResults results)
+    private void processStatusResponse(QueryResults results)
     {
+        checkState(results.getData() == null, "data must not be present in v2");
+        if (results.getColumns() != null && columns.get() == null) {
+            columns.set(results.getColumns());
+        }
+        if (results.getDataUris() != null && !clientsCreated.getAndSet(true)) {
+            for (URI dataUri : results.getDataUris()) {
+                dataClients.add(new DataClient(dataUri));
+            }
+        }
+
         QueryActions actions = results.getActions();
         if (actions == null) {
-            currentResults.set(results);
+            currentStatus.set(results);
             return;
         }
         if (actions.getSetSessionProperties() != null) {
@@ -327,10 +461,10 @@ class StatementClientV2
         if (actions.isClearTransactionId() != null && actions.isClearTransactionId()) {
             clearTransactionId.set(true);
         }
-        currentResults.set(results);
+        currentStatus.set(results);
     }
 
-    private RuntimeException requestFailedException(String task, Request request, JsonResponse<QueryResults> response)
+    private RuntimeException requestFailedException(String task, Request request, JsonResponse<?> response)
     {
         gone.set(true);
         if (!response.hasValue()) {
@@ -362,7 +496,13 @@ class StatementClientV2
     public void close()
     {
         if (!closed.getAndSet(true)) {
-            URI uri = currentResults.get().getNextUri();
+            // close data download
+            for (DataClient dataClient : dataClients) {
+                dataClient.close();
+            }
+            dataClients.clear();
+            // close query
+            URI uri = currentStatus.get().getNextUri();
             if (uri != null) {
                 httpDelete(uri);
             }
