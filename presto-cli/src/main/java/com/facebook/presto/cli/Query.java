@@ -17,7 +17,7 @@ import com.facebook.presto.cli.ClientOptions.OutputFormat;
 import com.facebook.presto.client.Column;
 import com.facebook.presto.client.ErrorLocation;
 import com.facebook.presto.client.QueryError;
-import com.facebook.presto.client.QueryResults;
+import com.facebook.presto.client.QueryStatusInfo;
 import com.facebook.presto.client.StatementClient;
 import com.google.common.base.Splitter;
 import com.google.common.base.Strings;
@@ -127,7 +127,7 @@ public class Query
         }
 
         if ((!client.isFailed()) && (!client.isGone()) && (!client.isClosed())) {
-            QueryResults results = client.isValid() ? client.current() : client.finalResults();
+            QueryStatusInfo results = client.isValid() ? client.currentStatusInfo() : client.finalStatusInfo();
             if (results.getUpdateType() != null) {
                 renderUpdate(errorChannel, results);
             }
@@ -157,12 +157,12 @@ public class Query
 
     private void waitForData()
     {
-        while (client.isValid() && (client.current().getData() == null)) {
+        while (client.isValid() && (client.currentData().getData() == null)) {
             client.advance();
         }
     }
 
-    private void renderUpdate(PrintStream out, QueryResults results)
+    private void renderUpdate(PrintStream out, QueryStatusInfo results)
     {
         String status = results.getUpdateType();
         if (results.getUpdateCount() != null) {
@@ -284,7 +284,7 @@ public class Query
 
     public void renderFailure(PrintStream out)
     {
-        QueryResults results = client.finalResults();
+        QueryStatusInfo results = client.finalStatusInfo();
         QueryError error = results.getError();
         checkState(error != null);
 
