@@ -14,6 +14,7 @@
 package com.facebook.presto.cli;
 
 import com.facebook.presto.client.ClientSession;
+import com.facebook.presto.client.ProtocolVersion;
 import com.google.common.base.Splitter;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.net.HostAndPort;
@@ -32,6 +33,7 @@ import java.util.Optional;
 import java.util.TimeZone;
 
 import static com.facebook.presto.client.KerberosUtil.defaultCredentialCachePath;
+import static com.facebook.presto.client.StatementClientFactory.DEFAULT_PROTOCOL_VERSION;
 import static com.google.common.base.Preconditions.checkArgument;
 import static java.nio.charset.StandardCharsets.US_ASCII;
 import static java.util.Collections.emptyMap;
@@ -118,6 +120,9 @@ public class ClientOptions
 
     @Option(name = "--client-request-timeout", title = "client request timeout", description = "Client request timeout (default: 2m)")
     public Duration clientRequestTimeout = new Duration(2, MINUTES);
+
+    @Option(name = "--protocol-version", title = "protocol version", description = "Version of the client protocol")
+    public ProtocolVersion protocolVersion = DEFAULT_PROTOCOL_VERSION;
 
     public enum OutputFormat
     {

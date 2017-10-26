@@ -15,6 +15,7 @@ package com.facebook.presto.cli;
 
 import com.facebook.presto.client.ClientException;
 import com.facebook.presto.client.ClientSession;
+import com.facebook.presto.client.ProtocolVersion;
 import com.facebook.presto.client.StatementClient;
 import com.google.common.net.HostAndPort;
 import okhttp3.OkHttpClient;
@@ -40,6 +41,7 @@ public class QueryRunner
 {
     private final AtomicReference<ClientSession> session;
     private final OkHttpClient httpClient;
+    private final ProtocolVersion protocolVersion;
 
     public QueryRunner(
             ClientSession session,
@@ -57,7 +59,8 @@ public class QueryRunner
             Optional<String> kerberosKeytabPath,
             Optional<String> kerberosCredentialCachePath,
             boolean kerberosUseCanonicalHostname,
-            boolean kerberosEnabled)
+            boolean kerberosEnabled,
+            ProtocolVersion protocolVersion)
     {
         this.session = new AtomicReference<>(requireNonNull(session, "session is null"));
 
@@ -81,6 +84,7 @@ public class QueryRunner
         }
 
         this.httpClient = builder.build();
+        this.protocolVersion = requireNonNull(protocolVersion, "protocolVersion is null");
     }
 
     public ClientSession getSession()
@@ -100,7 +104,7 @@ public class QueryRunner
 
     public StatementClient startInternalQuery(String query)
     {
-        return newStatementClient(httpClient, session.get(), query);
+        return newStatementClient(protocolVersion, httpClient, session.get(), query);
     }
 
     @Override
