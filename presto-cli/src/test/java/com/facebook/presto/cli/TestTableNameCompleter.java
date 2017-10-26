@@ -19,6 +19,7 @@ import org.testng.annotations.Test;
 
 import java.util.Optional;
 
+import static com.facebook.presto.client.StatementClientFactory.DEFAULT_PROTOCOL_VERSION;
 import static org.testng.Assert.assertEquals;
 
 public class TestTableNameCompleter
@@ -43,7 +44,8 @@ public class TestTableNameCompleter
                 Optional.empty(),
                 Optional.empty(),
                 false,
-                false);
+                false,
+                DEFAULT_PROTOCOL_VERSION);
         TableNameCompleter completer = new TableNameCompleter(runner);
         assertEquals(completer.complete("SELECT is_infi", 14, ImmutableList.of()), 7);
     }
