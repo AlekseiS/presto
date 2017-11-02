@@ -80,6 +80,7 @@ import static com.google.common.collect.Iterables.transform;
 import static com.google.common.util.concurrent.MoreExecutors.directExecutor;
 import static io.airlift.concurrent.MoreFutures.addTimeout;
 import static io.airlift.http.server.AsyncResponseHandler.bindAsyncResponse;
+import static io.airlift.units.DataSize.Unit.MEGABYTE;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static java.util.concurrent.TimeUnit.SECONDS;
@@ -92,6 +93,7 @@ public class TaskResource
 {
     private static final Duration ADDITIONAL_WAIT_TIME = new Duration(5, SECONDS);
     private static final Duration DEFAULT_MAX_WAIT_TIME = new Duration(2, SECONDS);
+    private static final DataSize DEFAULT_MAX_SIZE = new DataSize(1, MEGABYTE);
 
     private final TaskManager taskManager;
     private final SessionPropertyManager sessionPropertyManager;
@@ -280,6 +282,7 @@ public class TaskResource
             @Context UriInfo uriInfo)
             throws InterruptedException
     {
+        maxSize = maxSize != null ? maxSize : DEFAULT_MAX_SIZE;
         getTaskResults(taskId, bufferId, token, maxSize, asyncResponse, result -> {
             List<SerializedPage> serializedPages = result.getSerializedPages();
             if (serializedPages.isEmpty()) {
@@ -294,7 +297,6 @@ public class TaskResource
                             .replaceQuery("")
                             .build();
                 }
-                // TODO: think if it needs to be NO_CONTENT as with pages
                 return Response.status(Status.OK)
                         .entity(new DataResults(nextUri, null))
                         .build();

@@ -64,7 +64,7 @@ import static java.util.concurrent.TimeUnit.SECONDS;
 @Path("/v2/statement")
 public class StatementResourceV2
 {
-    private static final Duration MAX_WAIT_TIME = new Duration(1, SECONDS);
+    private static final Duration MAX_WAIT_TIME = new Duration(5, SECONDS);
     private static final Ordering<Comparable<Duration>> WAIT_ORDERING = Ordering.natural().nullsLast();
 
     private final QueryManager queryManager;
