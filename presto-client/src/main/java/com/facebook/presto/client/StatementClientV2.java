@@ -47,8 +47,10 @@ import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.net.HttpHeaders.ACCEPT;
 import static com.google.common.net.HttpHeaders.LOCATION;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
+import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static io.airlift.json.JsonCodec.jsonCodec;
 import static java.net.HttpURLConnection.HTTP_OK;
+import static java.net.HttpURLConnection.HTTP_UNAVAILABLE;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 import static java.util.Objects.requireNonNull;
@@ -306,13 +308,17 @@ public class StatementClientV2
                 statusUrl = statusUrl.newBuilder().addQueryParameter("maxWait", NO_DATA_MAX_WAIT).build();
             }
             Request statusRequest = prepareRequest(statusUrl, user).build();
-            statusFuture = Futures.transform(httpClient.executeAsync(statusRequest), StatementClientV2::parseQueryResultsResponse);
+            ListenableFuture<Response> statusRequestFuture = httpClient.executeAsync(statusRequest);
+            ListenableFuture<Response> retriedStatusRequestFuture = Futures.transformAsync(statusRequestFuture, response -> retryServerError(response, 0, System.nanoTime()));
+            statusFuture = Futures.transform(retriedStatusRequestFuture, StatementClientV2::parseQueryResultsResponse);
         }
 
         ListenableFuture<DataResults> dataFuture = null;
         if (nextDataUri != null) {
             Request dataRequest = prepareRequest(HttpUrl.get(nextDataUri), user).build();
-            dataFuture = Futures.transform(httpClient.executeAsync(dataRequest), StatementClientV2::parseDataResultsResponse);
+            ListenableFuture<Response> dataRequestFuture = httpClient.executeAsync(dataRequest);
+            ListenableFuture<Response> retriedDataRequestFuture = Futures.transformAsync(dataRequestFuture, response -> retryServerError(response, 0, System.nanoTime()));
+            dataFuture = Futures.transform(retriedDataRequestFuture, StatementClientV2::parseDataResultsResponse);
         }
 
         try {
@@ -333,26 +339,29 @@ public class StatementClientV2
         }
         catch (InterruptedException e) {
             gone = true;
+            cancelQuietly(dataFuture);
+            close();
             Thread.currentThread().interrupt();
             throw new RuntimeException("Interrupted", e);
         }
         catch (ExecutionException e) {
             gone = true;
+            cancelQuietly(dataFuture);
+            close();
             checkState(e.getCause() != null, "cause of execution exception is null");
             throw new RuntimeException("Failed to get status or data", e);
         }
         catch (TimeoutException e) {
             gone = true;
+            cancelQuietly(dataFuture);
+            close();
             throw new RuntimeException("Timed out waiting for status or data", e);
         }
         catch (Exception e) {
             gone = true;
+            cancelQuietly(dataFuture);
+            close();
             throw e;
-        }
-        finally {
-            if (gone) {
-                close();
-            }
         }
     }
 
@@ -374,6 +383,8 @@ public class StatementClientV2
     {
         if (!closed) {
             closeData();
+            cancelQuietly(statusFuture);
+            statusFuture = null;
             if (initialStatusUri != null) {
                 httpDelete(initialStatusUri);
             }
@@ -386,7 +397,6 @@ public class StatementClientV2
     private synchronized void closeData()
     {
         if (!dataClosed) {
-            // TODO: send delete
             if (initialDataUri != null) {
                 httpDelete(initialDataUri);
             }
@@ -409,7 +419,30 @@ public class StatementClientV2
                 }
             }
         }
-        return Futures.immediateFuture(response);
+        return immediateFuture(response);
+    }
+
+    private ListenableFuture<Response> retryServerError(Response response, int attempt, long startNanos)
+    {
+        switch (response.code()) {
+            case HTTP_OK:
+                return immediateFuture(response);
+            case HTTP_UNAVAILABLE:
+                if (System.nanoTime() - startNanos >= requestTimeoutNanos || isClosed()) {
+                    throw new RuntimeException("Out of retries for " + response.request().url());
+                }
+                try {
+                    Thread.sleep(attempt * 100);
+                }
+                catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new RuntimeException("Interrupted", e);
+                }
+                ListenableFuture<Response> newResponseFuture = httpClient.executeAsync(response.request());
+                return Futures.transformAsync(newResponseFuture, newResponse -> retryServerError(newResponse, attempt + 1, startNanos));
+            default:
+                throw new RuntimeException(String.format("Unexpected return code [%s] for [%s]", response.code(), response.request().url()));
+        }
     }
 
     private synchronized void processStatusResponse(QueryResults results)
@@ -578,6 +611,13 @@ public class StatementClientV2
             catch (IOException e) {
                 throw new RuntimeException("Error parsing data results response", e);
             }
+        }
+    }
+
+    private static void cancelQuietly(ListenableFuture<?> future)
+    {
+        if (future != null) {
+            future.cancel(true);
         }
     }
 }

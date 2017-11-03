@@ -71,7 +71,7 @@ public class QueryRunner
 
         OkHttpClient.Builder builder = new OkHttpClient.Builder();
 
-        setupTimeouts(builder, 5, SECONDS);
+        setupTimeouts(builder, 30, SECONDS);
         setupSocksProxy(builder, socksProxy);
         setupHttpProxy(builder, httpProxy);
         setupBasicAuth(builder, session, user, password);
