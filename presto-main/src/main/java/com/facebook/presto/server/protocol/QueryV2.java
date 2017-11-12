@@ -20,11 +20,13 @@ import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.execution.QueryExecution;
 import com.facebook.presto.execution.QueryInfo;
 import com.facebook.presto.execution.QueryManager;
+import com.facebook.presto.execution.QueryState;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeSignature;
 import com.facebook.presto.transaction.TransactionId;
 import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.SettableFuture;
 
 import javax.annotation.concurrent.GuardedBy;
 import javax.ws.rs.core.UriBuilder;
@@ -38,6 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
+import static com.google.common.util.concurrent.Futures.nonCancellationPropagating;
 
 class QueryV2
         extends Query
@@ -50,6 +53,9 @@ class QueryV2
     @GuardedBy("this")
     private List<URI> dataUris;
 
+    @GuardedBy("this")
+    private SettableFuture<?> dataUrisReady = SettableFuture.create();
+
     public QueryV2(
             QueryInfo queryInfo,
             QueryManager queryManager,
@@ -60,8 +66,12 @@ class QueryV2
     }
 
     @Override
-    public void dispose()
+    public synchronized void dispose()
     {
+        if (dataUrisReady != null && !dataUrisReady.isDone()) {
+            // complete in a separate thread to avoid callbacks while holding a lock
+            timeoutExecutor.execute(() -> dataUrisReady.set(null));
+        }
     }
 
     @Override
@@ -88,19 +98,15 @@ class QueryV2
             dataUris = outputInfo.getBufferLocations().stream()
                     .map(uri -> UriBuilder.fromUri(uri).path("0").build())
                     .collect(toImmutableList());
+            // complete in a separate thread to avoid callbacks while holding a lock
+            timeoutExecutor.execute(() -> dataUrisReady.set(null));
         }
     }
 
     @Override
-    protected boolean isExchangeClientClosed()
+    protected synchronized ListenableFuture<?> isStatusChanged()
     {
-        return true;
-    }
-
-    @Override
-    protected ListenableFuture<?> isExchangeClientBlocked()
-    {
-        throw new UnsupportedOperationException("This method should not be called");
+        return dataUrisReady == null ? null : nonCancellationPropagating(dataUrisReady);
     }
 
     @Override
@@ -132,6 +138,10 @@ class QueryV2
                 queryInfo.getStartedTransactionId().map(TransactionId::toString),
                 queryInfo.isClearTransactionId());
 
+        if (dataUrisReady != null && (dataUrisReady.isDone() || queryInfo.getState() == QueryState.FAILED)) {
+            // uris will be sent as part of the response or query failed and there will be no uris
+            dataUrisReady = null;
+        }
         // TODO: don't sent dataUris multiple times
         return new QueryResults(
                 queryId.toString(),

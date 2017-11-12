@@ -40,6 +40,7 @@ import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.log.Logger;
 import io.airlift.units.Duration;
 
+import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.ws.rs.WebApplicationException;
@@ -71,7 +72,7 @@ abstract class Query
     protected final QueryId queryId;
 
     private final Executor resultsProcessorExecutor;
-    private final ScheduledExecutorService timeoutExecutor;
+    protected final ScheduledExecutorService timeoutExecutor;
 
     private final AtomicLong resultId = new AtomicLong();
 
@@ -136,9 +137,8 @@ abstract class Query
 
     protected abstract QueryResults getNextQueryResults(QueryInfo queryInfo, UriInfo uriInfo);
 
-    protected abstract boolean isExchangeClientClosed();
-
-    protected abstract ListenableFuture<?> isExchangeClientBlocked();
+    @Nullable
+    protected abstract ListenableFuture<?> isStatusChanged();
 
     public void cancel()
     {
@@ -175,8 +175,9 @@ abstract class Query
     private synchronized ListenableFuture<?> getFutureStateChange()
     {
         // if the exchange client is open, wait for data
-        if (!isExchangeClientClosed()) {
-            return isExchangeClientBlocked();
+        ListenableFuture<?> statusChangedFuture = isStatusChanged();
+        if (statusChangedFuture != null) {
+            return statusChangedFuture;
         }
 
         // otherwise, wait for the query to finish

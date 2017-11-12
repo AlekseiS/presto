@@ -130,15 +130,14 @@ class QueryV1
     }
 
     @Override
-    protected synchronized boolean isExchangeClientClosed()
+    protected synchronized ListenableFuture<?> isStatusChanged()
     {
-        return exchangeClient.isClosed();
-    }
-
-    @Override
-    protected synchronized ListenableFuture<?> isExchangeClientBlocked()
-    {
-        return exchangeClient.isBlocked();
+        if (exchangeClient.isClosed()) {
+            return null;
+        }
+        else {
+            return exchangeClient.isBlocked();
+        }
     }
 
     @Override
