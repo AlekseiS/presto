@@ -19,7 +19,7 @@ import static java.util.Objects.requireNonNull;
 
 public final class StatementClientFactory
 {
-    public static final ProtocolVersion DEFAULT_PROTOCOL_VERSION = ProtocolVersion.V1;
+    public static final ProtocolVersion DEFAULT_PROTOCOL_VERSION = ProtocolVersion.V2;
 
     private StatementClientFactory() {}
 

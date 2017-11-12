@@ -20,6 +20,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
 
@@ -63,6 +64,7 @@ public final class JsonResponse<T>
         T value = null;
         IllegalArgumentException exception = null;
         try {
+            System.err.println(DateTime.now() + " JsonResponse.ctor. data size=" + responseBody.length());
             value = jsonCodec.fromJson(responseBody);
         }
         catch (IllegalArgumentException e) {

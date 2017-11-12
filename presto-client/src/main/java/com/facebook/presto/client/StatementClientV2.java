@@ -26,6 +26,7 @@ import okhttp3.Request;
 import okhttp3.RequestBody;
 import okhttp3.Response;
 import okhttp3.ResponseBody;
+import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -482,6 +483,8 @@ public class StatementClientV2
                 clearTransactionId = true;
             }
         }
+
+        System.err.println(DateTime.now() + " processStatusResponse finished");
     }
 
     private synchronized void processDataResponse(DataResultsWithMetadata dataResults)
@@ -498,6 +501,7 @@ public class StatementClientV2
                 closeData();
             }
         }
+        System.err.println(DateTime.now() + " processDataResponse finished");
     }
 
     private void httpDelete(URI uri)
@@ -553,6 +557,7 @@ public class StatementClientV2
 
     private static Request.Builder prepareRequest(HttpUrl url, String user)
     {
+        System.err.println(DateTime.now() + " prepareRequest: " + url);
         // TODO: find out if user header is required
         return new Request.Builder()
                 .addHeader(PRESTO_USER, user)
@@ -602,6 +607,7 @@ public class StatementClientV2
                 String nextUriHeader = response.header(PRESTO_DATA_NEXT_URI);
                 URI nextUri = nextUriHeader == null ? null : URI.create(nextUriHeader);
                 String responseString = responseBody.string();
+                System.err.println(DateTime.now() + " parseDataResultsResponse. data size=" + responseString.length());
                 return new DataResultsWithMetadata(DATA_RESULTS_JSON_CODEC.fromJson(responseString), nextUri);
             }
             catch (IOException e) {

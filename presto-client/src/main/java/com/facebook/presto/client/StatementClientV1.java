@@ -27,6 +27,7 @@ import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.RequestBody;
+import org.joda.time.DateTime;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
@@ -295,6 +296,7 @@ class StatementClientV1
 
     private Request.Builder prepareRequest(HttpUrl url)
     {
+        System.err.println(DateTime.now() + " prepareRequest: " + url);
         return new Request.Builder()
                 .addHeader(PRESTO_USER, user)
                 .addHeader(USER_AGENT, USER_AGENT_VALUE)
@@ -392,6 +394,7 @@ class StatementClientV1
         }
 
         currentResults.set(results);
+        System.err.println(DateTime.now() + " processResponse finished");
     }
 
     private RuntimeException requestFailedException(String task, Request request, JsonResponse<QueryResults> response)
