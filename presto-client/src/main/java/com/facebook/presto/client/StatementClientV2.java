@@ -585,7 +585,7 @@ public class StatementClientV2
                 throw new RuntimeException("Query results response is not json: " + responseBody.contentType());
             }
             try {
-                return QUERY_RESULTS_CODEC.fromJson(responseBody.bytes());
+                return QUERY_RESULTS_CODEC.fromJson(responseBody.string());
             }
             catch (IOException e) {
                 throw new RuntimeException("Error parsing query results response", e);
@@ -606,7 +606,7 @@ public class StatementClientV2
                 throw new RuntimeException("Data results response is not json: " + responseBody.contentType());
             }
             try {
-                return DATA_RESULTS_JSON_CODEC.fromJson(responseBody.bytes());
+                return DATA_RESULTS_JSON_CODEC.fromJson(responseBody.string());
             }
             catch (IOException e) {
                 throw new RuntimeException("Error parsing data results response", e);
