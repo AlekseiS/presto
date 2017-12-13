@@ -96,7 +96,7 @@ class QueryV2
         // TODO: add data uris as they come, add support for noMoreLocations
         if (dataUris == null && outputInfo.isNoMoreBufferLocations()) {
             dataUris = outputInfo.getBufferLocations().stream()
-                    .map(uri -> UriBuilder.fromUri(uri).path("0").build())
+                    .map(QueryV2::rewriteTaskUri)
                     .collect(toImmutableList());
             // complete in a separate thread to avoid callbacks while holding a lock
             timeoutExecutor.execute(() -> dataUrisReady.set(null));
@@ -156,5 +156,14 @@ class QueryV2
                 null,
                 actions,
                 dataUris);
+    }
+
+    private static URI rewriteTaskUri(URI uri)
+    {
+        String path = uri.getPath();
+        checkArgument(path.startsWith("/v1/task/"));
+        // avoid 'replace()' which uses regex
+        String newPath = "/v1/download/" + path.substring("/v1/task/".length());
+        return UriBuilder.fromUri(uri).replacePath(newPath).path("0").build();
     }
 }

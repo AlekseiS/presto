@@ -93,7 +93,6 @@ public class TaskResource
 {
     private static final Duration ADDITIONAL_WAIT_TIME = new Duration(5, SECONDS);
     private static final Duration DEFAULT_MAX_WAIT_TIME = new Duration(2, SECONDS);
-    private static final DataSize DEFAULT_MAX_SIZE = new DataSize(1, MEGABYTE);
 
     private final TaskManager taskManager;
     private final SessionPropertyManager sessionPropertyManager;
@@ -273,69 +272,6 @@ public class TaskResource
         });
     }
 
-    // TODO: change path to 'downloads' to avoid names clashing
-    @GET
-    @Path("{taskId}/results/{bufferId}/{token}")
-    @Produces(MediaType.APPLICATION_JSON)
-    public void getDownloadResults(@PathParam("taskId") TaskId taskId,
-            @PathParam("bufferId") OutputBufferId bufferId,
-            @PathParam("token") final long token,
-            @QueryParam("maxSize") DataSize maxSize,
-            @Suspended AsyncResponse asyncResponse,
-            @Context UriInfo uriInfo)
-            throws InterruptedException
-    {
-        maxSize = maxSize != null ? maxSize : DEFAULT_MAX_SIZE;
-        getTaskResults(taskId, bufferId, token, maxSize, asyncResponse, result -> {
-            List<SerializedPage> serializedPages = result.getSerializedPages();
-            if (serializedPages.isEmpty()) {
-                URI nextUri = null;
-                if (!result.isBufferComplete()) {
-                    nextUri = uriInfo.getBaseUriBuilder()
-                            .replacePath("/v1/task")
-                            .path(taskId.toString())
-                            .path("results")
-                            .path(bufferId.toString())
-                            .path(String.valueOf(result.getNextToken()))
-                            .replaceQuery("")
-                            .build();
-                }
-                return Response.status(Status.OK)
-                        .entity(new DataResults(nextUri, null))
-                        .build();
-            }
-
-            ImmutableList.Builder<RowIterable> pages = ImmutableList.builder();
-            List<Type> types = taskManager.getTaskOutputTypes(taskId).orElseThrow(() -> new IllegalStateException("types must be present"));
-            PagesSerde serde = taskManager.getTaskPagesSerde(taskId).orElseThrow(() -> new IllegalStateException("pages serde must be present"));
-            boolean hasRecords = false;
-            for (SerializedPage serializedPage : serializedPages) {
-                Page page = serde.deserialize(serializedPage);
-                hasRecords = hasRecords || page.getPositionCount() > 0;
-                // TODO: think how to substitute connector session
-                pages.add(new RowIterable(null, types, page));
-            }
-
-            // client implementations do not properly handle empty list of data
-            Iterable<List<Object>> data = !hasRecords ? null : Iterables.concat(pages.build());
-
-            URI nextUri = null;
-            if (!result.isBufferComplete()) {
-                nextUri = uriInfo.getBaseUriBuilder()
-                        .replacePath("/v1/task")
-                        .path(taskId.toString())
-                        .path("results")
-                        .path(bufferId.toString())
-                        .path(String.valueOf(result.getNextToken()))
-                        .replaceQuery("")
-                        .build();
-            }
-            return Response.status(Status.OK)
-                    .entity(new DataResults(nextUri, data))
-                    .build();
-        });
-    }
-
     private void getTaskResults(TaskId taskId,
             OutputBufferId bufferId,
             final long token,
@@ -385,18 +321,6 @@ public class TaskResource
         taskManager.abortTaskResults(taskId, bufferId);
     }
 
-    // TODO: pass close url as part of data results, so that a client can close
-    @DELETE
-    @Path("{taskId}/results/{bufferId}/{token}")
-    @Produces(MediaType.APPLICATION_JSON)
-    public void abortResults(@PathParam("taskId") TaskId taskId, @PathParam("bufferId") OutputBufferId bufferId, @PathParam("token") long token, @Context UriInfo uriInfo)
-    {
-        requireNonNull(taskId, "taskId is null");
-        requireNonNull(bufferId, "bufferId is null");
-
-        taskManager.abortTaskResults(taskId, bufferId);
-    }
-
     @Managed
     @Nested
     public TimeStat getReadFromOutputBufferTime()
@@ -421,5 +345,93 @@ public class TaskResource
         // Randomize in [T/2, T], so wait is not near zero and the client-supplied max wait time is respected
         long halfWaitMillis = waitTime.toMillis() / 2;
         return new Duration(halfWaitMillis + ThreadLocalRandom.current().nextLong(halfWaitMillis), MILLISECONDS);
+    }
+
+    // implement it as a static inner class as a simpler option to have a different URL path for the client download endpoint
+    @Path("/v1/download")
+    public static class TaskDownloadResource
+    {
+        private static final DataSize DEFAULT_MAX_SIZE = new DataSize(1.2, MEGABYTE);
+        private final TaskResource taskResource;
+
+        @Inject
+        public TaskDownloadResource(TaskResource taskResource)
+        {
+            this.taskResource = requireNonNull(taskResource, "taskResource is null");
+        }
+
+        @GET
+        @Path("{taskId}/results/{bufferId}/{token}")
+        @Produces(MediaType.APPLICATION_JSON)
+        public void getDownloadResults(@PathParam("taskId") TaskId taskId,
+                @PathParam("bufferId") OutputBufferId bufferId,
+                @PathParam("token") final long token,
+                @QueryParam("maxSize") DataSize maxSize,
+                @Suspended AsyncResponse asyncResponse,
+                @Context UriInfo uriInfo)
+                throws InterruptedException
+        {
+            maxSize = maxSize != null ? maxSize : DEFAULT_MAX_SIZE;
+            taskResource.getTaskResults(taskId, bufferId, token, maxSize, asyncResponse, result -> {
+                List<SerializedPage> serializedPages = result.getSerializedPages();
+                if (serializedPages.isEmpty()) {
+                    URI nextUri = null;
+                    if (!result.isBufferComplete()) {
+                        nextUri = uriInfo.getBaseUriBuilder()
+                                .replacePath("/v1/download")
+                                .path(taskId.toString())
+                                .path("results")
+                                .path(bufferId.toString())
+                                .path(String.valueOf(result.getNextToken()))
+                                .replaceQuery("")
+                                .build();
+                    }
+                    return Response.status(Status.OK)
+                            .entity(new DataResults(nextUri, null))
+                            .build();
+                }
+
+                ImmutableList.Builder<RowIterable> pages = ImmutableList.builder();
+                List<Type> types = taskResource.taskManager.getTaskOutputTypes(taskId).orElseThrow(() -> new IllegalStateException("types must be present"));
+                PagesSerde serde = taskResource.taskManager.getTaskPagesSerde(taskId).orElseThrow(() -> new IllegalStateException("pages serde must be present"));
+                boolean hasRecords = false;
+                for (SerializedPage serializedPage : serializedPages) {
+                    Page page = serde.deserialize(serializedPage);
+                    hasRecords = hasRecords || page.getPositionCount() > 0;
+                    // TODO: think how to substitute connector session
+                    pages.add(new RowIterable(null, types, page));
+                }
+
+                // client implementations do not properly handle empty list of data
+                Iterable<List<Object>> data = !hasRecords ? null : Iterables.concat(pages.build());
+
+                URI nextUri = null;
+                if (!result.isBufferComplete()) {
+                    nextUri = uriInfo.getBaseUriBuilder()
+                            .replacePath("/v1/download")
+                            .path(taskId.toString())
+                            .path("results")
+                            .path(bufferId.toString())
+                            .path(String.valueOf(result.getNextToken()))
+                            .replaceQuery("")
+                            .build();
+                }
+                return Response.status(Status.OK)
+                        .entity(new DataResults(nextUri, data))
+                        .build();
+            });
+        }
+
+        // TODO: pass close url as part of data results, so that a client can close
+        @DELETE
+        @Path("{taskId}/results/{bufferId}/{token}")
+        @Produces(MediaType.APPLICATION_JSON)
+        public void abortResults(@PathParam("taskId") TaskId taskId, @PathParam("bufferId") OutputBufferId bufferId, @PathParam("token") long token, @Context UriInfo uriInfo)
+        {
+            requireNonNull(taskId, "taskId is null");
+            requireNonNull(bufferId, "bufferId is null");
+
+            taskResource.taskManager.abortTaskResults(taskId, bufferId);
+        }
     }
 }
