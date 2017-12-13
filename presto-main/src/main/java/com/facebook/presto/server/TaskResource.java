@@ -71,6 +71,7 @@ import java.util.function.Function;
 import static com.facebook.presto.PrestoMediaTypes.PRESTO_PAGES;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_BUFFER_COMPLETE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_CURRENT_STATE;
+import static com.facebook.presto.client.PrestoHeaders.PRESTO_DATA_NEXT_URI;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_MAX_SIZE;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_MAX_WAIT;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_PAGE_NEXT_TOKEN;
@@ -387,7 +388,8 @@ public class TaskResource
                                 .build();
                     }
                     return Response.status(Status.OK)
-                            .entity(new DataResults(nextUri, null))
+                            .header(PRESTO_DATA_NEXT_URI, nextUri)
+                            .entity(new DataResults(null))
                             .build();
                 }
 
@@ -417,7 +419,8 @@ public class TaskResource
                             .build();
                 }
                 return Response.status(Status.OK)
-                        .entity(new DataResults(nextUri, data))
+                        .header(PRESTO_DATA_NEXT_URI, nextUri)
+                        .entity(new DataResults(data))
                         .build();
             });
         }

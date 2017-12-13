@@ -19,7 +19,6 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.Immutable;
 
-import java.net.URI;
 import java.util.List;
 
 import static com.facebook.presto.client.FixJsonDataUtils.fixData;
@@ -30,23 +29,12 @@ import static com.google.common.collect.Iterables.unmodifiableIterable;
 public class DataResults
         implements QueryData
 {
-    private final URI nextUri;
     private final Iterable<List<Object>> data;
 
     @JsonCreator
-    public DataResults(
-            @JsonProperty("nextUri") URI nextUri,
-            @JsonProperty("data") Iterable<List<Object>> data)
+    public DataResults(@JsonProperty("data") Iterable<List<Object>> data)
     {
-        this.nextUri = nextUri;
         this.data = (data == null) ? null : unmodifiableIterable(data);
-    }
-
-    @Nullable
-    @JsonProperty
-    public URI getNextUri()
-    {
-        return nextUri;
     }
 
     @Nullable
@@ -61,7 +49,6 @@ public class DataResults
     public String toString()
     {
         return toStringHelper(this)
-                .add("nextUri", nextUri)
                 .add("hasData", data != null)
                 .toString();
     }
@@ -72,6 +59,6 @@ public class DataResults
             // nothing to fix
             return this;
         }
-        return new DataResults(nextUri, fixData(columns, data));
+        return new DataResults(fixData(columns, data));
     }
 }

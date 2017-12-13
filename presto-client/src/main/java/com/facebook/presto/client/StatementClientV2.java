@@ -41,6 +41,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
 
+import static com.facebook.presto.client.PrestoHeaders.PRESTO_DATA_NEXT_URI;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_USER;
 import static com.google.common.base.MoreObjects.firstNonNull;
 import static com.google.common.base.Preconditions.checkState;
@@ -64,7 +65,7 @@ public class StatementClientV2
     private static final JsonCodec<CreateQueryRequest> CREATE_QUERY_REQUEST_JSON_CODEC = jsonCodec(CreateQueryRequest.class);
     private static final JsonCodec<QueryResults> QUERY_RESULTS_CODEC = jsonCodec(QueryResults.class);
     private static final JsonCodec<DataResults> DATA_RESULTS_JSON_CODEC = jsonCodec(DataResults.class);
-    private static final DataResults EMPTY_DATA = new DataResults(null, null);
+    private static final DataResults EMPTY_DATA = new DataResults(null);
     private static final String NO_DATA_MAX_WAIT = "1s";
 
     private static final String USER_AGENT_VALUE = StatementClientV2.class.getSimpleName() + "/" +
@@ -313,7 +314,7 @@ public class StatementClientV2
             statusFuture = Futures.transform(retriedStatusRequestFuture, StatementClientV2::parseQueryResultsResponse);
         }
 
-        ListenableFuture<DataResults> dataFuture = null;
+        ListenableFuture<DataResultsWithMetadata> dataFuture = null;
         if (nextDataUri != null) {
             Request dataRequest = prepareRequest(HttpUrl.get(nextDataUri), user).build();
             ListenableFuture<Response> dataRequestFuture = httpClient.executeAsync(dataRequest);
@@ -328,7 +329,7 @@ public class StatementClientV2
             }
             else {
                 // status and data
-                DataResults dataResults = dataFuture.get(requestTimeoutNanos, NANOSECONDS);
+                DataResultsWithMetadata dataResults = dataFuture.get(requestTimeoutNanos, NANOSECONDS);
                 processDataResponse(dataResults);
             }
             if (statusFuture.isDone()) {
@@ -489,7 +490,7 @@ public class StatementClientV2
         }
     }
 
-    private synchronized void processDataResponse(DataResults dataResults)
+    private synchronized void processDataResponse(DataResultsWithMetadata dataResults)
     {
         if (dataResults == null) {
             // can happen when no data uris exist
@@ -497,7 +498,7 @@ public class StatementClientV2
         }
         else {
             checkState(columns != null, "columns must be present");
-            currentData = dataResults.withFixedData(columns);
+            currentData = dataResults.getDataResults().withFixedData(columns);
             nextDataUri = dataResults.getNextUri();
             if (nextDataUri == null) {
                 closeData();
@@ -593,7 +594,7 @@ public class StatementClientV2
         }
     }
 
-    private static DataResults parseDataResultsResponse(Response response)
+    private static DataResultsWithMetadata parseDataResultsResponse(Response response)
     {
         try (ResponseBody responseBody = response.body()) {
             if (response.code() != HTTP_OK) {
@@ -606,7 +607,10 @@ public class StatementClientV2
                 throw new RuntimeException("Data results response is not json: " + responseBody.contentType());
             }
             try {
-                return DATA_RESULTS_JSON_CODEC.fromJson(responseBody.string());
+                String nextUriHeader = response.header(PRESTO_DATA_NEXT_URI);
+                URI nextUri = nextUriHeader == null ? null : URI.create(nextUriHeader);
+                String responseString = responseBody.string();
+                return new DataResultsWithMetadata(DATA_RESULTS_JSON_CODEC.fromJson(responseString), nextUri);
             }
             catch (IOException e) {
                 throw new RuntimeException("Error parsing data results response", e);
@@ -618,6 +622,29 @@ public class StatementClientV2
     {
         if (future != null) {
             future.cancel(true);
+        }
+    }
+
+    private static class DataResultsWithMetadata
+    {
+        private final DataResults dataResults;
+        private final URI nextUri;
+
+        public DataResultsWithMetadata(DataResults dataResults, @Nullable URI nextUri)
+        {
+            this.dataResults = requireNonNull(dataResults, "dataResults is null");
+            this.nextUri = nextUri;
+        }
+
+        public DataResults getDataResults()
+        {
+            return dataResults;
+        }
+
+        @Nullable
+        public URI getNextUri()
+        {
+            return nextUri;
         }
     }
 }
