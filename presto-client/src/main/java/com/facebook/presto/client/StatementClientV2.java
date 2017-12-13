@@ -18,6 +18,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.Futures;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.json.JsonCodec;
+import io.airlift.units.Duration;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
 import okhttp3.OkHttpClient;
@@ -56,6 +57,7 @@ import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
 import static java.util.Objects.requireNonNull;
 import static java.util.concurrent.TimeUnit.NANOSECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
 
 @ThreadSafe
 public class StatementClientV2
@@ -66,7 +68,7 @@ public class StatementClientV2
     private static final JsonCodec<QueryResults> QUERY_RESULTS_CODEC = jsonCodec(QueryResults.class);
     private static final JsonCodec<DataResults> DATA_RESULTS_JSON_CODEC = jsonCodec(DataResults.class);
     private static final DataResults EMPTY_DATA = new DataResults(null);
-    private static final String NO_DATA_MAX_WAIT = "1s";
+    private static final String NO_DATA_MAX_WAIT = new Duration(1, SECONDS).toString();
 
     private static final String USER_AGENT_VALUE = StatementClientV2.class.getSimpleName() + "/" +
             firstNonNull(StatementClientV2.class.getPackage().getImplementationVersion(), "unknown");
