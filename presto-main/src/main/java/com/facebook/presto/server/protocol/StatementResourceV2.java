@@ -110,7 +110,6 @@ public class StatementResourceV2
             @Context HttpServletRequest servletRequest,
             @Context UriInfo uriInfo,
             @Suspended AsyncResponse asyncResponse)
-            throws InterruptedException
     {
         if (createQueryRequest == null) {
             throw new WebApplicationException(Response
@@ -139,7 +138,6 @@ public class StatementResourceV2
             @QueryParam("maxWait") Duration maxWait,
             @Context UriInfo uriInfo,
             @Suspended AsyncResponse asyncResponse)
-            throws InterruptedException
     {
         Query query = queries.get(queryId);
         if (query == null) {
