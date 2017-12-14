@@ -21,6 +21,7 @@ import com.facebook.presto.execution.QueryExecution;
 import com.facebook.presto.execution.QueryInfo;
 import com.facebook.presto.execution.QueryManager;
 import com.facebook.presto.execution.QueryState;
+import com.facebook.presto.spi.type.StandardTypes;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spi.type.TypeSignature;
 import com.facebook.presto.transaction.TransactionId;
@@ -38,7 +39,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.ScheduledExecutorService;
 
 import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkState;
 import static com.google.common.collect.ImmutableList.toImmutableList;
 import static com.google.common.util.concurrent.Futures.nonCancellationPropagating;
 
@@ -112,15 +112,12 @@ class QueryV2
     @Override
     protected synchronized QueryResults getNextQueryResults(QueryInfo queryInfo, UriInfo uriInfo)
     {
-        checkState(queryInfo.getUpdateType() == null, "update-type queries are not supported by this class");
-
-        // TODO: check if we want to send an empty list of columns or don't send columns at all
-        /*
-        if (queryInfo.getState().isDone() && queryInfo.getState() != QueryState.FAILED && !queryInfo.getOutputStage().isPresent()) {
-            // for simple executions (e.g. drop table), there will never be an output stage, so send an empty list of columns
-            columns = ImmutableList.of();
+        if (columns == null && queryInfo.getUpdateType() != null && !queryInfo.getOutputStage().isPresent()) {
+            // For simple executions (e.g. drop table), there will never be an output stage,
+            // Return a single value for clients that require a result.
+            // TODO: do we really need it? Currently task doesn't send "true" as before
+            columns = ImmutableList.of(new Column("result", "boolean", new ClientTypeSignature(StandardTypes.BOOLEAN, ImmutableList.of())));
         }
-        */
 
         // only return a next if the query is not done
         URI nextResultsUri = null;

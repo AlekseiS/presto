@@ -52,6 +52,7 @@ import static com.google.common.net.HttpHeaders.USER_AGENT;
 import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static io.airlift.json.JsonCodec.jsonCodec;
 import static java.net.HttpURLConnection.HTTP_OK;
+import static java.net.HttpURLConnection.HTTP_UNAUTHORIZED;
 import static java.net.HttpURLConnection.HTTP_UNAVAILABLE;
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSet;
@@ -149,12 +150,12 @@ public class StatementClientV2
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             close();
-            throw new RuntimeException("Interrupted", e);
+            throw new RuntimeException(e);
         }
         catch (ExecutionException e) {
-            checkState(e.getCause() != null, "cause of execution exception is null");
             close();
-            throw new RuntimeException("Failed to create query", e);
+            checkState(e.getCause() != null, "cause of execution exception is null");
+            throw new RuntimeException(e.getCause());
         }
         catch (Exception e) {
             // close query on exception
@@ -341,24 +342,24 @@ public class StatementClientV2
             return true;
         }
         catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
             gone = true;
             cancelQuietly(dataFuture);
             close();
-            Thread.currentThread().interrupt();
-            throw new RuntimeException("Interrupted", e);
+            throw new RuntimeException(e);
         }
         catch (ExecutionException e) {
             gone = true;
             cancelQuietly(dataFuture);
             close();
             checkState(e.getCause() != null, "cause of execution exception is null");
-            throw new RuntimeException("Failed to get status or data", e);
+            throw new RuntimeException(e.getCause());
         }
         catch (TimeoutException e) {
             gone = true;
             cancelQuietly(dataFuture);
             close();
-            throw new RuntimeException("Timed out waiting for status or data", e);
+            throw new RuntimeException(e);
         }
         catch (Exception e) {
             gone = true;
@@ -450,13 +451,13 @@ public class StatementClientV2
 
     private synchronized void processStatusResponse(QueryResults results)
     {
-        checkState(results.getData() == null, "data must not be present in v2");
+        checkState(results.getData() == null, "data must not be present in status message in v2");
         if (results.getColumns() != null && columns == null) {
             columns = ImmutableList.copyOf(results.getColumns());
         }
         if (results.getDataUris() != null && !clientsCreated) {
             if (results.getDataUris().size() > 1) {
-                throw new RuntimeException("Current client support only 1 data uri");
+                throw new RuntimeException("Current client supports only 1 data uri");
             }
             if (results.getDataUris().size() == 1) {
                 initialDataUri = results.getDataUris().get(0);
@@ -577,22 +578,20 @@ public class StatementClientV2
     private static QueryResults parseQueryResultsResponse(Response response)
     {
         try (ResponseBody responseBody = response.body()) {
-            if (response.code() != HTTP_OK) {
-                throw new RuntimeException("Query results response is not OK: " + response.code());
-            }
-            // TODO: access denied
-            if (responseBody == null) {
-                throw new RuntimeException("Query results response is empty");
+            String responseText = responseText(responseBody);
+            if (response.code() != HTTP_OK || responseText == null) {
+                if (response.code() == HTTP_UNAUTHORIZED && responseText == null) {
+                    throw new ClientException("Authentication failed" + Optional.ofNullable(response.message()).map(message -> ": " + message).orElse(""));
+                }
+                throw new RuntimeException(String.format("Error getting query response from %s. Received HTTP %s. Response body: %s",
+                        response.request().url(), response.code(), responseText));
             }
             if (!isJson(responseBody.contentType())) {
-                throw new RuntimeException("Query results response is not json: " + responseBody.contentType());
+                throw new RuntimeException(String.format("Error getting query response from %s. Content type is not application/json. Response body: %s",
+                        response.request().url(), responseText));
             }
-            try {
-                return QUERY_RESULTS_CODEC.fromJson(responseBody.string());
-            }
-            catch (IOException e) {
-                throw new RuntimeException("Error parsing query results response", e);
-            }
+            System.err.println(DateTime.now() + " parseQueryResultsResponse. data size=" + responseText.length());
+            return QUERY_RESULTS_CODEC.fromJson(responseText);
         }
     }
 
@@ -617,6 +616,20 @@ public class StatementClientV2
             catch (IOException e) {
                 throw new RuntimeException("Error parsing data results response", e);
             }
+        }
+    }
+
+    @Nullable
+    private static String responseText(ResponseBody responseBody)
+    {
+        if (responseBody == null) {
+            return null;
+        }
+        try {
+            return responseBody.string();
+        }
+        catch (IOException e) {
+            return null;
         }
     }
 

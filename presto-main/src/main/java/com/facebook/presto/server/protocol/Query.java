@@ -94,9 +94,9 @@ abstract class Query
     {
         QueryInfo queryInfo = queryManager.createQuery(sessionContext, query);
         ExchangeClient exchangeClient = exchangeClientSupplier.get(deltaMemoryInBytes -> {});
-        Query result = new QueryV1(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
-        result.queryManager.addOutputInfoListener(result.queryId, result::setQueryOutputInfo);
-        return result;
+        Query createdQuery = new QueryV1(queryInfo, queryManager, sessionPropertyManager, exchangeClient, dataProcessorExecutor, timeoutExecutor, blockEncodingSerde);
+        createdQuery.queryManager.addOutputInfoListener(createdQuery.queryId, createdQuery::setQueryOutputInfo);
+        return createdQuery;
     }
 
     public static Query createV2(
@@ -107,16 +107,9 @@ abstract class Query
             ScheduledExecutorService timeoutExecutor)
     {
         QueryInfo queryInfo = queryManager.createQuery(sessionContext, query);
-        Query result;
-        if (queryInfo.getUpdateType() != null) {
-            // update query: insert, delete: DDL
-            throw new UnsupportedOperationException("Update queries are not yet supported in v2 protocol");
-        }
-        else {
-            result = new QueryV2(queryInfo, queryManager, dataProcessorExecutor, timeoutExecutor);
-        }
-        result.queryManager.addOutputInfoListener(result.queryId, result::setQueryOutputInfo);
-        return result;
+        Query createdQuery = new QueryV2(queryInfo, queryManager, dataProcessorExecutor, timeoutExecutor);
+        createdQuery.queryManager.addOutputInfoListener(createdQuery.queryId, createdQuery::setQueryOutputInfo);
+        return createdQuery;
     }
 
     protected Query(
