@@ -80,9 +80,9 @@ public class StatementClientV2
     private final String user;
 
     @GuardedBy("this")
-    private Optional<String> setCatalog;
+    private Optional<String> setCatalog = Optional.empty();
     @GuardedBy("this")
-    private Optional<String> setSchema;
+    private Optional<String> setSchema = Optional.empty();
     @GuardedBy("this")
     private final Map<String, String> setSessionProperties = new HashMap<>();
     @GuardedBy("this")
