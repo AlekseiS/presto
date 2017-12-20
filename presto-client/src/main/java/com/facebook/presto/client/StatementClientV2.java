@@ -149,18 +149,11 @@ public class StatementClientV2
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            close();
             throw new RuntimeException(e);
         }
         catch (ExecutionException e) {
-            close();
             checkState(e.getCause() != null, "cause of execution exception is null");
             throw new RuntimeException(e.getCause());
-        }
-        catch (Exception e) {
-            // close query on exception
-            close();
-            throw e;
         }
     }
 
@@ -289,7 +282,7 @@ public class StatementClientV2
     @Override
     public synchronized boolean isValid()
     {
-        return !gone && !closed;
+        return !gone && !closed && currentStatus.getNextUri() != null;
     }
 
     @Override
@@ -301,7 +294,8 @@ public class StatementClientV2
 
         URI nextStatusUri = currentStatus.getNextUri();
         if (nextStatusUri == null) {
-            close();
+            // technically, it should never happen, because isValid() checks if next uri is available
+            // keep it only as a defensive check
             return false;
         }
 
@@ -345,26 +339,22 @@ public class StatementClientV2
             Thread.currentThread().interrupt();
             gone = true;
             cancelQuietly(dataFuture);
-            close();
             throw new RuntimeException(e);
         }
         catch (ExecutionException e) {
             gone = true;
             cancelQuietly(dataFuture);
-            close();
             checkState(e.getCause() != null, "cause of execution exception is null");
             throw new RuntimeException(e.getCause());
         }
         catch (TimeoutException e) {
             gone = true;
             cancelQuietly(dataFuture);
-            close();
             throw new RuntimeException(e);
         }
         catch (Exception e) {
             gone = true;
             cancelQuietly(dataFuture);
-            close();
             throw e;
         }
     }
@@ -385,6 +375,7 @@ public class StatementClientV2
     @Override
     public synchronized void close()
     {
+        System.err.println(DateTime.now() + " closing...");
         if (!closed) {
             closeData();
             cancelQuietly(statusFuture);
