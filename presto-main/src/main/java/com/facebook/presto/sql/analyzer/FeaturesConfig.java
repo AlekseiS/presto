@@ -86,7 +86,7 @@ public class FeaturesConfig
     private DataSize filterAndProjectMinOutputPageSize = new DataSize(25, KILOBYTE);
     private int filterAndProjectMinOutputPageRowCount = 256;
 
-    private boolean enableClientProtocolV2;
+    private boolean enableClientProtocolV2 = true;
 
     public boolean isResourceGroupsEnabled()
     {
