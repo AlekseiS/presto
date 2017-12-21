@@ -370,14 +370,16 @@ public class SqlTask
                 taskExecution = taskHolder.getTaskExecution();
                 if (taskExecution == null) {
                     checkState(fragment.isPresent(), "fragment must be present");
-                    taskExecution = sqlTaskExecutionFactory.create(session, queryContext, taskStateMachine, outputBuffer, fragment.get(), sources);
-                    taskHolderReference.compareAndSet(taskHolder, new TaskHolder(taskExecution));
-                    needsPlan.set(false);
+                    // this block must be before creating task execution to prevent a race condition when execution finished,
+                    // but types are not ready. Types are accessed by task resource in order to convert pages to a client output
                     if (fragment.get().getRoot() instanceof OutputNode) {
                         types.set(Optional.of(fragment.get().getTypes()));
                         pagesSerde.set(Optional.of(new PagesSerdeFactory(blockEncodingSerde, isExchangeCompressionEnabled(session)).createPagesSerde()));
                         connectorSession.set(Optional.of(session.toConnectorSession()));
                     }
+                    taskExecution = sqlTaskExecutionFactory.create(session, queryContext, taskStateMachine, outputBuffer, fragment.get(), sources);
+                    taskHolderReference.compareAndSet(taskHolder, new TaskHolder(taskExecution));
+                    needsPlan.set(false);
                 }
             }
 
