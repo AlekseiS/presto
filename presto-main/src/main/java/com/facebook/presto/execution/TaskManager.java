@@ -21,6 +21,7 @@ import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.execution.buffer.PagesSerde;
 import com.facebook.presto.memory.MemoryPoolAssignmentsRequest;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.PlanFragment;
 import com.google.common.util.concurrent.ListenableFuture;
@@ -133,4 +134,10 @@ public interface TaskManager
      * Returns a serde for pages for a given task.
      */
     Optional<PagesSerde> getTaskPagesSerde(TaskId taskId);
+
+    /**
+     * Returns a connector session for a given task.
+     * Used for converting pages to values when sending results to client.
+     */
+    Optional<ConnectorSession> getConnectorSession(TaskId taskId);
 }

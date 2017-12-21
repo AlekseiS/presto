@@ -27,6 +27,7 @@ import com.facebook.presto.memory.MemoryPoolAssignment;
 import com.facebook.presto.memory.MemoryPoolAssignmentsRequest;
 import com.facebook.presto.memory.NodeMemoryConfig;
 import com.facebook.presto.memory.QueryContext;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
@@ -444,5 +445,12 @@ public class SqlTaskManager
     {
         requireNonNull(taskId, "taskId is null");
         return tasks.getUnchecked(taskId).getPagesSerde();
+    }
+
+    @Override
+    public Optional<ConnectorSession> getConnectorSession(TaskId taskId)
+    {
+        requireNonNull(taskId, "taskId is null");
+        return tasks.getUnchecked(taskId).getConnectorSession();
     }
 }

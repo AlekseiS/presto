@@ -26,6 +26,7 @@ import com.facebook.presto.execution.buffer.PagesSerde;
 import com.facebook.presto.execution.buffer.SerializedPage;
 import com.facebook.presto.metadata.SessionPropertyManager;
 import com.facebook.presto.server.protocol.RowIterable;
+import com.facebook.presto.spi.ConnectorSession;
 import com.facebook.presto.spi.Page;
 import com.facebook.presto.spi.type.Type;
 import com.google.common.collect.ImmutableList;
@@ -385,12 +386,12 @@ public class TaskResource
                 ImmutableList.Builder<RowIterable> pages = ImmutableList.builder();
                 List<Type> types = taskResource.taskManager.getTaskOutputTypes(taskId).orElseThrow(() -> new IllegalStateException("types must be present"));
                 PagesSerde serde = taskResource.taskManager.getTaskPagesSerde(taskId).orElseThrow(() -> new IllegalStateException("pages serde must be present"));
+                ConnectorSession connectorSession = taskResource.taskManager.getConnectorSession(taskId).orElseThrow(() -> new IllegalStateException("connector session must be present"));
                 boolean hasRecords = false;
                 for (SerializedPage serializedPage : serializedPages) {
                     Page page = serde.deserialize(serializedPage);
                     hasRecords = hasRecords || page.getPositionCount() > 0;
-                    // TODO: think how to substitute connector session
-                    pages.add(new RowIterable(null, types, page));
+                    pages.add(new RowIterable(connectorSession, types, page));
                 }
 
                 URI nextUri = createNextUri(uriInfo, taskId, bufferId, result.getNextToken(), result.isBufferComplete());
