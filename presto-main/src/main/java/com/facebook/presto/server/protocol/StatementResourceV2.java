@@ -16,12 +16,9 @@ package com.facebook.presto.server.protocol;
 import com.facebook.presto.client.CreateQueryRequest;
 import com.facebook.presto.client.QueryResults;
 import com.facebook.presto.execution.QueryManager;
-import com.facebook.presto.metadata.SessionPropertyManager;
-import com.facebook.presto.operator.ExchangeClientSupplier;
 import com.facebook.presto.server.ForStatementResource;
 import com.facebook.presto.server.SessionContext;
 import com.facebook.presto.spi.QueryId;
-import com.facebook.presto.spi.block.BlockEncodingSerde;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Ordering;
 import com.google.common.util.concurrent.Futures;
@@ -68,9 +65,6 @@ public class StatementResourceV2
     private static final Ordering<Comparable<Duration>> WAIT_ORDERING = Ordering.natural().nullsLast();
 
     private final QueryManager queryManager;
-    private final SessionPropertyManager sessionPropertyManager;
-    private final ExchangeClientSupplier exchangeClientSupplier;
-    private final BlockEncodingSerde blockEncodingSerde;
     private final BoundedExecutor responseExecutor;
     private final ScheduledExecutorService timeoutExecutor;
 
@@ -80,16 +74,10 @@ public class StatementResourceV2
     @Inject
     public StatementResourceV2(
             QueryManager queryManager,
-            SessionPropertyManager sessionPropertyManager,
-            ExchangeClientSupplier exchangeClientSupplier,
-            BlockEncodingSerde blockEncodingSerde,
             @ForStatementResource BoundedExecutor responseExecutor,
             @ForStatementResource ScheduledExecutorService timeoutExecutor)
     {
         this.queryManager = requireNonNull(queryManager, "queryManager is null");
-        this.sessionPropertyManager = requireNonNull(sessionPropertyManager, "sessionPropertyManager is null");
-        this.exchangeClientSupplier = requireNonNull(exchangeClientSupplier, "exchangeClientSupplier is null");
-        this.blockEncodingSerde = requireNonNull(blockEncodingSerde, "blockEncodingSerde is null");
         this.responseExecutor = requireNonNull(responseExecutor, "responseExecutor is null");
         this.timeoutExecutor = requireNonNull(timeoutExecutor, "timeoutExecutor is null");
 
