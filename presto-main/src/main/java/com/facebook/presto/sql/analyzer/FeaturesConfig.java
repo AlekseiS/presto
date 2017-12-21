@@ -86,6 +86,8 @@ public class FeaturesConfig
     private DataSize filterAndProjectMinOutputPageSize = new DataSize(25, KILOBYTE);
     private int filterAndProjectMinOutputPageRowCount = 256;
 
+    private boolean enableClientProtocolV2;
+
     public boolean isResourceGroupsEnabled()
     {
         return resourceGroups;
@@ -555,6 +557,18 @@ public class FeaturesConfig
     public FeaturesConfig setFilterAndProjectMinOutputPageRowCount(int filterAndProjectMinOutputPageRowCount)
     {
         this.filterAndProjectMinOutputPageRowCount = filterAndProjectMinOutputPageRowCount;
+        return this;
+    }
+
+    public boolean isEnableClientProtocolV2()
+    {
+        return enableClientProtocolV2;
+    }
+
+    @Config("experimental.enable-client-protocol-v2")
+    public FeaturesConfig setEnableClientProtocolV2(boolean enableClientProtocolV2)
+    {
+        this.enableClientProtocolV2 = enableClientProtocolV2;
         return this;
     }
 }
