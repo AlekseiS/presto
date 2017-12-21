@@ -116,7 +116,7 @@ public class StatementClientV2
     @GuardedBy("this")
     private boolean clientsCreated;
     @GuardedBy("this")
-    private URI initialStatusUri;
+    private URI lastAvailableStatusUri;
     @GuardedBy("this")
     private URI nextDataUri;
 
@@ -143,9 +143,7 @@ public class StatementClientV2
         ListenableFuture<QueryResults> queryResultsFuture = Futures.transform(redirectedFuture, StatementClientV2::parseQueryResultsResponse);
 
         try {
-            QueryResults queryResults = queryResultsFuture.get();
-            initialStatusUri = queryResults.getNextUri();
-            processStatusResponse(queryResults);
+            processStatusResponse(queryResultsFuture.get());
         }
         catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -379,8 +377,8 @@ public class StatementClientV2
         if (!closed) {
             cancelQuietly(statusFuture);
             statusFuture = null;
-            if (initialStatusUri != null) {
-                httpDelete(initialStatusUri);
+            if (lastAvailableStatusUri != null) {
+                httpDelete(lastAvailableStatusUri);
             }
             closed = true;
         }
@@ -447,6 +445,9 @@ public class StatementClientV2
         }
 
         currentStatus = results;
+        if (results.getNextUri() != null) {
+            lastAvailableStatusUri = results.getNextUri();
+        }
 
         QueryActions actions = results.getActions();
         if (actions != null) {
