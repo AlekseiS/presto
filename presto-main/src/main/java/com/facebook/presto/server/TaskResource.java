@@ -364,7 +364,7 @@ public class TaskResource
         @GET
         @Path("{taskId}/results/{bufferId}/{token}")
         @Produces(MediaType.APPLICATION_JSON)
-        public void getDownloadResults(@PathParam("taskId") TaskId taskId,
+        public void downloadResults(@PathParam("taskId") TaskId taskId,
                 @PathParam("bufferId") OutputBufferId bufferId,
                 @PathParam("token") final long token,
                 @QueryParam("maxSize") DataSize maxSize,
@@ -376,20 +376,9 @@ public class TaskResource
             taskResource.getTaskResults(taskId, bufferId, token, maxSize, asyncResponse, result -> {
                 List<SerializedPage> serializedPages = result.getSerializedPages();
                 if (serializedPages.isEmpty()) {
-                    URI nextUri = null;
-                    if (!result.isBufferComplete()) {
-                        nextUri = uriInfo.getBaseUriBuilder()
-                                .replacePath("/v1/download")
-                                .path(taskId.toString())
-                                .path("results")
-                                .path(bufferId.toString())
-                                .path(String.valueOf(result.getNextToken()))
-                                .replaceQuery("")
-                                .build();
-                    }
-                    return Response.status(Status.OK)
+                    URI nextUri = createNextUri(uriInfo, taskId, bufferId, result.getNextToken(), result.isBufferComplete());
+                    return Response.noContent()
                             .header(PRESTO_DATA_NEXT_URI, nextUri)
-                            .entity(new DataResults(null))
                             .build();
                 }
 
@@ -404,37 +393,54 @@ public class TaskResource
                     pages.add(new RowIterable(null, types, page));
                 }
 
-                // client implementations do not properly handle empty list of data
-                Iterable<List<Object>> data = !hasRecords ? null : Iterables.concat(pages.build());
-
-                URI nextUri = null;
-                if (!result.isBufferComplete()) {
-                    nextUri = uriInfo.getBaseUriBuilder()
-                            .replacePath("/v1/download")
-                            .path(taskId.toString())
-                            .path("results")
-                            .path(bufferId.toString())
-                            .path(String.valueOf(result.getNextToken()))
-                            .replaceQuery("")
+                URI nextUri = createNextUri(uriInfo, taskId, bufferId, result.getNextToken(), result.isBufferComplete());
+                if (hasRecords) {
+                    Iterable<List<Object>> data = Iterables.concat(pages.build());
+                    return Response.status(Status.OK)
+                            .header(PRESTO_DATA_NEXT_URI, nextUri)
+                            .entity(new DataResults(data))
                             .build();
                 }
-                return Response.status(Status.OK)
-                        .header(PRESTO_DATA_NEXT_URI, nextUri)
-                        .entity(new DataResults(data))
-                        .build();
+                else {
+                    return Response.noContent()
+                            .header(PRESTO_DATA_NEXT_URI, nextUri)
+                            .build();
+                }
             });
         }
 
-        // TODO: pass close url as part of data results, so that a client can close
-        @DELETE
-        @Path("{taskId}/results/{bufferId}/{token}")
+        @GET
+        @Path("{taskId}/finished/{bufferId}")
         @Produces(MediaType.APPLICATION_JSON)
-        public void abortResults(@PathParam("taskId") TaskId taskId, @PathParam("bufferId") OutputBufferId bufferId, @PathParam("token") long token, @Context UriInfo uriInfo)
+        public void finishedDownload(@PathParam("taskId") TaskId taskId, @PathParam("bufferId") OutputBufferId bufferId, @Context UriInfo uriInfo)
         {
             requireNonNull(taskId, "taskId is null");
             requireNonNull(bufferId, "bufferId is null");
 
             taskResource.taskManager.abortTaskResults(taskId, bufferId);
+        }
+
+        private static URI createNextUri(UriInfo uriInfo, TaskId taskId, OutputBufferId bufferId, long nextToken, boolean bufferComplete)
+        {
+            if (bufferComplete) {
+                return uriInfo.getBaseUriBuilder()
+                        .replacePath("/v1/download")
+                        .path(taskId.toString())
+                        .path("finished")
+                        .path(bufferId.toString())
+                        .replaceQuery("")
+                        .build();
+            }
+            else {
+                return uriInfo.getBaseUriBuilder()
+                        .replacePath("/v1/download")
+                        .path(taskId.toString())
+                        .path("results")
+                        .path(bufferId.toString())
+                        .path(String.valueOf(nextToken))
+                        .replaceQuery("")
+                        .build();
+            }
         }
     }
 }

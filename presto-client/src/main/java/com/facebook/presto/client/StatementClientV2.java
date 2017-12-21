@@ -46,12 +46,15 @@ import java.util.concurrent.TimeoutException;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_DATA_NEXT_URI;
 import static com.facebook.presto.client.PrestoHeaders.PRESTO_USER;
 import static com.google.common.base.MoreObjects.firstNonNull;
+import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
+import static com.google.common.base.Strings.isNullOrEmpty;
 import static com.google.common.net.HttpHeaders.ACCEPT;
 import static com.google.common.net.HttpHeaders.LOCATION;
 import static com.google.common.net.HttpHeaders.USER_AGENT;
 import static com.google.common.util.concurrent.Futures.immediateFuture;
 import static io.airlift.json.JsonCodec.jsonCodec;
+import static java.net.HttpURLConnection.HTTP_NO_CONTENT;
 import static java.net.HttpURLConnection.HTTP_OK;
 import static java.net.HttpURLConnection.HTTP_UNAUTHORIZED;
 import static java.net.HttpURLConnection.HTTP_UNAVAILABLE;
@@ -106,8 +109,6 @@ public class StatementClientV2
     @GuardedBy("this")
     private boolean closed;
     @GuardedBy("this")
-    private boolean dataClosed;
-    @GuardedBy("this")
     private boolean gone;
 
     @GuardedBy("this")
@@ -116,8 +117,6 @@ public class StatementClientV2
     private boolean clientsCreated;
     @GuardedBy("this")
     private URI initialStatusUri;
-    @GuardedBy("this")
-    private URI initialDataUri;
     @GuardedBy("this")
     private URI nextDataUri;
 
@@ -378,7 +377,6 @@ public class StatementClientV2
     {
         System.err.println(DateTime.now() + " closing...");
         if (!closed) {
-            closeData();
             cancelQuietly(statusFuture);
             statusFuture = null;
             if (initialStatusUri != null) {
@@ -389,16 +387,6 @@ public class StatementClientV2
     }
 
     // helper methods
-
-    private synchronized void closeData()
-    {
-        if (!dataClosed) {
-            if (initialDataUri != null) {
-                httpDelete(initialDataUri);
-            }
-            dataClosed = true;
-        }
-    }
 
     private ListenableFuture<Response> handleResponseRedirect(Response response)
     {
@@ -422,6 +410,7 @@ public class StatementClientV2
     {
         switch (response.code()) {
             case HTTP_OK:
+            case HTTP_NO_CONTENT:
                 return immediateFuture(response);
             case HTTP_UNAVAILABLE:
                 if (System.nanoTime() - startNanos >= requestTimeoutNanos || isClosed()) {
@@ -452,8 +441,7 @@ public class StatementClientV2
                 throw new RuntimeException("Current client supports only 1 data uri");
             }
             if (results.getDataUris().size() == 1) {
-                initialDataUri = results.getDataUris().get(0);
-                nextDataUri = initialDataUri;
+                nextDataUri = results.getDataUris().get(0);
             }
             clientsCreated = true;
         }
@@ -489,18 +477,9 @@ public class StatementClientV2
 
     private synchronized void processDataResponse(DataResultsWithMetadata dataResults)
     {
-        if (dataResults == null) {
-            // can happen when no data uris exist
-            currentData = EMPTY_DATA;
-        }
-        else {
-            checkState(columns != null, "columns must be present");
-            currentData = dataResults.getDataResults().withFixedData(columns);
-            nextDataUri = dataResults.getNextUri();
-            if (nextDataUri == null) {
-                closeData();
-            }
-        }
+        checkState(columns != null, "columns must be present");
+        currentData = dataResults.getDataResults().withFixedData(columns);
+        nextDataUri = dataResults.getNextUri();
         System.err.println(DateTime.now() + " processDataResponse finished");
     }
 
@@ -575,8 +554,9 @@ public class StatementClientV2
     {
         try (ResponseBody responseBody = response.body()) {
             String responseText = responseText(responseBody);
-            if (response.code() != HTTP_OK || responseText == null) {
-                if (response.code() == HTTP_UNAUTHORIZED && responseText == null) {
+            boolean noResponseText = isNullOrEmpty(responseText);
+            if (response.code() != HTTP_OK || noResponseText) {
+                if (response.code() == HTTP_UNAUTHORIZED && noResponseText) {
                     throw new ClientException("Authentication failed" + Optional.ofNullable(response.message()).map(message -> ": " + message).orElse(""));
                 }
                 throw new RuntimeException(String.format("Error getting query response from %s. Received HTTP %s. Response body: %s",
@@ -594,25 +574,23 @@ public class StatementClientV2
     private static DataResultsWithMetadata parseDataResultsResponse(Response response)
     {
         try (ResponseBody responseBody = response.body()) {
-            if (response.code() != HTTP_OK) {
-                throw new RuntimeException("Data results response is not OK: " + response.code());
+            String nextUriHeader = response.header(PRESTO_DATA_NEXT_URI);
+            URI nextUri = nextUriHeader == null ? null : URI.create(nextUriHeader);
+            if (response.code() == HTTP_NO_CONTENT) {
+                checkArgument(responseBody == null || responseBody.contentLength() == 0, "Response body is not empty while return code is 204: \"no content\"");
+                return new DataResultsWithMetadata(EMPTY_DATA, nextUri);
             }
-            if (responseBody == null) {
-                throw new RuntimeException("Data results response is empty");
+            String responseText = responseText(responseBody);
+            if (response.code() != HTTP_OK || isNullOrEmpty(responseText)) {
+                throw new RuntimeException(String.format("Error getting data response from %s. Received HTTP %s. Response body: %s",
+                        response.request().url(), response.code(), responseText));
             }
             if (!isJson(responseBody.contentType())) {
-                throw new RuntimeException("Data results response is not json: " + responseBody.contentType());
+                throw new RuntimeException(String.format("Error getting data response from %s. Content type is not application/json. Response body: %s",
+                        response.request().url(), responseText));
             }
-            try {
-                String nextUriHeader = response.header(PRESTO_DATA_NEXT_URI);
-                URI nextUri = nextUriHeader == null ? null : URI.create(nextUriHeader);
-                String responseString = responseBody.string();
-                System.err.println(DateTime.now() + " parseDataResultsResponse. data size=" + responseString.length());
-                return new DataResultsWithMetadata(DATA_RESULTS_JSON_CODEC.fromJson(responseString), nextUri);
-            }
-            catch (IOException e) {
-                throw new RuntimeException("Error parsing data results response", e);
-            }
+            System.err.println(DateTime.now() + " parseDataResultsResponse. data size=" + responseText.length());
+            return new DataResultsWithMetadata(DATA_RESULTS_JSON_CODEC.fromJson(responseText), nextUri);
         }
     }
 
