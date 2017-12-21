@@ -21,16 +21,14 @@ import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
 import com.facebook.presto.execution.buffer.LazyOutputBuffer;
 import com.facebook.presto.execution.buffer.OutputBuffer;
-import com.facebook.presto.execution.buffer.PagesSerde;
 import com.facebook.presto.execution.buffer.PagesSerdeFactory;
 import com.facebook.presto.memory.QueryContext;
 import com.facebook.presto.operator.PipelineContext;
 import com.facebook.presto.operator.PipelineStatus;
 import com.facebook.presto.operator.TaskContext;
 import com.facebook.presto.operator.TaskStats;
-import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.server.TaskClientOutputContext;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
-import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.sql.planner.PlanFragment;
 import com.facebook.presto.sql.planner.plan.OutputNode;
 import com.facebook.presto.sql.planner.plan.PlanNodeId;
@@ -85,9 +83,7 @@ public class SqlTask
     private final AtomicReference<TaskHolder> taskHolderReference = new AtomicReference<>(new TaskHolder());
     private final AtomicBoolean needsPlan = new AtomicBoolean(true);
 
-    private final AtomicReference<Optional<List<Type>>> types = new AtomicReference<>(Optional.empty());
-    private final AtomicReference<Optional<PagesSerde>> pagesSerde = new AtomicReference<>(Optional.empty());
-    private final AtomicReference<Optional<ConnectorSession>> connectorSession = new AtomicReference<>(Optional.empty());
+    private final AtomicReference<Optional<TaskClientOutputContext>> clientOutputContext = new AtomicReference<>(Optional.empty());
 
     public SqlTask(
             TaskId taskId,
@@ -370,12 +366,14 @@ public class SqlTask
                 taskExecution = taskHolder.getTaskExecution();
                 if (taskExecution == null) {
                     checkState(fragment.isPresent(), "fragment must be present");
-                    // this block must be before creating task execution to prevent a race condition when execution finished,
-                    // but types are not ready. Types are accessed by task resource in order to convert pages to a client output
+                    // this block must happen before creating task execution to prevent a race condition when execution finished,
+                    // but types are not ready. Types are accessed by a task resource in order to convert pages to a client output
                     if (fragment.get().getRoot() instanceof OutputNode) {
-                        types.set(Optional.of(fragment.get().getTypes()));
-                        pagesSerde.set(Optional.of(new PagesSerdeFactory(blockEncodingSerde, isExchangeCompressionEnabled(session)).createPagesSerde()));
-                        connectorSession.set(Optional.of(session.toConnectorSession()));
+                        TaskClientOutputContext clientOutputContext = new TaskClientOutputContext(
+                                fragment.get().getTypes(),
+                                new PagesSerdeFactory(blockEncodingSerde, isExchangeCompressionEnabled(session)).createPagesSerde(),
+                                session.toConnectorSession());
+                        this.clientOutputContext.set(Optional.of(clientOutputContext));
                     }
                     taskExecution = sqlTaskExecutionFactory.create(session, queryContext, taskStateMachine, outputBuffer, fragment.get(), sources);
                     taskHolderReference.compareAndSet(taskHolder, new TaskHolder(taskExecution));
@@ -435,19 +433,9 @@ public class SqlTask
         return getTaskInfo();
     }
 
-    public Optional<List<Type>> getTypes()
+    public Optional<TaskClientOutputContext> getClientOutputContext()
     {
-        return types.get();
-    }
-
-    public Optional<PagesSerde> getPagesSerde()
-    {
-        return pagesSerde.get();
-    }
-
-    public Optional<ConnectorSession> getConnectorSession()
-    {
-        return connectorSession.get();
+        return clientOutputContext.get();
     }
 
     @Override

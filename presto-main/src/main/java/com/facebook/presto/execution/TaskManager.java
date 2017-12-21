@@ -19,10 +19,8 @@ import com.facebook.presto.Session;
 import com.facebook.presto.TaskSource;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
-import com.facebook.presto.execution.buffer.PagesSerde;
 import com.facebook.presto.memory.MemoryPoolAssignmentsRequest;
-import com.facebook.presto.spi.ConnectorSession;
-import com.facebook.presto.spi.type.Type;
+import com.facebook.presto.server.TaskClientOutputContext;
 import com.facebook.presto.sql.planner.PlanFragment;
 import com.google.common.util.concurrent.ListenableFuture;
 import io.airlift.units.DataSize;
@@ -126,18 +124,8 @@ public interface TaskManager
     void addStateChangeListener(TaskId taskId, StateChangeListener<TaskState> stateChangeListener);
 
     /**
-     * Returns a list of output types for the task if available.
-     */
-    Optional<List<Type>> getTaskOutputTypes(TaskId taskId);
-
-    /**
-     * Returns a serde for pages for a given task.
-     */
-    Optional<PagesSerde> getTaskPagesSerde(TaskId taskId);
-
-    /**
-     * Returns a connector session for a given task.
+     * Returns a client output context for a given task.
      * Used for converting pages to values when sending results to client.
      */
-    Optional<ConnectorSession> getConnectorSession(TaskId taskId);
+    Optional<TaskClientOutputContext> getClientOutputContext(TaskId taskId);
 }

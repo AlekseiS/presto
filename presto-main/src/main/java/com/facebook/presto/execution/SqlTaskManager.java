@@ -20,18 +20,16 @@ import com.facebook.presto.TaskSource;
 import com.facebook.presto.event.query.QueryMonitor;
 import com.facebook.presto.execution.StateMachine.StateChangeListener;
 import com.facebook.presto.execution.buffer.BufferResult;
-import com.facebook.presto.execution.buffer.PagesSerde;
 import com.facebook.presto.execution.executor.TaskExecutor;
 import com.facebook.presto.memory.LocalMemoryManager;
 import com.facebook.presto.memory.MemoryPoolAssignment;
 import com.facebook.presto.memory.MemoryPoolAssignmentsRequest;
 import com.facebook.presto.memory.NodeMemoryConfig;
 import com.facebook.presto.memory.QueryContext;
-import com.facebook.presto.spi.ConnectorSession;
+import com.facebook.presto.server.TaskClientOutputContext;
 import com.facebook.presto.spi.PrestoException;
 import com.facebook.presto.spi.QueryId;
 import com.facebook.presto.spi.block.BlockEncodingSerde;
-import com.facebook.presto.spi.type.Type;
 import com.facebook.presto.spiller.LocalSpillManager;
 import com.facebook.presto.spiller.NodeSpillConfig;
 import com.facebook.presto.sql.planner.LocalExecutionPlanner;
@@ -434,23 +432,9 @@ public class SqlTaskManager
     }
 
     @Override
-    public Optional<List<Type>> getTaskOutputTypes(TaskId taskId)
+    public Optional<TaskClientOutputContext> getClientOutputContext(TaskId taskId)
     {
         requireNonNull(taskId, "taskId is null");
-        return tasks.getUnchecked(taskId).getTypes();
-    }
-
-    @Override
-    public Optional<PagesSerde> getTaskPagesSerde(TaskId taskId)
-    {
-        requireNonNull(taskId, "taskId is null");
-        return tasks.getUnchecked(taskId).getPagesSerde();
-    }
-
-    @Override
-    public Optional<ConnectorSession> getConnectorSession(TaskId taskId)
-    {
-        requireNonNull(taskId, "taskId is null");
-        return tasks.getUnchecked(taskId).getConnectorSession();
+        return tasks.getUnchecked(taskId).getClientOutputContext();
     }
 }
