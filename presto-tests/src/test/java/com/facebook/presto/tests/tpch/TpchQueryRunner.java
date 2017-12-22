@@ -14,6 +14,7 @@
 package com.facebook.presto.tests.tpch;
 
 import com.facebook.presto.Session;
+import com.facebook.presto.client.ProtocolVersion;
 import com.facebook.presto.tests.DistributedQueryRunner;
 import com.facebook.presto.tpch.TpchPlugin;
 import com.google.common.collect.ImmutableMap;
@@ -22,6 +23,7 @@ import io.airlift.log.Logging;
 
 import java.util.Map;
 
+import static com.facebook.presto.client.StatementClientFactory.DEFAULT_PROTOCOL_VERSION;
 import static com.facebook.presto.testing.TestingSession.testSessionBuilder;
 
 public final class TpchQueryRunner
@@ -29,6 +31,7 @@ public final class TpchQueryRunner
     private Map<String, String> extraProperties = ImmutableMap.of();
     private Map<String, String> coordinatorProperties = ImmutableMap.of();
     private int nodeCount = 4;
+    private ProtocolVersion protocolVersion = DEFAULT_PROTOCOL_VERSION;
 
     private TpchQueryRunner() {}
 
@@ -47,6 +50,12 @@ public final class TpchQueryRunner
     public TpchQueryRunner setNodeCount(int nodeCount)
     {
         this.nodeCount = nodeCount;
+        return this;
+    }
+
+    public TpchQueryRunner setProtocolVersion(ProtocolVersion protocolVersion)
+    {
+        this.protocolVersion = protocolVersion;
         return this;
     }
 
@@ -77,6 +86,7 @@ public final class TpchQueryRunner
         DistributedQueryRunner queryRunner = DistributedQueryRunner.builder(session, nodeCount)
                 .setExtraProperties(extraProperties)
                 .setCoordinatorProperties(coordinatorProperties)
+                .setProtocolVersion(protocolVersion)
                 .build();
 
         try {
