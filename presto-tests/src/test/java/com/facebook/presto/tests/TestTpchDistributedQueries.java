@@ -15,7 +15,6 @@ package com.facebook.presto.tests;
 
 import com.facebook.presto.tests.tpch.TpchQueryRunner;
 import com.google.common.base.Strings;
-import com.google.common.collect.ImmutableMap;
 import org.intellij.lang.annotations.Language;
 import org.testng.annotations.Test;
 
@@ -27,7 +26,7 @@ public class TestTpchDistributedQueries
     public TestTpchDistributedQueries()
             throws Exception
     {
-        super(() -> TpchQueryRunner.createQueryRunner(ImmutableMap.of("experimental.enable-client-protocol-v2", "true")));
+        super(TpchQueryRunner::createQueryRunner);
     }
 
     @Test
