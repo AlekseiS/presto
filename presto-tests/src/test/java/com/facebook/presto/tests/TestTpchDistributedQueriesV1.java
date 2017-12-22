@@ -13,6 +13,7 @@
  */
 package com.facebook.presto.tests;
 
+import com.facebook.presto.client.ProtocolVersion;
 import com.facebook.presto.tests.tpch.TpchQueryRunner;
 import com.google.common.base.Strings;
 import org.intellij.lang.annotations.Language;
@@ -20,13 +21,13 @@ import org.testng.annotations.Test;
 
 import static org.testng.Assert.assertTrue;
 
-public class TestTpchDistributedQueries
+public class TestTpchDistributedQueriesV1
         extends AbstractTestQueries
 {
-    public TestTpchDistributedQueries()
+    public TestTpchDistributedQueriesV1()
             throws Exception
     {
-        super(TpchQueryRunner::createQueryRunner);
+        super(() -> TpchQueryRunner.builder().setProtocolVersion(ProtocolVersion.V1).build());
     }
 
     @Test
