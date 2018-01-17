@@ -220,8 +220,7 @@ public class TestRaptorConnector
                 ENGLISH,
                 System.currentTimeMillis(),
                 new RaptorSessionProperties(new StorageManagerConfig()).getSessionProperties(),
-                ImmutableMap.of(),
-                true);
+                ImmutableMap.of());
 
         ConnectorTransactionHandle transaction = connector.beginTransaction(READ_COMMITTED, false);
         connector.getMetadata(transaction).createTable(
